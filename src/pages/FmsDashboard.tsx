@@ -26,6 +26,28 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+function ageFromIC(ic: string): string {
+  const digits = (ic || "").replace(/\D/g, "");
+  if (digits.length < 6) return "—";
+  const yy = Number(digits.slice(0, 2));
+  const mm = Number(digits.slice(2, 4));
+  const dd = Number(digits.slice(4, 6));
+  if (!Number.isFinite(yy) || !Number.isFinite(mm) || !Number.isFinite(dd) || mm < 1 || mm > 12 || dd < 1 || dd > 31) {
+    return "—";
+  }
+  const now = new Date();
+  const currentYY = now.getFullYear() % 100;
+  const fullYear = yy <= currentYY ? 2000 + yy : 1900 + yy;
+  const birth = new Date(fullYear, mm - 1, dd);
+  if (Number.isNaN(birth.getTime())) return "—";
+  let age = now.getFullYear() - birth.getFullYear();
+  const monthDiff = now.getMonth() - birth.getMonth();
+  const dayDiff = now.getDate() - birth.getDate();
+  if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) age -= 1;
+  if (age < 0 || age > 130) return "—";
+  return String(age);
+}
+
 function computeStock(drugId: string, txns: { drug_id: string; jenis: string; kuantiti: number }[]) {
   let stock = 0;
   for (const t of txns.filter(t => t.drug_id === drugId)) {
@@ -59,11 +81,14 @@ export default function FmsDashboard() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedDrugId, setSelectedDrugId] = useState<string>("all");
+  const [approveTarget, setApproveTarget] = useState<any>(null);
   const [rejectTarget, setRejectTarget] = useState<any>(null);
   const [rejectReason, setRejectReason] = useState("");
 
   const approveMutation = useMutation({
-    mutationFn: async (id: string) => {
+    mutationFn: async () => {
+      const id = approveTarget?.id;
+      if (!id) throw new Error("No approval target selected");
       const { error } = await supabase
         .from("dispensing_requests")
         .update({ status: "pending_pharmacy", specialist_id: user?.id, specialist_action_at: new Date().toISOString() })
@@ -71,6 +96,7 @@ export default function FmsDashboard() {
       if (error) throw error;
     },
     onSuccess: () => {
+      setApproveTarget(null);
       queryClient.invalidateQueries({ queryKey: ["fms-pending-requests"] });
       toast.success("Request approved — sent to pharmacist");
     },
@@ -416,7 +442,7 @@ export default function FmsDashboard() {
                             <Button
                               size="sm"
                               className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
-                              onClick={() => approveMutation.mutate(r.id)}
+                              onClick={() => setApproveTarget(r)}
                               disabled={approveMutation.isPending}
                             >
                               Approve
@@ -582,6 +608,37 @@ export default function FmsDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Approve dialog */}
+      <Dialog open={!!approveTarget} onOpenChange={open => { if (!open) setApproveTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Approve Drug Request</DialogTitle>
+          </DialogHeader>
+          {approveTarget && (
+            <div className="space-y-3 text-sm">
+              <div className="rounded border p-3 space-y-1">
+                <p><span className="text-muted-foreground">Patient:</span> <span className="font-medium">{approveTarget.patient_name}</span></p>
+                <p><span className="text-muted-foreground">Age:</span> {ageFromIC(approveTarget.no_ic)} tahun</p>
+                <p><span className="text-muted-foreground">Category:</span> {approveTarget.is_pesara ? "Pesara" : "Non-Pesara"}</p>
+                <p><span className="text-muted-foreground">Prescribed by (MO):</span> {approveTarget.prescriber_name || (approveTarget as any).mo_name || "—"}</p>
+                <p><span className="text-muted-foreground">Drug:</span> {(approveTarget.drugs as any)?.drug_name || "—"}</p>
+                <p><span className="text-muted-foreground">Quantity:</span> {approveTarget.quantity} {(approveTarget.drugs as any)?.unit_pengukuran || ""}</p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setApproveTarget(null)}>Cancel</Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700 text-white"
+              onClick={() => approveMutation.mutate()}
+              disabled={approveMutation.isPending}
+            >
+              {approveMutation.isPending ? "Processing..." : "Confirm Approval"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Reject dialog */}
       <Dialog open={!!rejectTarget} onOpenChange={open => { if (!open) { setRejectTarget(null); setRejectReason(""); } }}>

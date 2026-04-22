@@ -113,7 +113,9 @@ export default function PharmacistFulfilment() {
         drug_id: req.drug_id, jenis: "keluaran", kuantiti: req.quantity,
         tarikh: format(new Date(), "yyyy-MM-dd"), nama_pesakit: req.patient_name,
         no_ic: req.no_ic, nama_pegawai: profile?.full_name || "—",
-        sumber: "request", created_by: user?.id,
+        sumber: req.is_pesara ? "request_pesara" : "request_non_pesara",
+        catatan: req.is_pesara ? "Dispensing - Pesara" : "Dispensing - Non-Pesara",
+        created_by: user?.id,
       });
       if (txErr) throw txErr;
 

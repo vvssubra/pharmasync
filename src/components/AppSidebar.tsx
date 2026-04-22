@@ -29,7 +29,7 @@ const items: NavItem[] = [
   { title: "FMS Dashboard",   url: "/fms",                icon: BarChart2,     roles: ["admin", "fms", "pharmacist"] },
   { title: "MO Dashboard",    url: "/mo",                 icon: Stethoscope,   roles: ["admin", "mo", "pharmacist"] },
   { title: "New Requests",    url: "/fulfilment",         icon: Bell,          showBadge: true, roles: ["admin", "fms", "pharmacist"] },
-  { title: "Approvals",       url: "/specialist",         icon: ShieldCheck,   showBadge: true, roles: ["admin", "fms", "pharmacist"] },
+  { title: "Approvals",       url: "/specialist",         icon: ShieldCheck,   showBadge: true, roles: ["admin", "pharmacist"] },
   { title: "Drug Master",     url: "/drugs",              icon: Pill,          roles: ["admin", "fms", "pharmacist"] },
   { title: "Terimaan",        url: "/terimaan",           icon: PackagePlus,   roles: ["admin", "fms", "pharmacist"] },
   { title: "Patients",        url: "/pesakit",            icon: Users,         roles: ["admin", "fms", "pharmacist"] },
