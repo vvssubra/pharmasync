@@ -119,6 +119,13 @@ describe("ProtectedRoute", () => {
     });
   });
 
+  describe("fms role", () => {
+    it("blocks access to /specialist", () => {
+      renderWithRouter("/specialist", { user: { id: "1" }, role: "fms", loading: false });
+      expect(screen.getByRole("heading", { name: /No Permission/i })).toBeInTheDocument();
+    });
+  });
+
   describe("loading state", () => {
     it("shows skeleton while loading", () => {
       renderWithRouter("/drugs", { user: null, role: null, loading: true });
