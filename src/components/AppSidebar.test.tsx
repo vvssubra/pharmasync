@@ -93,6 +93,7 @@ describe("AppSidebar navigation labels", () => {
 
   it("does not render 'Role Management' nav label for pharmacist", () => {
     renderSidebar("pharmacist");
+    // Role Management is admin-only navigation.
     expect(screen.queryByText("Role Management")).not.toBeInTheDocument();
   });
 
