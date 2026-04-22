@@ -51,7 +51,7 @@ function makeQueryClient() {
   });
 }
 
-function renderSidebar(role: "pharmacist" | "doctor" | "specialist") {
+function renderSidebar(role: "pharmacist" | "doctor" | "specialist" | "fms") {
   (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
     user: { id: "user-1" },
     role,
@@ -91,9 +91,14 @@ describe("AppSidebar navigation labels", () => {
     expect(screen.getByText("Reports")).toBeInTheDocument();
   });
 
-  it("renders 'Role Management' nav label for pharmacist", () => {
+  it("does not render 'Role Management' nav label for pharmacist", () => {
     renderSidebar("pharmacist");
-    // Currently shows "Pengurusan Peranan" — this FAILS until ENGL-01 translation
-    expect(screen.getByText("Role Management")).toBeInTheDocument();
+    // Role Management is admin-only navigation.
+    expect(screen.queryByText("Role Management")).not.toBeInTheDocument();
+  });
+
+  it("does not render 'Approvals' nav label for fms", () => {
+    renderSidebar("fms");
+    expect(screen.queryByText("Approvals")).not.toBeInTheDocument();
   });
 });

@@ -70,7 +70,7 @@ export default function SpecialistDashboard() {
       const { data, error } = await supabase
         .from("dispensing_requests")
         .select("*, drugs(drug_name, unit_pengukuran)")
-        .in("status", ["pending_specialist", "approved", "rejected"])
+        .in("status", ["pending_specialist", "pending_pharmacy", "approved", "rejected"])
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
