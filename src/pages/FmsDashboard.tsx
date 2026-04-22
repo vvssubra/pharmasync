@@ -26,6 +26,21 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
+type FmsPendingRequest = {
+  id: string;
+  patient_name: string;
+  no_ic: string;
+  is_pesara: boolean;
+  prescriber_name: string;
+  quantity: number;
+  mo_name?: string;
+  drugs?: {
+    drug_name?: string;
+    unit_pengukuran?: string;
+  } | null;
+};
+
+/** Malaysian IC begins with YYMMDD; convert to age with fallback for invalid values. */
 function ageFromIC(ic: string): string {
   const digits = (ic || "").replace(/\D/g, "");
   if (digits.length < 6) return "—";
@@ -81,7 +96,7 @@ export default function FmsDashboard() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedDrugId, setSelectedDrugId] = useState<string>("all");
-  const [approveTarget, setApproveTarget] = useState<any>(null);
+  const [approveTarget, setApproveTarget] = useState<FmsPendingRequest | null>(null);
   const [rejectTarget, setRejectTarget] = useState<any>(null);
   const [rejectReason, setRejectReason] = useState("");
 
@@ -621,9 +636,9 @@ export default function FmsDashboard() {
                 <p><span className="text-muted-foreground">Patient:</span> <span className="font-medium">{approveTarget.patient_name}</span></p>
                 <p><span className="text-muted-foreground">Age:</span> {ageFromIC(approveTarget.no_ic)} tahun</p>
                 <p><span className="text-muted-foreground">Category:</span> {approveTarget.is_pesara ? "Pesara" : "Non-Pesara"}</p>
-                <p><span className="text-muted-foreground">Prescribed by (MO):</span> {approveTarget.prescriber_name || (approveTarget as any).mo_name || "—"}</p>
-                <p><span className="text-muted-foreground">Drug:</span> {(approveTarget.drugs as any)?.drug_name || "—"}</p>
-                <p><span className="text-muted-foreground">Quantity:</span> {approveTarget.quantity} {(approveTarget.drugs as any)?.unit_pengukuran || ""}</p>
+                <p><span className="text-muted-foreground">Prescribed by (MO):</span> {approveTarget.prescriber_name || approveTarget.mo_name || "—"}</p>
+                <p><span className="text-muted-foreground">Drug:</span> {approveTarget.drugs?.drug_name || "—"}</p>
+                <p><span className="text-muted-foreground">Quantity:</span> {approveTarget.quantity} {approveTarget.drugs?.unit_pengukuran || ""}</p>
               </div>
             </div>
           )}
