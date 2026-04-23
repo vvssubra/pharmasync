@@ -48,7 +48,7 @@ export function AppSidebar() {
 
   const canSeeFulfilment = role === "admin" || role === "fms" || role === "pharmacist";
 
-  // Pending ubat kawalan count
+  // Pending ubat kawalan count (for pharmacist fulfilment queue)
   const { data: pendingCount = 0 } = useQuery({
     queryKey: ["pending-requests-count"],
     enabled: canSeeFulfilment,
@@ -63,23 +63,32 @@ export function AppSidebar() {
     },
   });
 
-  // Pending antibiotic acknowledgement count
-  const { data: abCount = 0 } = useQuery({
-    queryKey: ["pending-antibiotic-ack-count-v2"],
+  // Pending specialist approval count (drug requests + antibiotic forms awaiting FMS)
+  const { data: specialistBadge = 0 } = useQuery({
+    queryKey: ["pending-specialist-badge-count"],
     enabled: canSeeFulfilment,
     refetchInterval: 15000,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("antibiotic_forms" as any)
-        .select("id")
-        .eq("status", "approved")
-        .is("acknowledged_at", null);
-      if (error) return 0;
-      return (data as any[])?.length ?? 0;
+      const [{ count: drugCount, error: drugError }, { data: abData, error: abError }] =
+        await Promise.all([
+          supabase
+            .from("dispensing_requests")
+            .select("*", { count: "exact", head: true })
+            .eq("status", "pending_specialist"),
+          supabase
+            .from("antibiotic_forms" as any)
+            .select("id")
+            .eq("status", "pending_specialist"),
+        ]);
+      if (drugError && abError) return 0;
+      return (drugCount ?? 0) + ((abData as any[])?.length ?? 0);
     },
   });
 
-  const totalBadge = pendingCount + abCount;
+  const badgeByUrl: Record<string, number> = {
+    "/fulfilment": pendingCount,
+    "/specialist": specialistBadge,
+  };
 
   return (
     <Sidebar collapsible="icon">
@@ -110,12 +119,12 @@ export function AppSidebar() {
                     >
                       <item.icon className="h-4 w-4 shrink-0" />
                       {!collapsed && <span className="ml-2 truncate">{item.title}</span>}
-                      {item.showBadge && totalBadge > 0 && (
+                      {item.showBadge && (badgeByUrl[item.url] ?? 0) > 0 && (
                         <Badge
                           variant="destructive"
                           className="ml-auto h-5 min-w-5 text-[10px] flex items-center justify-center rounded-full px-1.5"
                         >
-                          {totalBadge}
+                          {badgeByUrl[item.url]}
                         </Badge>
                       )}
                     </NavLink>
