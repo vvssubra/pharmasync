@@ -1,19 +1,24 @@
-"""Build pharmacy-bin-keeper pitch deck."""
+"""Build pharmacy-bin-keeper pitch deck — revised framing (drug monitoring & workflow)."""
 from pptx import Presentation
-from pptx.util import Inches, Pt, Emu
+from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
-from pptx.util import Inches, Pt
 
 # ── colour palette ──────────────────────────────────────────────────────────
-NAVY    = RGBColor(0x1B, 0x4F, 0x8A)   # dark blue (sidebar colour)
-WHITE   = RGBColor(0xFF, 0xFF, 0xFF)
-ACCENT  = RGBColor(0x27, 0xAE, 0x60)   # green
-AMBER   = RGBColor(0xF3, 0x9C, 0x12)
-RED     = RGBColor(0xE7, 0x4C, 0x3C)
-LIGHT   = RGBColor(0xF0, 0xF4, 0xF8)
-GREY    = RGBColor(0x4A, 0x55, 0x68)
-DARK    = RGBColor(0x1A, 0x20, 0x2C)
+NAVY   = RGBColor(0x1B, 0x4F, 0x8A)
+WHITE  = RGBColor(0xFF, 0xFF, 0xFF)
+ACCENT = RGBColor(0x27, 0xAE, 0x60)
+AMBER  = RGBColor(0xF3, 0x9C, 0x12)
+RED    = RGBColor(0xE7, 0x4C, 0x3C)
+LIGHT  = RGBColor(0xF0, 0xF4, 0xF8)
+GREY   = RGBColor(0x4A, 0x55, 0x68)
+DARK   = RGBColor(0x1A, 0x20, 0x2C)
+BLUE2  = RGBColor(0x2D, 0x86, 0xC9)
+PURPLE = RGBColor(0x8E, 0x44, 0xAD)
+NAVY2  = RGBColor(0x12, 0x35, 0x62)
+MUTED  = RGBColor(0xA8, 0xC4, 0xE8)
+SBMUT  = RGBColor(0x90, 0xA8, 0xC0)
+SMUT   = RGBColor(0xB0, 0xC8, 0xE8)
 
 W = Inches(13.33)
 H = Inches(7.5)
@@ -21,521 +26,557 @@ H = Inches(7.5)
 prs = Presentation()
 prs.slide_width  = W
 prs.slide_height = H
-
-BLANK = prs.slide_layouts[6]   # completely blank
+BLANK = prs.slide_layouts[6]
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────
-def add_rect(slide, x, y, w, h, fill_rgb, alpha=None):
-    shape = slide.shapes.add_shape(1, x, y, w, h)   # MSO_SHAPE_TYPE.RECTANGLE = 1
-    shape.line.fill.background()
-    shape.fill.solid()
-    shape.fill.fore_color.rgb = fill_rgb
-    return shape
+def rect(slide, x, y, w, h, fill):
+    sh = slide.shapes.add_shape(1, x, y, w, h)
+    sh.line.fill.background()
+    sh.fill.solid()
+    sh.fill.fore_color.rgb = fill
+    return sh
 
 
-def txb(slide, text, x, y, w, h,
-        size=20, bold=False, color=WHITE, align=PP_ALIGN.LEFT,
-        wrap=True, italic=False):
-    tb = slide.shapes.add_textbox(x, y, w, h)
-    tb.word_wrap = wrap
-    tf = tb.text_frame
+def tb(slide, text, x, y, w, h,
+       size=20, bold=False, color=WHITE, align=PP_ALIGN.LEFT,
+       italic=False, wrap=True):
+    box = slide.shapes.add_textbox(x, y, w, h)
+    box.word_wrap = wrap
+    tf = box.text_frame
     tf.word_wrap = wrap
-    p  = tf.paragraphs[0]
+    p = tf.paragraphs[0]
     p.alignment = align
-    run = p.add_run()
-    run.text = text
-    run.font.size  = Pt(size)
-    run.font.bold  = bold
-    run.font.color.rgb = color
-    run.font.italic = italic
-    return tb
+    r = p.add_run()
+    r.text = text
+    r.font.size   = Pt(size)
+    r.font.bold   = bold
+    r.font.italic = italic
+    r.font.color.rgb = color
+    return box
 
 
-def bullet_box(slide, items, x, y, w, h,
-               size=16, color=DARK, title=None, title_color=NAVY):
-    tb = slide.shapes.add_textbox(x, y, w, h)
-    tb.word_wrap = True
-    tf = tb.text_frame
+def bullets(slide, items, x, y, w, h, size=13, color=GREY, heading=None, hcolor=NAVY):
+    box = slide.shapes.add_textbox(x, y, w, h)
+    box.word_wrap = True
+    tf = box.text_frame
     tf.word_wrap = True
     first = True
-    if title:
-        p = tf.paragraphs[0] if first else tf.add_paragraph()
+    if heading:
+        p = tf.paragraphs[0]
         first = False
         p.alignment = PP_ALIGN.LEFT
         r = p.add_run()
-        r.text = title
+        r.text = heading
         r.font.size = Pt(size + 2)
         r.font.bold = True
-        r.font.color.rgb = title_color
+        r.font.color.rgb = hcolor
     for item in items:
-        p = tf.paragraphs[0] if (first and not title) else tf.add_paragraph()
+        p = tf.paragraphs[0] if first else tf.add_paragraph()
         first = False
         p.alignment = PP_ALIGN.LEFT
         p.space_before = Pt(4)
         r = p.add_run()
         r.text = item
-        r.font.size  = Pt(size)
+        r.font.size = Pt(size)
         r.font.color.rgb = color
+
+
+def header(slide, title, subtitle=None):
+    rect(slide, 0, 0, W, H, LIGHT)
+    rect(slide, 0, 0, W, Inches(1.4), NAVY)
+    tb(slide, title,    Inches(0.55), Inches(0.22), Inches(11), Inches(0.85),
+       size=32, bold=True, color=WHITE)
+    if subtitle:
+        tb(slide, subtitle, Inches(0.55), Inches(0.88), Inches(11), Inches(0.48),
+           size=15, color=SMUT)
+
+
+def card(slide, cx, cy, cw, ch, fill=WHITE, bar_color=None):
+    rect(slide, cx, cy, cw, ch, fill)
+    if bar_color:
+        rect(slide, cx, cy, cw, Inches(0.07), bar_color)
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # SLIDE 1 — COVER
 # ════════════════════════════════════════════════════════════════════════════
 s = prs.slides.add_slide(BLANK)
+rect(s, 0, 0, W, H, NAVY)
+rect(s, 0, 0, Inches(0.25), H, ACCENT)
 
-# full navy background
-add_rect(s, 0, 0, W, H, NAVY)
-
-# left accent bar (green)
-add_rect(s, 0, 0, Inches(0.25), H, ACCENT)
-
-# product name
-txb(s, "Pharmacy Bin Keeper", Inches(0.6), Inches(1.8), Inches(8), Inches(1.2),
-    size=48, bold=True, color=WHITE)
-
-# tagline
-txb(s, "Smart Drug Inventory & Dispensing Management for Klinik Kesihatan",
-    Inches(0.6), Inches(3.0), Inches(9), Inches(0.8),
-    size=22, color=RGBColor(0xA8, 0xC4, 0xE8), italic=True)
-
-# "Kawalan Ubat KK Kempas"
-txb(s, "Kawalan Ubat KK Kempas", Inches(0.6), Inches(4.0), Inches(7), Inches(0.5),
-    size=16, color=ACCENT)
-
-# bottom strip
-add_rect(s, 0, Inches(6.9), W, Inches(0.6), RGBColor(0x12, 0x35, 0x62))
-txb(s, "Confidential · 2026", Inches(0.6), Inches(6.9), Inches(6), Inches(0.6),
-    size=12, color=RGBColor(0x90, 0xA8, 0xC0))
+tb(s, "Pharmacy Drug Monitoring System",
+   Inches(0.65), Inches(1.6), Inches(10), Inches(1.3),
+   size=44, bold=True, color=WHITE)
+tb(s, "Digitising Quota Drug Requests & Antibiotic Forms\nfor Klinik Kesihatan",
+   Inches(0.65), Inches(3.05), Inches(10), Inches(1.0),
+   size=22, color=MUTED, italic=True, wrap=True)
+tb(s, "Kawalan Ubat KK Kempas",
+   Inches(0.65), Inches(4.2), Inches(7), Inches(0.5),
+   size=16, color=ACCENT)
+rect(s, 0, Inches(6.9), W, Inches(0.6), NAVY2)
+tb(s, "Confidential · 2026", Inches(0.65), Inches(6.9), Inches(6), Inches(0.6),
+   size=12, color=SBMUT)
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # SLIDE 2 — THE PROBLEM
 # ════════════════════════════════════════════════════════════════════════════
 s = prs.slides.add_slide(BLANK)
-add_rect(s, 0, 0, W, H, LIGHT)
-add_rect(s, 0, 0, W, Inches(1.4), NAVY)
-add_rect(s, 0, 0, Inches(0.25), H, RED)
+header(s, "The Problem",
+       "How quota drug monitoring and antibiotic approval are handled today — and why it's breaking down")
+rect(s, 0, 0, Inches(0.25), H, RED)
 
-txb(s, "The Problem", Inches(0.55), Inches(0.25), Inches(10), Inches(0.8),
-    size=32, bold=True, color=WHITE)
-txb(s, "Malaysian public-clinic pharmacies still run on paper bin cards and spreadsheets",
-    Inches(0.55), Inches(0.85), Inches(11), Inches(0.5),
-    size=15, color=RGBColor(0xB0, 0xC8, 0xE8))
+# Two main problem areas side by side
+# LEFT — Quota drugs / Google Sheets
+CX1, CX2 = Inches(0.55), Inches(6.95)
+CW = Inches(6.0)
 
-problems = [
-    ("📋  Manual Bin Cards",
-     "Paper stock cards go out of sync the moment stock moves. Errors accumulate silently."),
-    ("⚠️  No Approval Workflow",
-     "Doctor requests, antibiotic Clinical-Pathway approvals and specialist sign-offs travel via WhatsApp or physical forms."),
-    ("📦  Blind Spots in Controlled Drugs",
-     "No real-time visibility on controlled-drug quotas, leading to over-dispensing or patient denials."),
-    ("🔁  Disconnected Teams",
-     "MOs, FMS specialists, and pharmacists work in silos — no shared state, no audit trail."),
-]
+rect(s, CX1, Inches(1.55), CW, Inches(5.7), WHITE)
+rect(s, CX1, Inches(1.55), CW, Inches(0.07), RED)
+tb(s, "📊  Quota Drug Monitoring", CX1 + Inches(0.2), Inches(1.65),
+   CW - Inches(0.3), Inches(0.6), size=17, bold=True, color=RED)
+tb(s, "Currently tracked in Google Sheets",
+   CX1 + Inches(0.2), Inches(2.3), CW - Inches(0.3), Inches(0.4),
+   size=13, bold=True, color=DARK)
+bullets(s, [
+    "❌  Dozens of tabs — hard to find the right drug at the right time",
+    "❌  Staff fill data into the wrong column or wrong tab",
+    "❌  No real-time visibility — sheets go stale between updates",
+    "❌  No workflow — approvals happen via WhatsApp or verbal",
+    "❌  No audit trail — impossible to trace who approved what",
+    "❌  MO, FMS, and pharmacist work from different versions",
+],
+CX1 + Inches(0.2), Inches(2.75), CW - Inches(0.3), Inches(4.2),
+size=13, color=GREY)
 
-col_w = Inches(5.8)
-positions = [
-    (Inches(0.5),  Inches(1.6)),
-    (Inches(6.9),  Inches(1.6)),
-    (Inches(0.5),  Inches(4.2)),
-    (Inches(6.9),  Inches(4.2)),
-]
-card_h = Inches(2.3)
-
-for (title, body), (cx, cy) in zip(problems, positions):
-    add_rect(s, cx, cy, col_w, card_h, WHITE)
-    txb(s, title, cx + Inches(0.2), cy + Inches(0.15), col_w - Inches(0.4), Inches(0.55),
-        size=16, bold=True, color=DARK)
-    txb(s, body,  cx + Inches(0.2), cy + Inches(0.7),  col_w - Inches(0.4), Inches(1.4),
-        size=13, color=GREY, wrap=True)
+# RIGHT — Antibiotic forms / physical paper
+rect(s, CX2, Inches(1.55), CW, Inches(5.7), WHITE)
+rect(s, CX2, Inches(1.55), CW, Inches(0.07), AMBER)
+tb(s, "💉  Antibiotic Approval Forms", CX2 + Inches(0.2), Inches(1.65),
+   CW - Inches(0.3), Inches(0.6), size=17, bold=True, color=AMBER)
+tb(s, "Currently done on physical A4 photocopied sheets",
+   CX2 + Inches(0.2), Inches(2.3), CW - Inches(0.3), Inches(0.4),
+   size=13, bold=True, color=DARK)
+bullets(s, [
+    "❌  Printing and photocopying cost for every form",
+    "❌  Paper forms lost, damaged, or illegible",
+    "❌  Physical routing between MO → FMS → pharmacy is slow",
+    "❌  No status visibility — MO doesn't know if form was approved",
+    "❌  Storage & filing burden for compliance records",
+    "❌  Cannot search historical forms quickly",
+],
+CX2 + Inches(0.2), Inches(2.75), CW - Inches(0.3), Inches(4.2),
+size=13, color=GREY)
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # SLIDE 3 — OUR SOLUTION
 # ════════════════════════════════════════════════════════════════════════════
 s = prs.slides.add_slide(BLANK)
-add_rect(s, 0, 0, W, H, LIGHT)
-add_rect(s, 0, 0, W, Inches(1.4), NAVY)
-add_rect(s, 0, 0, Inches(0.25), H, ACCENT)
+header(s, "Our Solution",
+       "One system to replace Google Sheets and paper forms — with full workflow, visibility, and audit trail")
+rect(s, 0, 0, Inches(0.25), H, ACCENT)
 
-txb(s, "Our Solution", Inches(0.55), Inches(0.25), Inches(10), Inches(0.8),
-    size=32, bold=True, color=WHITE)
-txb(s, "A unified, role-aware web app that digitises every step of clinic pharmacy operations",
-    Inches(0.55), Inches(0.85), Inches(11), Inches(0.5),
-    size=15, color=RGBColor(0xB0, 0xC8, 0xE8))
-
-solutions = [
-    ("Real-Time Stock Ledger",   "Live bin-card view computed from a tamper-evident transactions ledger. No sync lag."),
-    ("Multi-Step Approval Flow", "MO request → FMS review → Pharmacist fulfilment. Every handoff is timestamped and auditable."),
-    ("Antibiotic Stewardship",   "NAG 2024 Clinical Pathway forms built in. FMS approves; pharmacist acknowledges before dispensing."),
-    ("Quota Tracking",           "Annual controlled-drug quota per patient visible in real time; pesara (retiree) quota tracked separately."),
-    ("Role-Based Dashboards",    "Each role (admin, pharmacist, MO, FMS) sees only what they need — pending counts, stock alerts, approval queues."),
-    ("Audit & Reports",          "Full ledger history, patient drug records, and exportable laporan. AI audit log for every AI-assisted action."),
+cards = [
+    ("✅  Replace Google Sheets",  NAVY,
+     "A structured digital register for every quota drug — searchable, real-time, and impossible to fill in the wrong place."),
+    ("✅  Replace Paper Forms",    ACCENT,
+     "Antibiotic Clinical Pathway forms (NAG 2024) submitted digitally. Zero printing cost, zero lost forms, instant routing."),
+    ("✅  Structured Workflow",    BLUE2,
+     "MO submits → FMS reviews & approves → Pharmacy acknowledges. Every step is tracked with a timestamp and a name."),
+    ("✅  Real-Time Visibility",   AMBER,
+     "All parties — MO, FMS, pharmacist — see the live status of every request. No chasing via WhatsApp."),
+    ("✅  Full Audit Trail",       PURPLE,
+     "Every approval, rejection, and acknowledgement is logged with the user's name, role, and timestamp. Compliance-ready."),
+    ("✅  Lean & Paperless",       RGBColor(0x16, 0x7A, 0x6A),
+     "Eliminate photocopy costs, A4 waste, filing cabinets, and manual data entry errors. A truly lean clinic operation."),
 ]
 
-cols = 3
-for i, (title, body) in enumerate(solutions):
-    col = i % cols
-    row = i // cols
-    cx = Inches(0.4) + col * Inches(4.25)
+CW = Inches(3.9)
+CH = Inches(2.3)
+for i, (title, color, body) in enumerate(cards):
+    col = i % 3
+    row = i // 3
+    cx = Inches(0.4) + col * Inches(4.28)
     cy = Inches(1.65) + row * Inches(2.55)
-    cw = Inches(4.0)
-    ch = Inches(2.3)
-    add_rect(s, cx, cy, cw, ch, WHITE)
-    add_rect(s, cx, cy, cw, Inches(0.06), ACCENT)  # top accent line
-    txb(s, title, cx + Inches(0.2), cy + Inches(0.15), cw - Inches(0.4), Inches(0.55),
-        size=15, bold=True, color=NAVY)
-    txb(s, body,  cx + Inches(0.2), cy + Inches(0.7),  cw - Inches(0.4), Inches(1.4),
-        size=12, color=GREY, wrap=True)
+    card(s, cx, cy, CW, CH, WHITE, color)
+    tb(s, title, cx + Inches(0.2), cy + Inches(0.18), CW - Inches(0.3), Inches(0.55),
+       size=14, bold=True, color=color)
+    tb(s, body,  cx + Inches(0.2), cy + Inches(0.75), CW - Inches(0.3), Inches(1.35),
+       size=12, color=GREY, wrap=True)
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# SLIDE 4 — HOW IT WORKS (Workflow)
+# SLIDE 4 — WORKFLOW A: QUOTA DRUG REQUEST
 # ════════════════════════════════════════════════════════════════════════════
 s = prs.slides.add_slide(BLANK)
-add_rect(s, 0, 0, W, H, WHITE)
-add_rect(s, 0, 0, W, Inches(1.4), NAVY)
-add_rect(s, 0, 0, Inches(0.25), H, AMBER)
-
-txb(s, "How It Works", Inches(0.55), Inches(0.25), Inches(10), Inches(0.8),
-    size=32, bold=True, color=WHITE)
-txb(s, "End-to-end digital workflow from request to dispensing",
-    Inches(0.55), Inches(0.85), Inches(11), Inches(0.5),
-    size=15, color=RGBColor(0xB0, 0xC8, 0xE8))
+header(s, "Workflow 1 — Quota Drug Request",
+       "MO issues a new quota drug to a patient: end-to-end digital, fully tracked")
+rect(s, 0, 0, Inches(0.25), H, NAVY)
+rect(s, 0, 0, W, H, WHITE)
+rect(s, 0, 0, W, Inches(1.4), NAVY)
+rect(s, 0, 0, Inches(0.25), H, AMBER)
+tb(s, "Workflow 1 — Quota Drug Request", Inches(0.55), Inches(0.22),
+   Inches(11), Inches(0.85), size=32, bold=True, color=WHITE)
+tb(s, "MO issues a new quota drug to a patient: end-to-end digital, fully tracked",
+   Inches(0.55), Inches(0.88), Inches(11), Inches(0.48), size=15, color=SMUT)
 
 steps = [
-    ("1", "MO Submits\nRequest",     "Doctor selects drug,\npatient IC & quantity\n(Ubat or Antibiotik form)", NAVY),
-    ("2", "FMS Reviews",             "Family Medicine\nSpecialist approves or\nrejects with notes",          AMBER),
-    ("3", "Pharmacist\nFulfils",     "Pharmacy queues up\napproved requests\nand dispenses",                 ACCENT),
-    ("4", "Ledger &\nRecords",       "Stock ledger updated;\npatient registry &\ndrug history saved",        RGBColor(0x2D, 0x86, 0xC9)),
+    ("1", "MO Submits\nRequest",         NAVY,
+     "Selects drug, enters\npatient IC & quantity.\nSubmits digitally."),
+    ("2", "FMS Receives\n& Reviews",      AMBER,
+     "Sees request on FMS\ndashboard. Reviews\npatient & drug details."),
+    ("3", "FMS Approves\nor Rejects",     RED,
+     "Approves with notes\nor rejects with reason.\nMO notified instantly."),
+    ("4", "Pharmacy\nAcknowledges",       ACCENT,
+     "Pharmacist sees approved\nrequest. Acknowledges\ndispensing to patient."),
+    ("5", "Record\nSaved",                BLUE2,
+     "Patient registry updated.\nFull audit log.\nQuota counter decrements."),
 ]
 
-arrow_y = Inches(3.6)
-step_y  = Inches(1.7)
-box_w   = Inches(2.6)
-box_h   = Inches(3.8)
-gap     = Inches(0.6)
-start_x = Inches(0.5)
+BW = Inches(2.1)
+BH = Inches(4.2)
+GAP = Inches(0.38)
+SX = Inches(0.4)
+SY = Inches(1.6)
 
-for i, (num, title, body, color) in enumerate(steps):
-    cx = start_x + i * (box_w + gap)
-    add_rect(s, cx, step_y, box_w, box_h, LIGHT)
-    add_rect(s, cx, step_y, box_w, Inches(0.06), color)
-    # circle number
-    circ = s.shapes.add_shape(9, cx + Inches(0.9), step_y + Inches(0.15),
-                               Inches(0.8), Inches(0.8))   # 9 = oval
+for i, (num, title, color, body) in enumerate(steps):
+    cx = SX + i * (BW + GAP)
+    rect(s, cx, SY, BW, BH, LIGHT)
+    rect(s, cx, SY, BW, Inches(0.07), color)
+    # circle
+    circ = s.shapes.add_shape(9, cx + Inches(0.65), SY + Inches(0.15), Inches(0.8), Inches(0.8))
     circ.fill.solid(); circ.fill.fore_color.rgb = color
     circ.line.fill.background()
     tf = circ.text_frame; tf.word_wrap = False
     p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
-    r = p.add_run(); r.text = num; r.font.size = Pt(18); r.font.bold = True
-    r.font.color.rgb = WHITE
+    r = p.add_run(); r.text = num
+    r.font.size = Pt(18); r.font.bold = True; r.font.color.rgb = WHITE
 
-    txb(s, title, cx + Inches(0.15), step_y + Inches(1.1), box_w - Inches(0.3), Inches(0.8),
-        size=15, bold=True, color=DARK, align=PP_ALIGN.CENTER)
-    txb(s, body, cx + Inches(0.15), step_y + Inches(1.95), box_w - Inches(0.3), Inches(1.6),
-        size=12, color=GREY, align=PP_ALIGN.CENTER, wrap=True)
+    tb(s, title, cx + Inches(0.1), SY + Inches(1.05), BW - Inches(0.15), Inches(0.8),
+       size=14, bold=True, color=DARK, align=PP_ALIGN.CENTER, wrap=True)
+    tb(s, body,  cx + Inches(0.1), SY + Inches(1.95), BW - Inches(0.15), Inches(2.0),
+       size=12, color=GREY, align=PP_ALIGN.CENTER, wrap=True)
 
-    # arrow between boxes
     if i < len(steps) - 1:
-        ax = cx + box_w + Inches(0.05)
-        txb(s, "→", ax, arrow_y, gap, Inches(0.5),
-            size=28, bold=True, color=GREY, align=PP_ALIGN.CENTER)
+        ax = cx + BW + Inches(0.0)
+        tb(s, "→", ax, SY + Inches(1.7), GAP, Inches(0.5),
+           size=22, bold=True, color=GREY, align=PP_ALIGN.CENTER)
+
+# bottom note
+tb(s, "✓  Replaces: Google Sheets quota tracking with many tabs",
+   Inches(0.5), Inches(6.8), Inches(12), Inches(0.45),
+   size=13, bold=True, color=ACCENT, align=PP_ALIGN.LEFT)
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# SLIDE 5 — ROLES & DASHBOARDS
+# SLIDE 5 — WORKFLOW B: ANTIBIOTIC FORM
 # ════════════════════════════════════════════════════════════════════════════
 s = prs.slides.add_slide(BLANK)
-add_rect(s, 0, 0, W, H, LIGHT)
-add_rect(s, 0, 0, W, Inches(1.4), NAVY)
-add_rect(s, 0, 0, Inches(0.25), H, RGBColor(0x2D, 0x86, 0xC9))
+rect(s, 0, 0, W, H, WHITE)
+rect(s, 0, 0, W, Inches(1.4), NAVY)
+rect(s, 0, 0, Inches(0.25), H, ACCENT)
+tb(s, "Workflow 2 — Antibiotic Approval Form", Inches(0.55), Inches(0.22),
+   Inches(11), Inches(0.85), size=32, bold=True, color=WHITE)
+tb(s, "NAG 2024 Clinical Pathway form — digitised from A4 paper to the system",
+   Inches(0.55), Inches(0.88), Inches(11), Inches(0.48), size=15, color=SMUT)
 
-txb(s, "Role-Based Dashboards", Inches(0.55), Inches(0.25), Inches(10), Inches(0.8),
-    size=32, bold=True, color=WHITE)
-txb(s, "Every user sees exactly what they need — no information overload",
-    Inches(0.55), Inches(0.85), Inches(11), Inches(0.5),
-    size=15, color=RGBColor(0xB0, 0xC8, 0xE8))
+steps2 = [
+    ("1", "MO Fills\nForm",              NAVY,
+     "Enters patient, diagnosis,\nregimen & NAG 2024\nchecklist digitally."),
+    ("2", "FMS Receives\n& Reviews",      AMBER,
+     "Form appears on FMS\ndashboard. Reviews\nclinical details."),
+    ("3", "FMS Approves\nor Rejects",     RED,
+     "Approves or rejects\nwith specialist notes.\nDecision logged."),
+    ("4", "Pharmacy\nAcknowledges",       ACCENT,
+     "Pharmacist sees\napproved form and\nacknowledges dispensing."),
+    ("5", "Record\nArchived",             BLUE2,
+     "Digital record stored\nforever — searchable,\nno filing cabinets."),
+]
 
-roles = [
-    ("👨‍⚕️  Medical Officer (MO)", NAVY, [
-        "Submit drug dispensing requests",
-        "Submit antibiotic Clinical Pathway forms (NAG 2024)",
-        "Track request status in real time",
-        "Access MO dashboard & pending counts",
+for i, (num, title, color, body) in enumerate(steps2):
+    cx = SX + i * (BW + GAP)
+    rect(s, cx, SY, BW, BH, LIGHT)
+    rect(s, cx, SY, BW, Inches(0.07), color)
+    circ = s.shapes.add_shape(9, cx + Inches(0.65), SY + Inches(0.15), Inches(0.8), Inches(0.8))
+    circ.fill.solid(); circ.fill.fore_color.rgb = color
+    circ.line.fill.background()
+    tf = circ.text_frame; tf.word_wrap = False
+    p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+    r = p.add_run(); r.text = num
+    r.font.size = Pt(18); r.font.bold = True; r.font.color.rgb = WHITE
+    tb(s, title, cx + Inches(0.1), SY + Inches(1.05), BW - Inches(0.15), Inches(0.8),
+       size=14, bold=True, color=DARK, align=PP_ALIGN.CENTER, wrap=True)
+    tb(s, body,  cx + Inches(0.1), SY + Inches(1.95), BW - Inches(0.15), Inches(2.0),
+       size=12, color=GREY, align=PP_ALIGN.CENTER, wrap=True)
+    if i < len(steps2) - 1:
+        ax = cx + BW
+        tb(s, "→", ax, SY + Inches(1.7), GAP, Inches(0.5),
+           size=22, bold=True, color=GREY, align=PP_ALIGN.CENTER)
+
+tb(s, "✓  Replaces: Physical A4 photocopy sheets — zero printing cost, zero lost forms",
+   Inches(0.5), Inches(6.8), Inches(12), Inches(0.45),
+   size=13, bold=True, color=ACCENT, align=PP_ALIGN.LEFT)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# SLIDE 6 — BEFORE vs AFTER
+# ════════════════════════════════════════════════════════════════════════════
+s = prs.slides.add_slide(BLANK)
+rect(s, 0, 0, W, H, LIGHT)
+rect(s, 0, 0, W, Inches(1.4), NAVY)
+rect(s, 0, 0, Inches(0.25), H, BLUE2)
+tb(s, "Before vs. After", Inches(0.55), Inches(0.22), Inches(11), Inches(0.85),
+   size=32, bold=True, color=WHITE)
+tb(s, "What changes for each team when they move to the system",
+   Inches(0.55), Inches(0.88), Inches(11), Inches(0.48), size=15, color=SMUT)
+
+# column headers
+rect(s, Inches(0.5), Inches(1.5), Inches(5.8), Inches(0.45), RED)
+tb(s, "BEFORE  (Google Sheets + Paper)", Inches(0.6), Inches(1.5),
+   Inches(5.6), Inches(0.45), size=14, bold=True, color=WHITE)
+rect(s, Inches(6.9), Inches(1.5), Inches(6.0), Inches(0.45), ACCENT)
+tb(s, "AFTER  (This System)", Inches(7.0), Inches(1.5),
+   Inches(5.8), Inches(0.45), size=14, bold=True, color=WHITE)
+
+rows = [
+    ("Quota drug tracking",
+     "Multiple Google Sheet tabs — easy to miss or enter in wrong tab",
+     "Structured form per request — one place, always right"),
+    ("Antibiotic approval",
+     "Physical A4 photocopy form passed hand-to-hand",
+     "Digital form submitted instantly, routed automatically"),
+    ("FMS review",
+     "Receive forms physically or via WhatsApp photo",
+     "Dedicated FMS dashboard — all pending items in one view"),
+    ("Pharmacy step",
+     "Informed verbally or by paper after FMS approves",
+     "Auto-notified with approved queue — one-click acknowledge"),
+    ("Record keeping",
+     "Files in folders; impossible to search quickly",
+     "Searchable digital log — find any record in seconds"),
+    ("Cost",
+     "Photocopy & A4 paper cost for every antibiotic form",
+     "Zero printing cost — fully paperless"),
+]
+
+for i, (aspect, before, after) in enumerate(rows):
+    cy = Inches(2.05) + i * Inches(0.82)
+    bg = WHITE if i % 2 == 0 else RGBColor(0xF7, 0xF9, 0xFC)
+    rect(s, Inches(0.5), cy, Inches(12.4), Inches(0.78), bg)
+    tb(s, aspect, Inches(0.6), cy + Inches(0.12), Inches(1.6), Inches(0.55),
+       size=12, bold=True, color=NAVY)
+    tb(s, "✗  " + before, Inches(2.3), cy + Inches(0.12), Inches(4.1), Inches(0.55),
+       size=12, color=RED, wrap=True)
+    tb(s, "✓  " + after,  Inches(6.6), cy + Inches(0.12), Inches(6.1), Inches(0.55),
+       size=12, color=RGBColor(0x1A, 0x7A, 0x40), wrap=True)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# SLIDE 7 — ROLES & WHAT EACH USER SEES
+# ════════════════════════════════════════════════════════════════════════════
+s = prs.slides.add_slide(BLANK)
+rect(s, 0, 0, W, H, WHITE)
+rect(s, 0, 0, W, Inches(1.4), NAVY)
+rect(s, 0, 0, Inches(0.25), H, AMBER)
+tb(s, "What Each Role Sees & Does", Inches(0.55), Inches(0.22), Inches(11), Inches(0.85),
+   size=32, bold=True, color=WHITE)
+tb(s, "Purpose-built view for each team — no clutter, no confusion",
+   Inches(0.55), Inches(0.88), Inches(11), Inches(0.48), size=15, color=SMUT)
+
+roles_data = [
+    ("👨‍⚕️  Medical Officer\n(MO)", NAVY, [
+        "Submit quota drug requests for patients",
+        "Fill and submit antibiotic approval forms",
+        "Track live status of submitted requests",
+        "View pending count badge on dashboard",
     ]),
     ("🩺  FMS Specialist", AMBER, [
-        "Review & approve / reject all MO requests",
-        "Approve antibiotic forms with specialist notes",
-        "Monitor controlled-drug annual quotas",
-        "View drug usage trends & forecasts",
+        "Dedicated inbox for all pending MO requests",
+        "Review quota drug requests & approve / reject",
+        "Review antibiotic forms & approve / reject",
+        "Add specialist notes to every decision",
+        "Monitor annual quota usage per drug",
     ]),
-    ("💊  Pharmacist / Admin", ACCENT, [
-        "Fulfil approved dispensing requests",
-        "Acknowledge antibiotic forms post-approval",
-        "Manage drug master, stock receipts (Terimaan)",
-        "View bin card, ledger, patient registry & reports",
+    ("💊  Pharmacist /\nAdmin", ACCENT, [
+        "Receive approved requests automatically",
+        "Acknowledge dispensing (quota drugs)",
+        "Acknowledge antibiotic forms post-FMS",
+        "Manage drug master list & stock receipts",
+        "View reports and patient drug records",
     ]),
 ]
 
-col_w = Inches(3.9)
-for i, (role, color, items) in enumerate(roles):
-    cx = Inches(0.45) + i * Inches(4.25)
-    cy = Inches(1.6)
-    ch = Inches(5.5)
-    add_rect(s, cx, cy, col_w, ch, WHITE)
-    add_rect(s, cx, cy, col_w, Inches(0.08), color)
-    txb(s, role, cx + Inches(0.2), cy + Inches(0.2), col_w - Inches(0.3), Inches(0.6),
-        size=15, bold=True, color=color)
-    bullet_box(s, ["• " + it for it in items],
-               cx + Inches(0.2), cy + Inches(0.9), col_w - Inches(0.3), ch - Inches(1.1),
-               size=12, color=GREY)
+CW = Inches(3.9)
+CH = Inches(5.6)
+for i, (role, color, items) in enumerate(roles_data):
+    cx = Inches(0.45) + i * Inches(4.28)
+    card(s, cx, Inches(1.55), CW, CH, LIGHT, color)
+    tb(s, role, cx + Inches(0.2), Inches(1.75), CW - Inches(0.3), Inches(0.75),
+       size=16, bold=True, color=color, wrap=True)
+    bullets(s, ["• " + it for it in items],
+            cx + Inches(0.2), Inches(2.6), CW - Inches(0.3), CH - Inches(1.15),
+            size=13, color=GREY)
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# SLIDE 6 — KEY FEATURES
+# SLIDE 8 — KEY BENEFITS (LEAN)
 # ════════════════════════════════════════════════════════════════════════════
 s = prs.slides.add_slide(BLANK)
-add_rect(s, 0, 0, W, H, WHITE)
-add_rect(s, 0, 0, W, Inches(1.4), NAVY)
-add_rect(s, 0, 0, Inches(0.25), H, ACCENT)
+rect(s, 0, 0, W, H, LIGHT)
+rect(s, 0, 0, W, Inches(1.4), NAVY)
+rect(s, 0, 0, Inches(0.25), H, ACCENT)
+tb(s, "Key Benefits", Inches(0.55), Inches(0.22), Inches(11), Inches(0.85),
+   size=32, bold=True, color=WHITE)
+tb(s, "Measurable improvements from day one of going live",
+   Inches(0.55), Inches(0.88), Inches(11), Inches(0.48), size=15, color=SMUT)
 
-txb(s, "Key Features", Inches(0.55), Inches(0.25), Inches(10), Inches(0.8),
-    size=32, bold=True, color=WHITE)
-txb(s, "Purpose-built for Malaysian Klinik Kesihatan operations",
-    Inches(0.55), Inches(0.85), Inches(11), Inches(0.5),
-    size=15, color=RGBColor(0xB0, 0xC8, 0xE8))
-
-features = [
-    ("📊", "Live Stock Dashboard",        "KRITIKAL / RENDAH / NORMAL / LEBIHAN status badges. Auto-refresh every 15–30 seconds."),
-    ("📋", "Digital Bin Card & Ledger",   "Per-drug ledger with full terimaan/keluaran history. Printable bin-card view."),
-    ("💉", "Antibiotic Stewardship",      "Built-in NAG 2024 Clinical Pathway checklist. FMS approval gate before dispensing."),
-    ("🔐", "Controlled Drug Quotas",      "Annual patient quota per controlled drug. Pesara (retiree) tracked separately."),
-    ("🗂️", "Patient Registry",            "Auto-created on first dispensing. Full drug history per patient IC."),
-    ("📈", "Usage Forecasting",           "30-day rolling average + projected stock exhaustion date per drug."),
-    ("🛡️", "Role-Based Access Control",   "4 roles, granular route protection. No cross-role data leakage."),
-    ("📝", "Full Audit Trail",            "Every approval, rejection, and dispensing is timestamped and attributed."),
+benefits = [
+    ("💸", "Cost Reduction",         ACCENT,
+     "Eliminate photocopy and A4 paper costs for every antibiotic form. Savings compound across the year."),
+    ("⚡", "Speed",                   AMBER,
+     "Requests reach FMS the moment MO submits. No walking, no waiting. FMS approves; pharmacy is notified instantly."),
+    ("🎯", "Accuracy",                NAVY,
+     "Structured forms mean no more wrong columns or wrong tabs. Every field is validated before submission."),
+    ("🔍", "Searchability",           BLUE2,
+     "Find any quota drug request or antibiotic form in seconds by patient IC, drug name, or date."),
+    ("📜", "Compliance & Audit",      PURPLE,
+     "Every action is attributed to a named user with a timestamp. Full audit trail for MOH inspections."),
+    ("📊", "Quota Visibility",        RED,
+     "Real-time annual quota counter per drug. FMS and pharmacist always know how much quota remains."),
 ]
 
-cols = 4
-for i, (icon, title, body) in enumerate(features):
-    col = i % cols
-    row = i // cols
-    cx = Inches(0.35) + col * Inches(3.2)
-    cy = Inches(1.65) + row * Inches(2.6)
-    cw = Inches(3.0)
-    ch = Inches(2.4)
-    add_rect(s, cx, cy, cw, ch, LIGHT)
-    txb(s, icon,  cx + Inches(0.15), cy + Inches(0.15), Inches(0.6), Inches(0.5), size=22, color=DARK)
-    txb(s, title, cx + Inches(0.15), cy + Inches(0.65), cw - Inches(0.3), Inches(0.5),
-        size=13, bold=True, color=NAVY)
-    txb(s, body,  cx + Inches(0.15), cy + Inches(1.15), cw - Inches(0.3), Inches(1.1),
-        size=11, color=GREY, wrap=True)
+CW = Inches(3.9)
+CH = Inches(2.3)
+for i, (icon, title, color, body) in enumerate(benefits):
+    col = i % 3
+    row = i // 3
+    cx = Inches(0.4) + col * Inches(4.28)
+    cy = Inches(1.65) + row * Inches(2.55)
+    card(s, cx, cy, CW, CH, WHITE, color)
+    tb(s, icon + "  " + title, cx + Inches(0.2), cy + Inches(0.18),
+       CW - Inches(0.3), Inches(0.55), size=15, bold=True, color=color)
+    tb(s, body, cx + Inches(0.2), cy + Inches(0.75), CW - Inches(0.3), Inches(1.35),
+       size=12, color=GREY, wrap=True)
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# SLIDE 7 — TECH STACK
+# SLIDE 9 — TECH STACK
 # ════════════════════════════════════════════════════════════════════════════
 s = prs.slides.add_slide(BLANK)
-add_rect(s, 0, 0, W, H, LIGHT)
-add_rect(s, 0, 0, W, Inches(1.4), NAVY)
-add_rect(s, 0, 0, Inches(0.25), H, RGBColor(0x8E, 0x44, 0xAD))
-
-txb(s, "Technology Stack", Inches(0.55), Inches(0.25), Inches(10), Inches(0.8),
-    size=32, bold=True, color=WHITE)
-txb(s, "Modern, proven, cloud-native — zero infrastructure to manage",
-    Inches(0.55), Inches(0.85), Inches(11), Inches(0.5),
-    size=15, color=RGBColor(0xB0, 0xC8, 0xE8))
+rect(s, 0, 0, W, H, WHITE)
+rect(s, 0, 0, W, Inches(1.4), NAVY)
+rect(s, 0, 0, Inches(0.25), H, PURPLE)
+tb(s, "Technology Stack", Inches(0.55), Inches(0.22), Inches(11), Inches(0.85),
+   size=32, bold=True, color=WHITE)
+tb(s, "Modern, cloud-native — zero servers to manage, accessible from any browser",
+   Inches(0.55), Inches(0.88), Inches(11), Inches(0.48), size=15, color=SMUT)
 
 layers = [
-    ("Frontend",       NAVY,                      ["React 18 + TypeScript", "Vite (SWC) · Port 8080", "React Router v6", "TanStack Query (server state)"]),
-    ("UI / Design",    RGBColor(0x2D, 0x86, 0xC9), ["shadcn/ui (Radix primitives)", "Tailwind CSS", "Recharts (dashboards)", "Lucide icons"]),
-    ("Backend / Data", ACCENT,                    ["Supabase (PostgreSQL)", "Row-Level Security (RLS)", "Supabase Auth (JWT)", "Real-time subscriptions"]),
-    ("Forms / QA",     AMBER,                     ["React Hook Form + Zod", "Vitest (unit tests)", "Playwright (E2E)", "ESLint + TypeScript strict"]),
+    ("Frontend",        NAVY,   ["React 18 + TypeScript", "Vite · React Router v6", "TanStack Query (real-time)", "Auto-refresh every 15 – 30 s"]),
+    ("UI / Design",     BLUE2,  ["shadcn/ui (Radix)", "Tailwind CSS", "Recharts (quota graphs)", "Malay-language UI"]),
+    ("Backend / Data",  ACCENT, ["Supabase (PostgreSQL)", "Row-Level Security (RLS)", "Supabase Auth (JWT)", "Cloud-hosted, auto-backup"]),
+    ("Quality",         AMBER,  ["React Hook Form + Zod", "Vitest unit tests", "Playwright E2E tests", "TypeScript strict mode"]),
 ]
 
-col_w = Inches(2.9)
+CW = Inches(2.9)
 for i, (layer, color, items) in enumerate(layers):
     cx = Inches(0.5) + i * Inches(3.1)
     cy = Inches(1.6)
-    ch = Inches(5.5)
-    add_rect(s, cx, cy, col_w, ch, WHITE)
-    add_rect(s, cx, cy, col_w, Inches(0.45), color)
-    txb(s, layer, cx + Inches(0.15), cy + Inches(0.05), col_w - Inches(0.3), Inches(0.4),
-        size=15, bold=True, color=WHITE)
-    bullet_box(s, ["▸ " + it for it in items],
-               cx + Inches(0.2), cy + Inches(0.6), col_w - Inches(0.3), ch - Inches(0.7),
-               size=13, color=GREY)
-
-
-# ════════════════════════════════════════════════════════════════════════════
-# SLIDE 8 — SECURITY & COMPLIANCE
-# ════════════════════════════════════════════════════════════════════════════
-s = prs.slides.add_slide(BLANK)
-add_rect(s, 0, 0, W, H, WHITE)
-add_rect(s, 0, 0, W, Inches(1.4), NAVY)
-add_rect(s, 0, 0, Inches(0.25), H, RED)
-
-txb(s, "Security & Compliance", Inches(0.55), Inches(0.25), Inches(10), Inches(0.8),
-    size=32, bold=True, color=WHITE)
-txb(s, "Healthcare-grade data protection built in from day one",
-    Inches(0.55), Inches(0.85), Inches(11), Inches(0.5),
-    size=15, color=RGBColor(0xB0, 0xC8, 0xE8))
-
-sec_items = [
-    ("🔐  Row-Level Security (RLS)",
-     "Every Supabase table enforces RLS. Users can only read/write data their role permits — enforced at the database layer, not just the UI."),
-    ("🛡️  Role-Based Access Control",
-     "4 distinct roles (admin, pharmacist, MO, FMS). Route guards and sidebar navigation are role-aware. Cross-role data access is structurally impossible."),
-    ("📜  Full Audit Trail",
-     "All dispensing approvals, rejections, and fulfilments are attributed to a user with a timestamp. AI-assisted actions log to ai_audit_logs (user, role, tokens, status)."),
-    ("🔑  Supabase Auth (JWT)",
-     "Industry-standard JWT-based authentication. Sessions are scoped and signed. No passwords stored in the application layer."),
-    ("🩺  Antibiotic Stewardship (NAG 2024)",
-     "Antibiotic dispensing cannot be fulfilled without FMS specialist sign-off. Clinical Pathway checklist is mandatory and stored per request."),
-    ("📦  Controlled Drug Quotas",
-     "Annual quota limits enforced at application level with real-time remaining-quota display. Prevents over-dispensing to any patient or pesara cohort."),
-]
-
-for i, (title, body) in enumerate(sec_items):
-    row = i % 3
-    col = i // 3
-    cx = Inches(0.5) + col * Inches(6.4)
-    cy = Inches(1.6) + row * Inches(1.85)
-    cw = Inches(6.0)
-    ch = Inches(1.7)
-    add_rect(s, cx, cy, cw, ch, LIGHT)
-    txb(s, title, cx + Inches(0.2), cy + Inches(0.1), cw - Inches(0.3), Inches(0.5),
-        size=14, bold=True, color=NAVY)
-    txb(s, body, cx + Inches(0.2), cy + Inches(0.6), cw - Inches(0.3), Inches(0.95),
-        size=11, color=GREY, wrap=True)
-
-
-# ════════════════════════════════════════════════════════════════════════════
-# SLIDE 9 — DEPLOYMENT
-# ════════════════════════════════════════════════════════════════════════════
-s = prs.slides.add_slide(BLANK)
-add_rect(s, 0, 0, W, H, LIGHT)
-add_rect(s, 0, 0, W, Inches(1.4), NAVY)
-add_rect(s, 0, 0, Inches(0.25), H, AMBER)
-
-txb(s, "Deployment & Operations", Inches(0.55), Inches(0.25), Inches(10), Inches(0.8),
-    size=32, bold=True, color=WHITE)
-txb(s, "Cloud-first — live in minutes, no servers to maintain",
-    Inches(0.55), Inches(0.85), Inches(11), Inches(0.5),
-    size=15, color=RGBColor(0xB0, 0xC8, 0xE8))
-
-dep_blocks = [
-    ("☁️  Frontend Hosting",  NAVY,  [
-        "Deployed on Vercel (vercel.json configured)",
-        "Global CDN — fast load anywhere in Malaysia",
-        "Preview deployments per branch",
-        "Zero-downtime rollouts",
-    ]),
-    ("🗄️  Database & Auth",   ACCENT, [
-        "Supabase managed PostgreSQL",
-        "Automatic daily backups",
-        "Built-in connection pooling",
-        "Point-in-time recovery available",
-    ]),
-    ("⚙️  DevOps",            AMBER,  [
-        "CI/CD via Vercel git integration",
-        "Supabase migrations versioned in repo",
-        "Environment variables via .env (VITE_SUPABASE_*)",
-        "Health monitored via Supabase dashboard",
-    ]),
-]
-
-col_w = Inches(3.7)
-for i, (title, color, items) in enumerate(dep_blocks):
-    cx = Inches(0.5) + i * Inches(4.1)
-    cy = Inches(1.65)
-    ch = Inches(5.5)
-    add_rect(s, cx, cy, col_w, ch, WHITE)
-    add_rect(s, cx, cy, col_w, Inches(0.08), color)
-    txb(s, title, cx + Inches(0.2), cy + Inches(0.2), col_w - Inches(0.3), Inches(0.6),
-        size=16, bold=True, color=color)
-    bullet_box(s, ["✓  " + it for it in items],
-               cx + Inches(0.2), cy + Inches(0.9), col_w - Inches(0.3), ch - Inches(1.1),
-               size=12, color=GREY)
+    ch = Inches(5.6)
+    card(s, cx, cy, CW, ch, LIGHT)
+    rect(s, cx, cy, CW, Inches(0.5), color)
+    tb(s, layer, cx + Inches(0.15), cy + Inches(0.07), CW - Inches(0.3), Inches(0.4),
+       size=15, bold=True, color=WHITE)
+    bullets(s, ["▸  " + it for it in items],
+            cx + Inches(0.2), cy + Inches(0.65), CW - Inches(0.3), ch - Inches(0.75),
+            size=13, color=GREY)
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # SLIDE 10 — ROADMAP
 # ════════════════════════════════════════════════════════════════════════════
 s = prs.slides.add_slide(BLANK)
-add_rect(s, 0, 0, W, H, WHITE)
-add_rect(s, 0, 0, W, Inches(1.4), NAVY)
-add_rect(s, 0, 0, Inches(0.25), H, ACCENT)
-
-txb(s, "Product Roadmap", Inches(0.55), Inches(0.25), Inches(10), Inches(0.8),
-    size=32, bold=True, color=WHITE)
-txb(s, "From single clinic to network-wide rollout",
-    Inches(0.55), Inches(0.85), Inches(11), Inches(0.5),
-    size=15, color=RGBColor(0xB0, 0xC8, 0xE8))
+rect(s, 0, 0, W, H, LIGHT)
+rect(s, 0, 0, W, Inches(1.4), NAVY)
+rect(s, 0, 0, Inches(0.25), H, ACCENT)
+tb(s, "Product Roadmap", Inches(0.55), Inches(0.22), Inches(11), Inches(0.85),
+   size=32, bold=True, color=WHITE)
+tb(s, "From single KK to network-wide rollout",
+   Inches(0.55), Inches(0.88), Inches(11), Inches(0.48), size=15, color=SMUT)
 
 phases = [
-    ("✅  Phase 1\n(Done)",       ACCENT, [
-        "Core drug master & stock ledger",
-        "MO dispensing request flow",
-        "FMS specialist approval dashboard",
-        "Antibiotic stewardship (NAG 2024)",
-        "Pharmacist fulfilment queue",
+    ("✅  Phase 1\n(Done)", ACCENT, [
+        "Quota drug request workflow",
+        "Antibiotic form (NAG 2024) workflow",
+        "MO → FMS → Pharmacy approval chain",
+        "Annual quota monitoring per drug",
         "Patient registry & drug history",
-        "Annual quota tracking",
+        "Full audit trail & reporting",
+        "Role-based dashboards (MO / FMS / Pharmacist)",
     ]),
     ("🔄  Phase 2\n(In Progress)", AMBER, [
-        "E-prescription PDF export",
-        "SMS / push notifications (pending approval)",
-        "Barcode / QR scanning for drug receipt",
-        "Advanced laporan (XLSX / PDF exports)",
+        "PDF export for antibiotic forms",
+        "Push / in-app notifications on approval",
+        "Advanced laporan (XLSX export)",
+        "Drug interaction alerts",
         "Multi-facility support (facility switcher)",
     ]),
-    ("🚀  Phase 3\n(Planned)",    NAVY, [
-        "MOH JKN integration (eLesen / ePerolehan)",
-        "AI-powered stock forecasting",
-        "Drug interaction alerts",
+    ("🚀  Phase 3\n(Planned)", NAVY, [
+        "MOH / JKN system integration",
+        "AI-powered quota forecasting",
+        "Mobile-friendly PWA wrapper",
         "Network-wide analytics across KK branches",
-        "Mobile app (React Native wrapper)",
+        "Batch antibiotic form review for FMS",
     ]),
 ]
 
-col_w = Inches(3.7)
+CW = Inches(3.7)
 for i, (phase, color, items) in enumerate(phases):
     cx = Inches(0.5) + i * Inches(4.1)
-    cy = Inches(1.65)
-    ch = Inches(5.5)
-    add_rect(s, cx, cy, col_w, ch, LIGHT)
-    add_rect(s, cx, cy, col_w, Inches(0.08), color)
-    txb(s, phase, cx + Inches(0.2), cy + Inches(0.15), col_w - Inches(0.3), Inches(0.7),
-        size=16, bold=True, color=color)
-    bullet_box(s, ["• " + it for it in items],
-               cx + Inches(0.2), cy + Inches(0.95), col_w - Inches(0.3), ch - Inches(1.1),
-               size=12, color=GREY)
+    cy = Inches(1.6)
+    ch = Inches(5.6)
+    card(s, cx, cy, CW, ch, WHITE, color)
+    tb(s, phase, cx + Inches(0.2), cy + Inches(0.18), CW - Inches(0.3), Inches(0.75),
+       size=16, bold=True, color=color, wrap=True)
+    bullets(s, ["• " + it for it in items],
+            cx + Inches(0.2), cy + Inches(1.0), CW - Inches(0.3), ch - Inches(1.1),
+            size=12, color=GREY)
 
 
 # ════════════════════════════════════════════════════════════════════════════
 # SLIDE 11 — CLOSING
 # ════════════════════════════════════════════════════════════════════════════
 s = prs.slides.add_slide(BLANK)
-add_rect(s, 0, 0, W, H, NAVY)
-add_rect(s, 0, 0, Inches(0.25), H, ACCENT)
+rect(s, 0, 0, W, H, NAVY)
+rect(s, 0, 0, Inches(0.25), H, ACCENT)
 
-txb(s, "Pharmacy Bin Keeper", Inches(0.6), Inches(1.5), Inches(10), Inches(1.1),
-    size=44, bold=True, color=WHITE)
-txb(s, "Digitising drug inventory management for Malaysian public-sector clinics —\none request, one approval, one dispense at a time.",
-    Inches(0.6), Inches(2.75), Inches(10), Inches(1.2),
-    size=20, color=RGBColor(0xA8, 0xC4, 0xE8), italic=True, wrap=True)
+tb(s, "Pharmacy Drug Monitoring System",
+   Inches(0.65), Inches(1.4), Inches(10.5), Inches(1.2),
+   size=40, bold=True, color=WHITE)
+tb(s, "Replacing Google Sheets and paper forms with a lean,\ndigital workflow — for every Klinik Kesihatan.",
+   Inches(0.65), Inches(2.75), Inches(10), Inches(1.2),
+   size=21, color=MUTED, italic=True, wrap=True)
 
-txb(s, "Contact  ·  admin@vvsdigitalsolutions.com",
-    Inches(0.6), Inches(4.6), Inches(8), Inches(0.6),
-    size=16, color=ACCENT)
+# two impact statements
+rect(s, Inches(0.65), Inches(4.2), Inches(5.5), Inches(0.95), RGBColor(0x17, 0x3A, 0x6E))
+tb(s, "📊  Quota drugs → off Google Sheets, onto one system",
+   Inches(0.85), Inches(4.35), Inches(5.2), Inches(0.65),
+   size=15, color=ACCENT, bold=True, wrap=True)
 
-add_rect(s, 0, Inches(6.9), W, Inches(0.6), RGBColor(0x12, 0x35, 0x62))
-txb(s, "vvsdigitalsolutions.com  ·  Confidential 2026",
-    Inches(0.6), Inches(6.9), Inches(10), Inches(0.6),
-    size=12, color=RGBColor(0x90, 0xA8, 0xC0))
+rect(s, Inches(6.8), Inches(4.2), Inches(6.0), Inches(0.95), RGBColor(0x17, 0x3A, 0x6E))
+tb(s, "💉  Antibiotic forms → off A4 paper, zero printing cost",
+   Inches(7.0), Inches(4.35), Inches(5.7), Inches(0.65),
+   size=15, color=AMBER, bold=True, wrap=True)
+
+tb(s, "Contact  ·  admin@vvsdigitalsolutions.com",
+   Inches(0.65), Inches(5.7), Inches(9), Inches(0.55),
+   size=16, color=ACCENT)
+rect(s, 0, Inches(6.9), W, Inches(0.6), NAVY2)
+tb(s, "vvsdigitalsolutions.com  ·  Confidential 2026",
+   Inches(0.65), Inches(6.9), Inches(10), Inches(0.6),
+   size=12, color=SBMUT)
 
 
 # ── Save ─────────────────────────────────────────────────────────────────────
