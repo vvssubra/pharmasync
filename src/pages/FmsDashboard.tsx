@@ -99,6 +99,9 @@ export default function FmsDashboard() {
   const [approveTarget, setApproveTarget] = useState<FmsPendingRequest | null>(null);
   const [rejectTarget, setRejectTarget] = useState<any>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [abApproveTarget, setAbApproveTarget] = useState<any>(null);
+  const [abRejectTarget, setAbRejectTarget] = useState<any>(null);
+  const [abRejectReason, setAbRejectReason] = useState("");
 
   const approveMutation = useMutation({
     mutationFn: async () => {
@@ -133,6 +136,41 @@ export default function FmsDashboard() {
       toast.success("Request rejected");
     },
     onError: () => toast.error("Failed to reject request"),
+  });
+
+  const abApproveMutation = useMutation({
+    mutationFn: async () => {
+      const id = abApproveTarget?.id;
+      if (!id) throw new Error("No approval target");
+      const { error } = await supabase
+        .from("antibiotic_forms" as any)
+        .update({ status: "approved", specialist_id: user?.id, specialist_action_at: new Date().toISOString() })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setAbApproveTarget(null);
+      queryClient.invalidateQueries({ queryKey: ["fms-pending-antibiotic"] });
+      toast.success("Antibiotic form approved");
+    },
+    onError: () => toast.error("Failed to approve antibiotic form"),
+  });
+
+  const abRejectMutation = useMutation({
+    mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
+      const { error } = await supabase
+        .from("antibiotic_forms" as any)
+        .update({ status: "rejected", specialist_id: user?.id, specialist_action_at: new Date().toISOString(), specialist_notes: reason })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      setAbRejectTarget(null);
+      setAbRejectReason("");
+      queryClient.invalidateQueries({ queryKey: ["fms-pending-antibiotic"] });
+      toast.success("Antibiotic form rejected");
+    },
+    onError: () => toast.error("Failed to reject antibiotic form"),
   });
 
   // Drug stock quota
@@ -494,17 +532,38 @@ export default function FmsDashboard() {
                       <TableHead>Patient</TableHead>
                       <TableHead>Diagnosis</TableHead>
                       <TableHead>Submitted By (MO)</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {pendingAntibiotic.length === 0 ? (
-                      <TableRow><TableCell colSpan={4} className="text-center py-6 text-muted-foreground">No antibiotic forms pending</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">No antibiotic forms pending</TableCell></TableRow>
                     ) : pendingAntibiotic.map((f: any) => (
                       <TableRow key={f.id}>
                         <TableCell className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(f.created_at), { addSuffix: true })}</TableCell>
                         <TableCell className="font-medium text-sm">{f.patient_name}</TableCell>
                         <TableCell className="text-xs max-w-[200px] truncate">{f.diagnosis}</TableCell>
                         <TableCell className="text-sm font-medium">{f.mo_name}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex gap-2 justify-end">
+                            <Button
+                              size="sm"
+                              className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
+                              onClick={() => setAbApproveTarget(f)}
+                              disabled={abApproveMutation.isPending}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              className="h-7 text-xs"
+                              onClick={() => { setAbRejectTarget(f); setAbRejectReason(""); }}
+                            >
+                              Reject
+                            </Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -685,6 +744,68 @@ export default function FmsDashboard() {
               variant="destructive"
               disabled={!rejectReason.trim() || rejectMutation.isPending}
               onClick={() => rejectMutation.mutate({ id: rejectTarget.id, reason: rejectReason })}
+            >
+              Confirm Reject
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Antibiotic Approve Dialog */}
+      <Dialog open={!!abApproveTarget} onOpenChange={open => { if (!open) setAbApproveTarget(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Approve Antibiotic Form</DialogTitle>
+          </DialogHeader>
+          {abApproveTarget && (
+            <div className="space-y-1.5 text-sm">
+              <p><span className="text-muted-foreground">Patient:</span> <span className="font-medium">{abApproveTarget.patient_name}</span></p>
+              <p><span className="text-muted-foreground">Diagnosis:</span> {abApproveTarget.diagnosis}</p>
+              <p><span className="text-muted-foreground">Submitted by:</span> {abApproveTarget.mo_name}</p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAbApproveTarget(null)}>Cancel</Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700 text-white"
+              disabled={abApproveMutation.isPending}
+              onClick={() => abApproveMutation.mutate()}
+            >
+              Confirm Approve
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Antibiotic Reject Dialog */}
+      <Dialog open={!!abRejectTarget} onOpenChange={open => { if (!open) { setAbRejectTarget(null); setAbRejectReason(""); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject Antibiotic Form</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            {abRejectTarget && (
+              <p className="text-muted-foreground">
+                Patient: <span className="font-medium text-foreground">{abRejectTarget.patient_name}</span> — {abRejectTarget.diagnosis}
+              </p>
+            )}
+            <div>
+              <Label htmlFor="ab-reject-reason">Reason for rejection</Label>
+              <Textarea
+                id="ab-reject-reason"
+                className="mt-1.5 h-24 text-sm"
+                placeholder="Enter reason..."
+                value={abRejectReason}
+                onChange={e => setAbRejectReason(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setAbRejectTarget(null); setAbRejectReason(""); }}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={!abRejectReason.trim() || abRejectMutation.isPending}
+              onClick={() => abRejectMutation.mutate({ id: abRejectTarget.id, reason: abRejectReason })}
             >
               Confirm Reject
             </Button>

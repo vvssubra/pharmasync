@@ -102,7 +102,7 @@ export default function DoctorRequest() {
   const submitMutation = useMutation({
     mutationFn: async (values: FormValues) => {
       const drug = drugs.find(d => d.id === values.drug_id);
-      const status = drug?.perlu_kelulusan_pakar ? "pending_specialist" : "pending_pharmacy";
+      const status = "pending_specialist";
       const { error } = await supabase.from("dispensing_requests").insert({
         drug_id: values.drug_id,
         patient_name: values.patient_name,
