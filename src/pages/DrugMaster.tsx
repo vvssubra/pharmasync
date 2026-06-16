@@ -59,7 +59,7 @@ export default function DrugMaster() {
   const { role } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const isAdmin = role === "pharmacist";
+  const isAdmin = role === "admin" || role === "pharmacist";
 
   const { data: drugs = [], isLoading } = useQuery({
     queryKey: ["drugs"],

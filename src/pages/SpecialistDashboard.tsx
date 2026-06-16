@@ -98,7 +98,7 @@ export default function SpecialistDashboard() {
         supabase
           .from("dispensing_requests")
           .select("drug_id, no_ic")
-          .in("status", ["approved", "fulfilled"])
+          .in("status", ["pending_pharmacy", "fulfilled"])
           .eq("is_pesara", false)
           .gte("created_at", yearStart)
           .lt("created_at", yearEnd),

@@ -12,7 +12,7 @@ const ROUTE_PERMISSIONS: Array<{ prefix: string; roles: AppRole[] }> = [
   { prefix: "/fms",             roles: ["admin", "fms", "pharmacist"] },
   { prefix: "/mo",              roles: ["admin", "mo", "pharmacist"] },
   { prefix: "/request",         roles: ["admin", "mo", "pharmacist"] },
-  { prefix: "/specialist",      roles: ["admin", "pharmacist"] },
+  { prefix: "/specialist",      roles: ["admin", "fms"] },
   { prefix: "/fulfilment",      roles: ["admin", "fms", "pharmacist"] },
   { prefix: "/drugs",           roles: ["admin", "fms", "pharmacist"] },
   { prefix: "/terimaan",        roles: ["admin", "fms", "pharmacist"] },
