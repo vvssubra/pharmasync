@@ -1,0 +1,1339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PharmFlow — System Proposal</title>
+  <style>
+    /* ===================================================================
+       PharmFlow — System Proposal
+       Visual register: institutional policy paper (OECD / World Bank shape)
+       Sans display + serif (Palatino) body · warm ivory paper · charcoal
+       ink · single restrained brass accent. Print-grade A4.
+       =================================================================== */
+
+    :root {
+      --paper:      oklch(0.985 0.006 85);    /* warm ivory sheet      */
+      --paper-sunk: oklch(0.966 0.008 82);    /* faint sunk panel      */
+      --ink:        oklch(0.28 0.012 265);    /* warm charcoal, body   */
+      --ink-soft:   oklch(0.44 0.012 265);    /* secondary text        */
+      --ink-faint:  oklch(0.60 0.010 265);    /* captions / footer     */
+      --structure:  oklch(0.31 0.028 262);    /* deep slate, headings  */
+      --brass:      oklch(0.585 0.085 74);    /* accent — seal / rule  */
+      --brass-deep: oklch(0.50 0.075 70);
+      --hair:       oklch(0.885 0.008 265);   /* hairline border       */
+      --hair-soft:  oklch(0.935 0.006 265);
+      --zebra:      oklch(0.972 0.006 80);    /* table zebra           */
+      --info-bg:    oklch(0.966 0.012 250);
+      --sage:       oklch(0.50 0.060 150);    /* success               */
+      --sage-bg:    oklch(0.958 0.022 150);
+      --amber:      oklch(0.62 0.090 75);     /* warning               */
+      --amber-bg:   oklch(0.964 0.030 80);
+
+      --serif: "Palatino Linotype","Book Antiqua",Palatino,"Iowan Old Style",Georgia,"Times New Roman",serif;
+      --sans:  "Helvetica Neue","Segoe UI",Arial,system-ui,sans-serif;
+    }
+
+    /* ===== BASE ===== */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+    body {
+      font-family: var(--serif);
+      font-size: 11pt;
+      color: var(--ink);
+      background: var(--paper);
+      line-height: 1.62;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    strong { color: var(--structure); font-weight: 700; }
+    em { color: var(--ink-soft); }
+
+    /* ===== PAGE SETUP ===== */
+    @page {
+      size: A4;
+      margin: 2.4cm 2.4cm 2.4cm 2.8cm;
+    }
+
+    .page {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 0 auto;
+      padding: 2.4cm 2.4cm 2.4cm 2.8cm;
+      background: var(--paper);
+      position: relative;
+    }
+
+    @media print {
+      body { background: var(--paper); }
+      .page { margin: 0; padding: 0; width: 100%; min-height: 0; }
+      .page-break { page-break-before: always; }
+      .no-break { page-break-inside: avoid; }
+    }
+
+    @media screen {
+      body { background: oklch(0.90 0.006 80); padding: 28px 0; }
+      .page {
+        box-shadow: 0 1px 2px oklch(0.2 0.02 265 / 0.10),
+                    0 18px 48px oklch(0.2 0.02 265 / 0.16);
+        margin: 24px auto;
+        padding: 2.4cm 2.4cm 2.4cm 2.8cm;
+        border: 1px solid oklch(0.86 0.006 80);
+      }
+    }
+
+    /* ===== COVER PAGE ===== */
+    .cover {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 244mm;
+      text-align: center;
+    }
+
+    .cover-kementerian {
+      font-family: var(--sans);
+      font-size: 9.5pt;
+      font-weight: 700;
+      color: var(--brass-deep);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .cover-jabatan {
+      font-size: 12pt;
+      font-style: italic;
+      color: var(--ink-soft);
+      margin-bottom: 44px;
+    }
+
+    .cover-divider-top {
+      width: 100%;
+      border: none;
+      border-top: 2.5px solid var(--structure);
+      margin-bottom: 5px;
+    }
+
+    .cover-divider-sub {
+      width: 100%;
+      border: none;
+      border-top: 1px solid var(--brass);
+      margin-bottom: 58px;
+    }
+
+    .cover-label {
+      font-family: var(--sans);
+      font-size: 9.5pt;
+      text-transform: uppercase;
+      letter-spacing: 0.34em;
+      color: var(--ink-faint);
+      margin-bottom: 18px;
+    }
+
+    .cover-title {
+      font-family: var(--sans);
+      font-size: 40pt;
+      font-weight: 700;
+      color: var(--structure);
+      letter-spacing: -0.015em;
+      margin-bottom: 14px;
+      line-height: 1.04;
+    }
+
+    .cover-subtitle {
+      font-size: 13.5pt;
+      color: var(--ink-soft);
+      margin-bottom: 58px;
+      font-style: italic;
+      max-width: 30ch;
+      line-height: 1.4;
+    }
+
+    .cover-divider-bottom {
+      width: 100%;
+      border: none;
+      border-top: 1px solid var(--brass);
+      margin-bottom: 5px;
+    }
+
+    .cover-divider-bottom2 {
+      width: 100%;
+      border: none;
+      border-top: 2.5px solid var(--structure);
+      margin-bottom: 48px;
+    }
+
+    .cover-meta-table {
+      width: 100%;
+      max-width: 460px;
+      border-collapse: collapse;
+      font-size: 11pt;
+      text-align: left;
+    }
+
+    .cover-meta-table td {
+      padding: 7px 10px;
+      vertical-align: top;
+      border-bottom: 1px solid var(--hair-soft);
+    }
+
+    .cover-meta-table tr:last-child td { border-bottom: none; }
+
+    .cover-meta-table .label {
+      width: 38%;
+      font-family: var(--sans);
+      font-size: 8.5pt;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--brass-deep);
+      padding-top: 9px;
+    }
+
+    .cover-meta-table .colon {
+      width: 5%;
+      text-align: center;
+      color: var(--hair);
+    }
+
+    .cover-footer {
+      font-family: var(--sans);
+      margin-top: 56px;
+      font-size: 8pt;
+      color: var(--ink-faint);
+      letter-spacing: 0.22em;
+    }
+
+    /* ===== HEADINGS ===== */
+    h1.section-title {
+      font-family: var(--sans);
+      font-size: 14pt;
+      font-weight: 700;
+      color: var(--structure);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 18px;
+      padding-bottom: 9px;
+      border-bottom: 1.5px solid var(--structure);
+      position: relative;
+    }
+
+    h1.section-title::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      bottom: -1.5px;
+      width: 54px;
+      height: 1.5px;
+      background: var(--brass);
+    }
+
+    h2.subsection {
+      font-family: var(--sans);
+      font-size: 11.5pt;
+      font-weight: 700;
+      color: var(--structure);
+      letter-spacing: 0.005em;
+      margin-top: 22px;
+      margin-bottom: 9px;
+    }
+
+    h3.sub-subsection {
+      font-family: var(--sans);
+      font-size: 10.5pt;
+      font-weight: 700;
+      color: var(--ink);
+      margin-top: 15px;
+      margin-bottom: 7px;
+    }
+
+    /* ===== BODY TEXT ===== */
+    p {
+      margin-bottom: 11px;
+      text-align: justify;
+      hyphens: auto;
+    }
+
+    ul, ol {
+      padding-left: 22px;
+      margin-bottom: 11px;
+    }
+
+    li {
+      margin-bottom: 5px;
+      padding-left: 4px;
+    }
+
+    li::marker { color: var(--brass-deep); }
+
+    /* ===== TABLE OF CONTENTS ===== */
+    .toc-title {
+      font-family: var(--sans);
+      font-size: 14pt;
+      font-weight: 700;
+      color: var(--structure);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 26px;
+      padding-bottom: 9px;
+      border-bottom: 1.5px solid var(--structure);
+      position: relative;
+    }
+
+    .toc-title::after {
+      content: "";
+      position: absolute;
+      left: 0; bottom: -1.5px;
+      width: 54px; height: 1.5px;
+      background: var(--brass);
+    }
+
+    .toc-item {
+      display: flex;
+      align-items: baseline;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--hair-soft);
+      font-size: 10.5pt;
+    }
+
+    .toc-item.toc-h1 {
+      font-family: var(--sans);
+      font-weight: 700;
+      font-size: 10.5pt;
+      color: var(--structure);
+      margin-top: 10px;
+      border-bottom-color: var(--hair);
+    }
+
+    .toc-item.toc-h2 {
+      padding-left: 22px;
+      color: var(--ink-soft);
+    }
+
+    .toc-num {
+      min-width: 42px;
+      color: var(--brass-deep);
+      font-family: var(--sans);
+      font-size: 9.5pt;
+      font-weight: 700;
+    }
+
+    .toc-item.toc-h2 .toc-num { color: var(--ink-faint); font-weight: 400; }
+
+    .toc-title-text {
+      flex: 1;
+      padding: 0 12px 0 4px;
+    }
+
+    .toc-item > span:last-child {
+      font-family: var(--sans);
+      font-size: 9.5pt;
+      color: var(--ink-faint);
+    }
+
+    /* ===== DATA TABLES ===== */
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 10pt;
+      border: 1px solid var(--hair);
+    }
+
+    .data-table th {
+      background: var(--structure);
+      color: var(--paper);
+      padding: 9px 11px;
+      text-align: left;
+      font-family: var(--sans);
+      font-size: 8.5pt;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .data-table td {
+      padding: 8px 11px;
+      border-bottom: 1px solid var(--hair-soft);
+      vertical-align: top;
+      line-height: 1.5;
+    }
+
+    .data-table tbody tr:last-child td { border-bottom: none; }
+
+    .data-table tr:nth-child(even) td { background: var(--zebra); }
+
+    .data-table td:first-child {
+      font-family: var(--sans);
+      font-weight: 700;
+      color: var(--structure);
+      font-size: 9.5pt;
+    }
+
+    /* ===== HIGHLIGHT BOXES (full border + top accent — no side stripe) ===== */
+    .info-box {
+      background: var(--info-bg);
+      border: 1px solid var(--hair);
+      border-top: 2.5px solid var(--brass);
+      padding: 14px 18px;
+      margin: 16px 0;
+      font-size: 10.5pt;
+      line-height: 1.55;
+    }
+
+    .info-box strong { font-family: var(--sans); font-size: 9.5pt; }
+
+    .info-box.warning {
+      background: var(--amber-bg);
+      border-top-color: var(--amber);
+    }
+
+    .info-box.success {
+      background: var(--sage-bg);
+      border-top-color: var(--sage);
+    }
+
+    .info-box.success strong { color: var(--sage); }
+
+    /* ===== WORKFLOW DIAGRAM ===== */
+    .workflow {
+      display: flex;
+      align-items: stretch;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 18px 0;
+    }
+
+    .workflow-step {
+      background: var(--structure);
+      color: var(--paper);
+      padding: 10px 16px;
+      border-radius: 3px;
+      font-family: var(--sans);
+      font-size: 9pt;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-align: center;
+      min-width: 96px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1.3;
+    }
+
+    .workflow-arrow {
+      font-size: 15pt;
+      color: var(--brass);
+      font-weight: 700;
+      align-self: center;
+    }
+
+    /* ===== SECTION SPACING ===== */
+    .section { margin-bottom: 32px; }
+
+    /* ===== ROLE BADGE ===== */
+    .role-badge {
+      display: inline-block;
+      background: var(--structure);
+      color: var(--paper);
+      padding: 2px 9px;
+      border-radius: 2px;
+      font-family: var(--sans);
+      font-size: 8pt;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    /* ===== FOOTER ===== */
+    .page-footer {
+      margin-top: 42px;
+      padding-top: 11px;
+      border-top: 1px solid var(--hair);
+      font-family: var(--sans);
+      font-size: 8pt;
+      letter-spacing: 0.06em;
+      color: var(--ink-faint);
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .page-footer span:last-child { color: var(--brass-deep); }
+
+    /* ===== SIGNATURE BLOCK ===== */
+    .signature-block { margin-top: 52px; }
+
+    .sig-line {
+      margin-top: 52px;
+      border-top: 1.5px solid var(--ink);
+      width: 60%;
+      padding-top: 8px;
+      font-size: 11pt;
+      line-height: 1.55;
+    }
+
+    .sig-line strong { letter-spacing: 0.02em; }
+
+    /* ===== PRINT BUTTON (screen only) ===== */
+    .print-btn {
+      position: fixed;
+      top: 22px;
+      right: 22px;
+      background: var(--structure);
+      color: var(--paper);
+      border: none;
+      padding: 12px 22px;
+      font-family: var(--sans);
+      font-size: 10pt;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      cursor: pointer;
+      border-radius: 4px;
+      box-shadow: 0 6px 18px oklch(0.2 0.02 265 / 0.28);
+      z-index: 999;
+      transition: background 180ms cubic-bezier(0.22,1,0.36,1),
+                  transform 180ms cubic-bezier(0.22,1,0.36,1);
+    }
+
+    .print-btn:hover { background: var(--brass-deep); transform: translateY(-1px); }
+
+    @media print { .print-btn { display: none; } }
+
+    /* ===== FEATURE GRID ===== */
+    .feature-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 16px 0;
+    }
+
+    .feature-card {
+      border: 1px solid var(--hair);
+      border-top: 2px solid var(--brass);
+      padding: 13px 15px;
+      page-break-inside: avoid;
+      background: var(--paper-sunk);
+    }
+
+    .feature-card h4 {
+      font-family: var(--sans);
+      color: var(--structure);
+      font-size: 10.5pt;
+      margin-bottom: 6px;
+      font-weight: 700;
+    }
+
+    .feature-card p {
+      font-size: 9.5pt;
+      margin: 0;
+      text-align: left;
+    }
+
+    @media print {
+      .feature-grid { display: block; }
+      .feature-card { margin-bottom: 12px; }
+    }
+  
+  </style>
+</head>
+<body>
+
+<button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
+
+<!-- ==================== COVER PAGE ==================== -->
+<div class="page">
+  <div class="cover">
+    <p class="cover-kementerian">Kementerian Kesihatan Malaysia</p>
+    <p class="cover-jabatan">Klinik Kesihatan Kempas, Johor Bahru</p>
+
+    <hr class="cover-divider-top" />
+    <hr class="cover-divider-sub" />
+
+    <p class="cover-label">System Proposal</p>
+
+    <h1 class="cover-title">PharmFlow</h1>
+    <p class="cover-subtitle">
+      Integrated Pharmacy Workflow &amp; Inventory Management System
+    </p>
+
+    <hr class="cover-divider-bottom" />
+    <hr class="cover-divider-bottom2" />
+
+    <table class="cover-meta-table">
+      <tr>
+        <td class="label">Prepared By</td>
+        <td class="colon">:</td>
+        <td>Subramaniam Palaniapan<br />Pegawai Farmasi UF12<br />Klinik Kesihatan Kempas</td>
+      </tr>
+      <tr>
+        <td class="label">Designation</td>
+        <td class="colon">:</td>
+        <td>Pegawai Farmasi Gred UF12</td>
+      </tr>
+      <tr>
+        <td class="label">Facility</td>
+        <td class="colon">:</td>
+        <td>Klinik Kesihatan Kempas, Johor Bahru</td>
+      </tr>
+      <tr>
+        <td class="label">Date</td>
+        <td class="colon">:</td>
+        <td>April 2026</td>
+      </tr>
+      <tr>
+        <td class="label">Classification</td>
+        <td class="colon">:</td>
+        <td>SULIT</td>
+      </tr>
+    </table>
+
+    <p class="cover-footer">PHARMFLOW &mdash; SYSTEM PROPOSAL &mdash; APRIL 2026</p>
+  </div>
+</div>
+
+<!-- ==================== TABLE OF CONTENTS ==================== -->
+<div class="page page-break">
+  <p class="toc-title">Table of Contents</p>
+
+  <div class="toc-item toc-h1"><span class="toc-num">1.0</span><span class="toc-title-text">Executive Summary</span><span>3</span></div>
+  <div class="toc-item toc-h1"><span class="toc-num">2.0</span><span class="toc-title-text">Problem Statement</span><span>3</span></div>
+  <div class="toc-item toc-h2"><span class="toc-num">2.1</span><span class="toc-title-text">Current Challenges</span><span>3</span></div>
+  <div class="toc-item toc-h2"><span class="toc-num">2.2</span><span class="toc-title-text">Impact on Operations</span><span>4</span></div>
+  <div class="toc-item toc-h1"><span class="toc-num">3.0</span><span class="toc-title-text">Proposed Solution — PharmFlow</span><span>4</span></div>
+  <div class="toc-item toc-h2"><span class="toc-num">3.1</span><span class="toc-title-text">System Overview</span><span>4</span></div>
+  <div class="toc-item toc-h2"><span class="toc-num">3.2</span><span class="toc-title-text">Objectives</span><span>5</span></div>
+  <div class="toc-item toc-h1"><span class="toc-num">4.0</span><span class="toc-title-text">Key Features</span><span>5</span></div>
+  <div class="toc-item toc-h2"><span class="toc-num">4.1</span><span class="toc-title-text">Digital Drug Inventory (Bin Card)</span><span>5</span></div>
+  <div class="toc-item toc-h2"><span class="toc-num">4.2</span><span class="toc-title-text">Drug Dispensing Request Workflow</span><span>5</span></div>
+  <div class="toc-item toc-h2"><span class="toc-num">4.3</span><span class="toc-title-text">Antibiotic Approval (Clinical Pathway NAG 2024)</span><span>6</span></div>
+  <div class="toc-item toc-h2"><span class="toc-num">4.4</span><span class="toc-title-text">Controlled Drug Quota Management</span><span>6</span></div>
+  <div class="toc-item toc-h2"><span class="toc-num">4.5</span><span class="toc-title-text">Patient Registry &amp; Drug History</span><span>6</span></div>
+  <div class="toc-item toc-h2"><span class="toc-num">4.6</span><span class="toc-title-text">Dashboard &amp; Analytics</span><span>6</span></div>
+  <div class="toc-item toc-h2"><span class="toc-num">4.7</span><span class="toc-title-text">Role-Based Access Control</span><span>7</span></div>
+  <div class="toc-item toc-h2"><span class="toc-num">4.8</span><span class="toc-title-text">Audit Trail</span><span>7</span></div>
+  <div class="toc-item toc-h1"><span class="toc-num">5.0</span><span class="toc-title-text">System Workflow</span><span>7</span></div>
+  <div class="toc-item toc-h1"><span class="toc-num">6.0</span><span class="toc-title-text">Technical Overview</span><span>8</span></div>
+  <div class="toc-item toc-h1"><span class="toc-num">7.0</span><span class="toc-title-text">User Roles &amp; Access</span><span>9</span></div>
+  <div class="toc-item toc-h1"><span class="toc-num">8.0</span><span class="toc-title-text">Benefits &amp; Expected Outcomes</span><span>9</span></div>
+  <div class="toc-item toc-h1"><span class="toc-num">9.0</span><span class="toc-title-text">Future Enhancements</span><span>10</span></div>
+  <div class="toc-item toc-h1"><span class="toc-num">10.0</span><span class="toc-title-text">Conclusion</span><span>11</span></div>
+
+  <div class="page-footer">
+    <span>PharmFlow — System Proposal | Klinik Kesihatan Kempas</span>
+    <span>SULIT | April 2026</span>
+  </div>
+</div>
+
+<!-- ==================== SECTION 1 & 2 ==================== -->
+<div class="page page-break">
+
+  <!-- 1.0 Executive Summary -->
+  <div class="section">
+    <h1 class="section-title">1.0 &nbsp; Executive Summary</h1>
+    <p>
+      This proposal presents <strong>PharmFlow</strong>, an integrated digital pharmacy workflow and inventory management system developed specifically for government health clinics under the Ministry of Health Malaysia. The system replaces manual, paper-based pharmacy processes with a secure, web-based platform that manages drug inventory, dispensing approvals, antibiotic oversight, patient drug history, and controlled drug quota monitoring — all within a single unified system.
+    </p>
+    <p>
+      PharmFlow was designed and developed in-house by the pharmacy unit of Klinik Kesihatan Kempas to address longstanding inefficiencies in manual record-keeping, multi-party approval workflows, and controlled drug tracking. The system is currently functional and in active use within the facility. This proposal seeks formal endorsement and support for broader deployment.
+    </p>
+    <div class="info-box success">
+      <strong>Current Status:</strong> PharmFlow is fully developed, operational, and in active use at Klinik Kesihatan Kempas as of April 2026.
+    </div>
+  </div>
+
+  <!-- 2.0 Problem Statement -->
+  <div class="section">
+    <h1 class="section-title">2.0 &nbsp; Problem Statement</h1>
+
+    <h2 class="subsection">2.1 &nbsp; Current Challenges</h2>
+    <p>
+      Government health clinics in Malaysia continue to rely heavily on manual, paper-based systems for pharmacy operations. This creates significant inefficiencies, risks, and administrative burden across all levels of the pharmacy workflow. The key challenges include:
+    </p>
+    <table class="data-table no-break">
+      <thead>
+        <tr>
+          <th>No.</th>
+          <th>Challenge</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>Manual Bin Card Management</td>
+          <td>Drug inventory records are maintained on physical bin cards, prone to human error, illegibility, and loss. Reconciliation is time-consuming and error-prone.</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>Paper-Based Drug Requests</td>
+          <td>Drug dispensing requests from doctors to pharmacists are submitted via paper forms, leading to delays, lost requests, and lack of audit trail.</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>Antibiotic Oversight Gaps</td>
+          <td>Antibiotic prescriptions requiring specialist approval under NAG 2024 guidelines are managed manually, risking non-compliance and delayed approvals.</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td>Controlled Drug Quota Monitoring</td>
+          <td>Annual patient quotas for controlled drugs are tracked manually, making it difficult to enforce limits and generate accurate reports.</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td>Lack of Patient Drug History</td>
+          <td>There is no centralised system linking patients to their drug dispensing history, making clinical review difficult.</td>
+        </tr>
+        <tr>
+          <td>6</td>
+          <td>No Real-Time Stock Visibility</td>
+          <td>Stock levels are not visible in real-time, leading to stockouts, overstocking, and poor inventory planning.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 class="subsection">2.2 &nbsp; Impact on Operations</h2>
+    <p>
+      These challenges result in delayed patient care, increased risk of medication errors, inability to generate timely management reports, and difficulty ensuring compliance with national pharmacy guidelines including the National Antibiotic Guideline (NAG) 2024. The absence of a digital system also limits the facility's ability to support data-driven decision-making at the management level.
+    </p>
+  </div>
+
+  <div class="page-footer">
+    <span>PharmFlow — System Proposal | Klinik Kesihatan Kempas</span>
+    <span>SULIT | April 2026</span>
+  </div>
+</div>
+
+<!-- ==================== SECTION 3 ==================== -->
+<div class="page page-break">
+
+  <div class="section">
+    <h1 class="section-title">3.0 &nbsp; Proposed Solution — PharmFlow</h1>
+
+    <h2 class="subsection">3.1 &nbsp; System Overview</h2>
+    <p>
+      <strong>PharmFlow</strong> (Integrated Pharmacy Workflow &amp; Inventory Management System) is a web-based digital platform that centralises and automates all key pharmacy operations within a government health clinic. The system operates through a standard web browser and does not require any software installation on staff devices.
+    </p>
+    <p>
+      The platform supports four distinct user roles — Medical Officer, Facility Management Specialist (FMS), Pharmacist, and Administrator — each with a dedicated dashboard and access level appropriate to their responsibilities. All transactions, approvals, and dispensing events are recorded in real-time and made available for reporting and audit.
+    </p>
+
+    <div class="info-box">
+      <strong>System Name:</strong> PharmFlow<br />
+      <strong>Full Name:</strong> Integrated Pharmacy Workflow &amp; Inventory Management System<br />
+      <strong>Platform:</strong> Web-based (accessible via any modern web browser)<br />
+      <strong>Data Storage:</strong> Secure cloud database hosted by Supabase (Malaysian data residency compliant)<br />
+      <strong>Access:</strong> Role-based, authenticated login required
+    </div>
+
+    <h2 class="subsection">3.2 &nbsp; Objectives</h2>
+    <ol>
+      <li>To digitise and automate drug inventory management, eliminating reliance on physical bin cards.</li>
+      <li>To establish a transparent, multi-level approval workflow for drug dispensing and antibiotic prescriptions.</li>
+      <li>To enforce annual controlled drug quotas on a per-patient basis in compliance with MOH guidelines.</li>
+      <li>To maintain a comprehensive patient drug dispensing history accessible to authorised pharmacy staff.</li>
+      <li>To provide real-time stock level visibility and automated low-stock alerts to pharmacy management.</li>
+      <li>To generate accurate, on-demand inventory and dispensing reports for management and audit purposes.</li>
+    </ol>
+  </div>
+
+  <div class="page-footer">
+    <span>PharmFlow — System Proposal | Klinik Kesihatan Kempas</span>
+    <span>SULIT | April 2026</span>
+  </div>
+</div>
+
+<!-- ==================== SECTION 4 ==================== -->
+<div class="page page-break">
+
+  <div class="section">
+    <h1 class="section-title">4.0 &nbsp; Key Features</h1>
+
+    <h2 class="subsection">4.1 &nbsp; Digital Drug Inventory (Bin Card System)</h2>
+    <p>
+      PharmFlow provides a complete digital replacement for the physical bin card. Each drug in the pharmacy is assigned a unique digital record that tracks all stock movements — including opening balance, stock received (terimaan), and stock issued (keluaran). Current stock levels are computed automatically from the full transaction history, ensuring accuracy at all times.
+    </p>
+    <p>
+      Each drug record includes warehouse location details (section, row, rack, level, compartment) to facilitate physical stock verification and audit. The system also records the minimum, maximum, and reorder level for each drug, and automatically flags drugs that are critically low, below minimum, or in excess.
+    </p>
+
+    <h2 class="subsection">4.2 &nbsp; Drug Dispensing Request Workflow</h2>
+    <p>
+      All drug dispensing requests originate from the Medical Officer's dashboard and pass through a structured three-stage approval process before fulfillment:
+    </p>
+
+    <div class="workflow no-break">
+      <div class="workflow-step">Medical Officer<br />(Request)</div>
+      <div class="workflow-arrow">→</div>
+      <div class="workflow-step">FMS<br />(Approve / Reject)</div>
+      <div class="workflow-arrow">→</div>
+      <div class="workflow-step">Pharmacist<br />(Fulfill / Defer)</div>
+      <div class="workflow-arrow">→</div>
+      <div class="workflow-step">Patient Registry<br />(Auto-Created)</div>
+    </div>
+
+    <p>
+      At each stage, the responsible officer receives a real-time notification badge on their dashboard. All actions — approval, rejection, fulfillment, or deferral — are timestamped and recorded with the responsible user's identity, creating a complete and tamper-evident audit trail.
+    </p>
+
+    <h2 class="subsection">4.3 &nbsp; Antibiotic Approval (Clinical Pathway NAG 2024)</h2>
+    <p>
+      For antibiotic prescriptions requiring specialist oversight under the National Antibiotic Guideline (NAG) 2024, PharmFlow provides a dedicated digital submission form. Medical officers complete the antibiotic approval form electronically, which is then reviewed and approved or rejected by the facility's designated specialist. The approval status is acknowledged by the requesting officer, creating a complete digital record of the clinical pathway decision.
+    </p>
+
+    <h2 class="subsection">4.4 &nbsp; Controlled Drug Quota Management</h2>
+    <p>
+      Administrators set annual dispensing quotas for controlled drugs on a per-patient basis. The system automatically tracks each patient's cumulative consumption against their assigned quota throughout the year, raising alerts when a patient approaches or exceeds their limit. This ensures compliance with national controlled drug regulations and eliminates the risk of over-dispensing.
+    </p>
+
+    <h2 class="subsection">4.5 &nbsp; Patient Registry &amp; Drug History</h2>
+    <p>
+      A patient record is automatically created the first time a drug is dispensed to them. Subsequent dispensing events are linked to the same record, building a complete drug history for each patient. Pharmacy staff can search and review any patient's dispensing history, supporting clinical review and medication reconciliation.
+    </p>
+
+    <h2 class="subsection">4.6 &nbsp; Dashboard &amp; Analytics</h2>
+    <p>
+      Each user role is presented with a purpose-built dashboard upon login. Key metrics displayed include:
+    </p>
+    <ul>
+      <li>Real-time drug stock levels with colour-coded status indicators (critical / low / normal / excess)</li>
+      <li>Number of pending drug requests and antibiotic approvals requiring action</li>
+      <li>Drug movement trends and dispensing volume charts</li>
+      <li>Top dispensed drugs and stock turnover analysis</li>
+      <li>Exportable inventory and dispensing reports</li>
+    </ul>
+
+    <div class="page-footer">
+      <span>PharmFlow — System Proposal | Klinik Kesihatan Kempas</span>
+      <span>SULIT | April 2026</span>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SECTION 4 cont. + 5 ==================== -->
+<div class="page page-break">
+  <div class="section">
+    <h2 class="subsection">4.7 &nbsp; Role-Based Access Control</h2>
+    <p>
+      PharmFlow enforces strict role-based access control. Each user is assigned exactly one role upon account creation, and the system automatically limits their access to only the functions and data relevant to their role. No cross-role data leakage is possible by design.
+    </p>
+
+    <table class="data-table no-break">
+      <thead>
+        <tr>
+          <th>Role</th>
+          <th>Malay Designation</th>
+          <th>System Access</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="role-badge">admin</span></td>
+          <td>Pentadbir Sistem</td>
+          <td>Full access — drug master, transactions, reports, user management, quota setup</td>
+        </tr>
+        <tr>
+          <td><span class="role-badge">pharmacist</span></td>
+          <td>Pegawai Farmasi</td>
+          <td>Drug inventory, fulfillment, patient registry, reports</td>
+        </tr>
+        <tr>
+          <td><span class="role-badge">fms</span></td>
+          <td>Pegawai FMS / Pakar</td>
+          <td>Drug request approvals, antibiotic specialist approval, FMS dashboard</td>
+        </tr>
+        <tr>
+          <td><span class="role-badge">mo</span></td>
+          <td>Pegawai Perubatan</td>
+          <td>Drug request submission, antibiotic form submission, MO dashboard</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 class="subsection">4.8 &nbsp; Audit Trail</h2>
+    <p>
+      Every significant action within PharmFlow is logged with the user's identity, timestamp, and action type. This includes drug additions, stock adjustments, request submissions, approvals, rejections, and fulfillments. The audit trail is read-only and cannot be modified by any user, ensuring data integrity for compliance and inspection purposes.
+    </p>
+  </div>
+
+  <!-- SECTION 5 -->
+  <div class="section">
+    <h1 class="section-title">5.0 &nbsp; System Workflow</h1>
+
+    <h2 class="subsection">5.1 &nbsp; Drug Dispensing Workflow</h2>
+    <table class="data-table no-break">
+      <thead>
+        <tr>
+          <th>Step</th>
+          <th>Actor</th>
+          <th>Action</th>
+          <th>System Response</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>Medical Officer</td>
+          <td>Submits drug dispensing request for patient</td>
+          <td>Request created with status <em>Pending</em></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>FMS Officer</td>
+          <td>Reviews and approves or rejects the request</td>
+          <td>Status updated to <em>Approved</em> or <em>Rejected</em></td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>Pharmacist</td>
+          <td>Fulfils or defers the approved request</td>
+          <td>Stock deducted; patient record auto-created or updated</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td>System</td>
+          <td>Links drug to patient history</td>
+          <td>Full audit trail recorded with timestamps</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 class="subsection">5.2 &nbsp; Antibiotic Approval Workflow</h2>
+    <table class="data-table no-break">
+      <thead>
+        <tr>
+          <th>Step</th>
+          <th>Actor</th>
+          <th>Action</th>
+          <th>System Response</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>Medical Officer</td>
+          <td>Completes antibiotic form (NAG 2024 pathway)</td>
+          <td>Form submitted with status <em>Pending</em></td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>Specialist (FMS)</td>
+          <td>Reviews clinical justification; approves or rejects</td>
+          <td>Status updated to <em>Approved</em> or <em>Rejected</em></td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>Medical Officer</td>
+          <td>Acknowledges the specialist decision</td>
+          <td>Status finalised as <em>Acknowledged</em>; record archived</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 class="subsection">5.3 &nbsp; Stock Management Workflow</h2>
+    <table class="data-table no-break">
+      <thead>
+        <tr>
+          <th>Step</th>
+          <th>Actor</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>1</td>
+          <td>Pharmacist / Admin</td>
+          <td>Records opening balance for new financial year</td>
+        </tr>
+        <tr>
+          <td>2</td>
+          <td>Pharmacist / Admin</td>
+          <td>Records stock received (terimaan) upon delivery from store</td>
+        </tr>
+        <tr>
+          <td>3</td>
+          <td>System</td>
+          <td>Automatically computes current stock from full transaction ledger</td>
+        </tr>
+        <tr>
+          <td>4</td>
+          <td>System</td>
+          <td>Flags drugs as critical / low / excess based on min-max thresholds</td>
+        </tr>
+        <tr>
+          <td>5</td>
+          <td>Pharmacist / Admin</td>
+          <td>Reviews bin card and drug ledger; generates reports</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="page-footer">
+    <span>PharmFlow — System Proposal | Klinik Kesihatan Kempas</span>
+    <span>SULIT | April 2026</span>
+  </div>
+</div>
+
+<!-- ==================== SECTION 6 ==================== -->
+<div class="page page-break">
+  <div class="section">
+    <h1 class="section-title">6.0 &nbsp; Technical Overview</h1>
+    <p>
+      The following section provides a simplified technical overview of the PharmFlow system for the benefit of management stakeholders. Technical specifications are intentionally presented at a high level.
+    </p>
+
+    <h2 class="subsection">6.1 &nbsp; System Architecture</h2>
+    <p>
+      PharmFlow is a cloud-hosted, browser-based web application. It follows a modern three-tier architecture:
+    </p>
+    <table class="data-table no-break">
+      <thead>
+        <tr>
+          <th>Layer</th>
+          <th>Description</th>
+          <th>Technology Used</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>User Interface</strong></td>
+          <td>What staff see and interact with in their browser. Role-specific dashboards, forms, tables, and charts.</td>
+          <td>React 18, TypeScript, Tailwind CSS</td>
+        </tr>
+        <tr>
+          <td><strong>Business Logic</strong></td>
+          <td>The rules and workflows that govern how data flows between users — approvals, stock calculations, quota checks.</td>
+          <td>Supabase Row-Level Security, API Layer</td>
+        </tr>
+        <tr>
+          <td><strong>Data Storage</strong></td>
+          <td>Secure, relational database storing all drug records, transactions, patient history, and audit logs.</td>
+          <td>PostgreSQL (via Supabase)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 class="subsection">6.2 &nbsp; Technology Stack</h2>
+    <table class="data-table no-break">
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th>Technology</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Frontend Framework</td>
+          <td>React 18 + TypeScript</td>
+          <td>Responsive, interactive user interface</td>
+        </tr>
+        <tr>
+          <td>UI Component Library</td>
+          <td>shadcn/ui + Radix UI</td>
+          <td>Accessible, consistent UI components</td>
+        </tr>
+        <tr>
+          <td>Styling</td>
+          <td>Tailwind CSS</td>
+          <td>Rapid, maintainable visual design</td>
+        </tr>
+        <tr>
+          <td>Backend &amp; Database</td>
+          <td>Supabase (PostgreSQL)</td>
+          <td>Secure data storage, authentication, real-time updates</td>
+        </tr>
+        <tr>
+          <td>Authentication</td>
+          <td>Supabase Auth</td>
+          <td>Secure email/password login with role assignment</td>
+        </tr>
+        <tr>
+          <td>Data Charts</td>
+          <td>Recharts</td>
+          <td>Stock trend and dispensing analytics charts</td>
+        </tr>
+        <tr>
+          <td>Form Validation</td>
+          <td>React Hook Form + Zod</td>
+          <td>Client-side validation before data submission</td>
+        </tr>
+        <tr>
+          <td>Build Tool</td>
+          <td>Vite (SWC)</td>
+          <td>Fast development and production build pipeline</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 class="subsection">6.3 &nbsp; Security Features</h2>
+    <ul>
+      <li><strong>Authentication:</strong> All access requires a valid username and password. Sessions expire automatically.</li>
+      <li><strong>Role Enforcement:</strong> The database enforces role-based permissions at the data level — not just the interface level. A pharmacist cannot access FMS data even with direct database queries.</li>
+      <li><strong>Audit Logging:</strong> All system actions are logged with user identity and timestamp.</li>
+      <li><strong>HTTPS Encryption:</strong> All data transmission is encrypted in transit using industry-standard TLS encryption.</li>
+      <li><strong>No Local Storage of Sensitive Data:</strong> Drug records and patient history are stored exclusively in the secure cloud database.</li>
+    </ul>
+
+    <h2 class="subsection">6.4 &nbsp; Access Requirements</h2>
+    <div class="info-box">
+      PharmFlow requires only a modern web browser (Google Chrome, Microsoft Edge, Mozilla Firefox) and a stable internet connection. No software installation is required on staff devices. The system is accessible on desktop computers, laptops, and tablets.
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <span>PharmFlow — System Proposal | Klinik Kesihatan Kempas</span>
+    <span>SULIT | April 2026</span>
+  </div>
+</div>
+
+<!-- ==================== SECTION 7 + 8 ==================== -->
+<div class="page page-break">
+  <div class="section">
+    <h1 class="section-title">7.0 &nbsp; User Roles &amp; Access</h1>
+    <p>PharmFlow provides four distinct user roles. Each role is restricted to functions relevant to their clinical or administrative responsibilities.</p>
+
+    <h2 class="subsection">7.1 &nbsp; Administrator (Pentadbir)</h2>
+    <p>Full system access. Responsible for user account management, drug master setup, opening balance entry, annual quota configuration, and system-wide reporting. Typically assigned to the Head of Pharmacy or designated administrative officer.</p>
+
+    <h2 class="subsection">7.2 &nbsp; Pharmacist (Pegawai Farmasi)</h2>
+    <p>Manages day-to-day pharmacy operations. Records stock received, fulfils approved drug requests, maintains patient registry, and generates inventory reports. Cannot approve drug requests — this separation of duty prevents conflict of interest.</p>
+
+    <h2 class="subsection">7.3 &nbsp; Facility Management Specialist / FMS (Pakar / Pegawai FMS)</h2>
+    <p>Reviews and approves or rejects drug dispensing requests submitted by Medical Officers. Also acts as the designated specialist for antibiotic prescription approvals under the NAG 2024 clinical pathway. Has read-only access to drug inventory for reference purposes.</p>
+
+    <h2 class="subsection">7.4 &nbsp; Medical Officer (Pegawai Perubatan)</h2>
+    <p>Submits drug dispensing requests for patients and completes antibiotic approval forms. Can track the status of their submitted requests in real-time via the MO dashboard. No access to inventory management or patient dispensing records of other officers.</p>
+  </div>
+
+  <!-- SECTION 8 -->
+  <div class="section">
+    <h1 class="section-title">8.0 &nbsp; Benefits &amp; Expected Outcomes</h1>
+
+    <h2 class="subsection">8.1 &nbsp; Operational Benefits</h2>
+    <table class="data-table no-break">
+      <thead>
+        <tr>
+          <th>Area</th>
+          <th>Before PharmFlow</th>
+          <th>After PharmFlow</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Inventory Tracking</td>
+          <td>Manual bin cards, error-prone</td>
+          <td>Real-time digital ledger, auto-calculated</td>
+        </tr>
+        <tr>
+          <td>Drug Requests</td>
+          <td>Paper forms, easily lost</td>
+          <td>Digital workflow, real-time status tracking</td>
+        </tr>
+        <tr>
+          <td>Antibiotic Oversight</td>
+          <td>Manual NAG compliance, no audit trail</td>
+          <td>Digital pathway, full audit record</td>
+        </tr>
+        <tr>
+          <td>Controlled Drug Quotas</td>
+          <td>Manual counting, risk of over-dispensing</td>
+          <td>Automatic enforcement and alerting</td>
+        </tr>
+        <tr>
+          <td>Patient Drug History</td>
+          <td>Fragmented paper records</td>
+          <td>Centralised, searchable digital history</td>
+        </tr>
+        <tr>
+          <td>Management Reporting</td>
+          <td>Manual data collation, days of work</td>
+          <td>On-demand reports generated in seconds</td>
+        </tr>
+        <tr>
+          <td>Stock Alerts</td>
+          <td>Discovered during physical count only</td>
+          <td>Automated critical/low stock dashboard alerts</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 class="subsection">8.2 &nbsp; Strategic Benefits</h2>
+    <ul>
+      <li><strong>Regulatory Compliance:</strong> Built-in support for NAG 2024 antibiotic clinical pathway and controlled drug quota requirements.</li>
+      <li><strong>Data-Driven Management:</strong> Real-time analytics and reports enable management to make informed decisions on drug procurement and consumption trends.</li>
+      <li><strong>Accountability:</strong> Complete, tamper-evident audit trail for every drug movement and dispensing decision.</li>
+      <li><strong>Scalability:</strong> System designed to support multiple facilities under a single deployment.</li>
+      <li><strong>Cost Efficiency:</strong> Eliminates costs associated with paper forms, physical storage of records, and manual reconciliation labour.</li>
+    </ul>
+  </div>
+
+  <div class="page-footer">
+    <span>PharmFlow — System Proposal | Klinik Kesihatan Kempas</span>
+    <span>SULIT | April 2026</span>
+  </div>
+</div>
+
+<!-- ==================== SECTION 9 ==================== -->
+<div class="page page-break">
+  <div class="section">
+    <h1 class="section-title">9.0 &nbsp; Future Enhancements</h1>
+    <p>
+      The current version of PharmFlow establishes a solid operational foundation for pharmacy management. The following enhancements are planned for subsequent development phases, subject to approval and resource allocation.
+    </p>
+
+    <h2 class="subsection">9.1 &nbsp; Phase 2 — Multi-Facility Support</h2>
+    <p>
+      Extend PharmFlow to support multiple government health clinics under a single platform. Each facility will have an isolated data environment while allowing district-level administrators to view aggregated reports and manage drug quota allocations across facilities. This supports the Johor State Health Department's goal of standardised pharmacy management.
+    </p>
+
+    <h2 class="subsection">9.2 &nbsp; Phase 3 — Automated Procurement Requisition</h2>
+    <p>
+      When drug stock falls below the defined reorder level, PharmFlow will automatically generate a draft procurement requisition for the pharmacist's review. The draft will pre-fill drug details, quantities, and supplier information, significantly reducing manual workload and preventing stockouts caused by late reordering.
+    </p>
+
+    <h2 class="subsection">9.3 &nbsp; Phase 4 — AI-Powered Drug Demand Forecasting</h2>
+    <p>
+      Integrate an artificial intelligence module that analyses historical dispensing patterns to forecast future drug demand. This will enable proactive procurement planning, reduce wastage from drug expiry, and optimise stock holding quantities for each drug category. The AI module will be built on Anthropic Claude API, consistent with the existing AI audit logging infrastructure already in place within PharmFlow.
+    </p>
+
+    <h2 class="subsection">9.4 &nbsp; Phase 5 — Integration with MySejahtera &amp; PACS/HIS</h2>
+    <p>
+      Integrate PharmFlow with the national MySejahtera health platform and the existing Hospital Information System (HIS) or Primary Care Clinical System (PCCS) to enable automatic patient demographic lookup, prescription import, and seamless data sharing between clinical and pharmacy systems — eliminating duplicate data entry.
+    </p>
+
+    <h2 class="subsection">9.5 &nbsp; Phase 6 — Mobile Application</h2>
+    <p>
+      Develop a dedicated mobile application (iOS and Android) to allow Medical Officers to submit drug requests and antibiotic forms from ward or clinic rooms without returning to a desktop workstation. Push notifications will alert FMS officers and pharmacists of pending actions in real-time.
+    </p>
+
+    <h2 class="subsection">9.6 &nbsp; Phase 7 — Drug Expiry Tracking</h2>
+    <p>
+      Add batch-level tracking to each drug receiving transaction, capturing expiry dates for each stock batch. The system will proactively alert pharmacy staff of drugs nearing expiry, enabling first-expiry-first-out (FEFO) dispensing and minimising drug wastage due to expiry.
+    </p>
+
+    <h2 class="subsection">9.7 &nbsp; Phase 8 — Regulatory Submission Reports</h2>
+    <p>
+      Generate pre-formatted controlled drug reports and antibiotic usage reports compatible with MOH submission requirements, reducing the time required to prepare mandatory regulatory submissions and minimising the risk of submission errors.
+    </p>
+
+    <table class="data-table no-break" style="margin-top:20px;">
+      <thead>
+        <tr>
+          <th>Phase</th>
+          <th>Enhancement</th>
+          <th>Priority</th>
+          <th>Estimated Timeline</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Phase 2</td>
+          <td>Multi-Facility Support</td>
+          <td>High</td>
+          <td>Q3 2026</td>
+        </tr>
+        <tr>
+          <td>Phase 3</td>
+          <td>Automated Procurement Requisition</td>
+          <td>High</td>
+          <td>Q3 2026</td>
+        </tr>
+        <tr>
+          <td>Phase 4</td>
+          <td>AI Drug Demand Forecasting</td>
+          <td>Medium</td>
+          <td>Q4 2026</td>
+        </tr>
+        <tr>
+          <td>Phase 5</td>
+          <td>MySejahtera / HIS Integration</td>
+          <td>Medium</td>
+          <td>Q1 2027</td>
+        </tr>
+        <tr>
+          <td>Phase 6</td>
+          <td>Mobile Application</td>
+          <td>Medium</td>
+          <td>Q1 2027</td>
+        </tr>
+        <tr>
+          <td>Phase 7</td>
+          <td>Drug Expiry Tracking</td>
+          <td>High</td>
+          <td>Q3 2026</td>
+        </tr>
+        <tr>
+          <td>Phase 8</td>
+          <td>Regulatory Submission Reports</td>
+          <td>Medium</td>
+          <td>Q4 2026</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="page-footer">
+    <span>PharmFlow — System Proposal | Klinik Kesihatan Kempas</span>
+    <span>SULIT | April 2026</span>
+  </div>
+</div>
+
+<!-- ==================== SECTION 10 — CONCLUSION ==================== -->
+<div class="page page-break">
+  <div class="section">
+    <h1 class="section-title">10.0 &nbsp; Conclusion</h1>
+
+    <p>
+      PharmFlow represents a significant step forward in modernising pharmacy operations at the government primary healthcare level. By replacing fragmented, paper-based processes with a unified digital platform, the system directly addresses the operational inefficiencies, compliance risks, and data visibility gaps that have long challenged government pharmacy management.
+    </p>
+
+    <p>
+      The system has been developed by pharmacy staff with direct operational knowledge of the workflow challenges faced at Klinik Kesihatan Kempas. It is currently live and functional, demonstrating practical viability without the need for a pilot phase. The architecture is designed for scalability, compliance, and long-term sustainability.
+    </p>
+
+    <p>
+      It is respectfully proposed that the management team consider endorsing PharmFlow for formal adoption and providing the necessary support for its continued development and potential deployment to additional facilities within the district. This initiative is aligned with the Ministry of Health Malaysia's digital transformation agenda and the MyDigital Blueprint's goal of a fully digitised public healthcare ecosystem.
+    </p>
+
+    <div class="info-box success">
+      <strong>Recommendation:</strong> Approve PharmFlow for continued deployment at Klinik Kesihatan Kempas and initiate assessment for district-wide rollout across Klinik Kesihatan facilities in Johor Bahru.
+    </div>
+  </div>
+
+  <!-- Signature Block -->
+  <div class="signature-block">
+    <p>Prepared and submitted by:</p>
+    <br /><br /><br />
+    <div class="sig-line">
+      <strong>SUBRAMANIAM PALANIAPAN</strong><br />
+      Pegawai Farmasi Gred UF12<br />
+      Klinik Kesihatan Kempas, Johor Bahru<br />
+      Tarikh: ___________________________
+    </div>
+  </div>
+
+  <br /><br />
+
+  <div class="info-box" style="font-size:10pt;">
+    <strong>Document Information</strong><br />
+    Document Title: PharmFlow — Integrated Pharmacy Workflow &amp; Inventory Management System — System Proposal<br />
+    Version: 1.0<br />
+    Date: April 2026<br />
+    Classification: SULIT<br />
+    Prepared by: Subramaniam Palaniapan, Pegawai Farmasi UF12, Klinik Kesihatan Kempas
+  </div>
+
+  <div class="page-footer">
+    <span>PharmFlow — System Proposal | Klinik Kesihatan Kempas</span>
+    <span>SULIT | April 2026 | Page 10 of 10</span>
+  </div>
+</div>
+
+</body>
+</html>
