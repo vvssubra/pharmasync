@@ -2,6 +2,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { TopNavbar } from "@/components/TopNavbar";
 import AiChatWidget from "@/components/AiChatWidget";
+import { AI_ENABLED } from "@/lib/featureFlags";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -15,7 +16,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           </main>
         </div>
       </div>
-      <AiChatWidget />
+      {AI_ENABLED && <AiChatWidget />}
     </SidebarProvider>
   );
 }

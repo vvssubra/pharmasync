@@ -32,13 +32,19 @@ function hasContent(fields: FormFields): boolean {
   return !!(fields.diagnosis || fields.antibiotic || fields.indication);
 }
 
-export function usePathwayCheck(fields: FormFields): PathwayCheckResult {
+export function usePathwayCheck(fields: FormFields, options?: { enabled?: boolean }): PathwayCheckResult {
+  const enabled = options?.enabled ?? true;
   const [verdict, setVerdict] = useState<PathwayVerdict>(null);
   const [explanation, setExplanation] = useState("");
   const [status, setStatus] = useState<PathwayStatus>("idle");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    if (!enabled) {
+      setStatus("idle");
+      return;
+    }
+
     if (!hasContent(fields)) {
       setStatus("idle");
       return;
@@ -89,6 +95,7 @@ export function usePathwayCheck(fields: FormFields): PathwayCheckResult {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [
+    enabled,
     fields.diagnosis,
     fields.antibiotic,
     fields.indication,
