@@ -17,6 +17,12 @@ const CreateUserSchema = z.object({
   role: z.enum(ALLOWED_ROLES),
 });
 
+const ResetPasswordSchema = z.object({
+  action: z.literal("reset_password"),
+  user_id: z.string().uuid(),
+  password: z.string().min(6).max(72),
+});
+
 function adminClient() {
   return createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -68,6 +74,34 @@ Deno.serve(async (req) => {
     );
   }
 
+  // ── 3a. Route by action ───────────────────────────────────────────────────
+  const action = (body as Record<string, unknown>)?.action;
+
+  // ── Reset password ────────────────────────────────────────────────────────
+  if (action === "reset_password") {
+    const parsed = ResetPasswordSchema.safeParse(body);
+    if (!parsed.success) {
+      return new Response(
+        JSON.stringify({ error: "Validation failed", details: parsed.error.flatten() }),
+        { status: 400, headers: { ...cors, "Content-Type": "application/json" } },
+      );
+    }
+    const { user_id, password } = parsed.data;
+    const supabase = adminClient();
+    const { error } = await supabase.auth.admin.updateUserById(user_id, { password });
+    if (error) {
+      return new Response(
+        JSON.stringify({ error: error.message }),
+        { status: 500, headers: { ...cors, "Content-Type": "application/json" } },
+      );
+    }
+    return new Response(
+      JSON.stringify({ success: true }),
+      { status: 200, headers: { ...cors, "Content-Type": "application/json" } },
+    );
+  }
+
+  // ── Create user ───────────────────────────────────────────────────────────
   const parsed = CreateUserSchema.safeParse(body);
   if (!parsed.success) {
     return new Response(
@@ -101,7 +135,6 @@ Deno.serve(async (req) => {
     .upsert({ user_id: newUser.user.id, role }, { onConflict: "user_id" });
 
   if (roleError) {
-    // User was created but role assignment failed — clean up to avoid orphan
     await supabase.auth.admin.deleteUser(newUser.user.id);
     return new Response(
       JSON.stringify({ error: "Failed to assign role. User creation rolled back." }),

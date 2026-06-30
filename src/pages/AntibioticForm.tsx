@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { ArrowLeft, ShieldCheck, CheckCircle, Sparkles, AlertTriangle } from "lucide-react";
 import { usePathwayCheck } from "@/hooks/usePathwayCheck";
 import PathwayCheckBanner from "@/components/PathwayCheckBanner";
+import { AI_ENABLED } from "@/lib/featureFlags";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -100,7 +101,7 @@ export default function AntibioticForm() {
     checklist: checklist as Record<string, unknown>,
     allergy_status: drugAllergy ? drugAllergyDetail : undefined,
     patient_age: age ?? undefined,
-  });
+  }, { enabled: AI_ENABLED });
   const centorTotal = checklist.pharyngitis.temp + checklist.pharyngitis.no_cough + checklist.pharyngitis.adenopathy + checklist.pharyngitis.exudate + checklist.pharyngitis.age_score;
 
   const updateChecklist = <S extends keyof ChecklistState>(section: S, field: keyof ChecklistState[S], value: any) => {
@@ -294,19 +295,21 @@ export default function AntibioticForm() {
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <Label>7. Antibiotic Regimen (Dose, frequency, duration)</Label>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={suggestAntibiotic}
-                    disabled={aiSuggesting || !diagnosis}
-                    className="gap-1.5 text-xs h-7 border-primary/40 text-primary hover:bg-primary/5"
-                  >
-                    <Sparkles className="h-3 w-3" />
-                    {aiSuggesting ? "Suggesting..." : "Suggest Antibiotic (AI)"}
-                  </Button>
+                  {AI_ENABLED && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={suggestAntibiotic}
+                      disabled={aiSuggesting || !diagnosis}
+                      className="gap-1.5 text-xs h-7 border-primary/40 text-primary hover:bg-primary/5"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      {aiSuggesting ? "Suggesting..." : "Suggest Antibiotic (AI)"}
+                    </Button>
+                  )}
                 </div>
-                {aiSuggestion && (
+                {AI_ENABLED && aiSuggestion && (
                   <div className="rounded-md border border-blue-200 bg-blue-50 p-3 space-y-2 text-sm">
                     <div className="flex items-start justify-between gap-2">
                       <div className="space-y-1 flex-1">
@@ -531,11 +534,13 @@ export default function AntibioticForm() {
 
       {/* SUBMIT */}
       <div className="space-y-3">
-        <PathwayCheckBanner
-          status={pathwayStatus}
-          verdict={pathwayVerdict}
-          explanation={pathwayExplanation}
-        />
+        {AI_ENABLED && (
+          <PathwayCheckBanner
+            status={pathwayStatus}
+            verdict={pathwayVerdict}
+            explanation={pathwayExplanation}
+          />
+        )}
         <p className="text-xs text-muted-foreground text-center">
           Please attach this form together with the prescription or patient documents for pharmacy reference.
         </p>

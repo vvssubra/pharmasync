@@ -188,7 +188,7 @@ export default function PatientRegistry() {
         kuantiti: refillQty,
         tarikh: format(refillDate, "yyyy-MM-dd"),
         nama_pesakit: patientName,
-        no_ic: patientIC,
+        no_ic: patientIC.replace(/\D/g, ""),
         nama_pegawai: profile?.full_name || "—",
         sumber: "manual_refill",
         created_by: user?.id,
@@ -196,7 +196,7 @@ export default function PatientRegistry() {
       if (txErr) throw txErr;
 
       // Create patient drug history
-      await supabase.from("patient_drug_history").insert({
+      const { error: pdhErr } = await supabase.from("patient_drug_history").insert({
         patient_id: patientId,
         drug_id: refillDrugId,
         quantity: refillQty,
@@ -204,6 +204,7 @@ export default function PatientRegistry() {
         officer_name: profile?.full_name || "—",
         stock_after: afterStock,
       });
+      if (pdhErr) throw pdhErr;
 
       return { drugName: selectedDrug?.drug_name, afterStock, unit: selectedDrug?.unit_pengukuran };
     },

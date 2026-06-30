@@ -159,7 +159,7 @@ export default function PharmacistFulfilment() {
   const deferMutation = useMutation({
     mutationFn: async (id: string) => {
       const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
-      const { error } = await supabase.from("dispensing_requests").update({ deferred_date: format(tomorrow, "yyyy-MM-dd") }).eq("id", id);
+      const { error } = await supabase.from("dispensing_requests").update({ status: "deferred", deferred_date: format(tomorrow, "yyyy-MM-dd") }).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Request deferred to tomorrow"); queryClient.invalidateQueries({ queryKey: ["fulfilment-requests"] }); },

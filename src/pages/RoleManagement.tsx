@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { UserCog, Users, Plus } from "lucide-react";
+import { UserCog, Users, Plus, KeyRound } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,11 @@ export default function RoleManagement() {
   const [newRole, setNewRole] = useState<string>("mo");
   const [addUserError, setAddUserError] = useState<string | null>(null);
 
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetTarget, setResetTarget] = useState<{ id: string; email: string } | null>(null);
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetError, setResetError] = useState<string | null>(null);
+
   const { data: users = [], isLoading } = useQuery<UserWithRole[]>({
     queryKey: ["all-users-with-roles"],
     queryFn: async () => {
@@ -82,16 +87,9 @@ export default function RoleManagement() {
     onError: () => toast.error("Failed to update role."),
   });
 
-  const { data: session } = useQuery({
-    queryKey: ["session"],
-    queryFn: async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      return session;
-    },
-  });
-
   const createUser = useMutation({
     mutationFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(ADMIN_MGMT_URL, {
         method: "POST",
         headers: {
@@ -120,6 +118,31 @@ export default function RoleManagement() {
     onError: (err: Error) => {
       setAddUserError(err.message);
     },
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: async ({ userId, password }: { userId: string; password: string }) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(ADMIN_MGMT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ action: "reset_password", user_id: userId, password }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed to reset password");
+      return json;
+    },
+    onSuccess: () => {
+      toast.success("Kata laluan berjaya ditukar.");
+      setResetOpen(false);
+      setResetPassword("");
+      setResetError(null);
+      setResetTarget(null);
+    },
+    onError: (err: Error) => setResetError(err.message),
   });
 
   const isSelf = (userId: string) => userId === currentUser?.id;
@@ -213,6 +236,21 @@ export default function RoleManagement() {
                       >
                         Save
                       </Button>
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 w-8 p-0"
+                        title="Set password"
+                        onClick={() => {
+                          setResetTarget({ id: u.user_id, email: u.email });
+                          setResetPassword("");
+                          setResetError(null);
+                          setResetOpen(true);
+                        }}
+                      >
+                        <KeyRound className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
 
                     {isSelf(u.user_id) && (
@@ -225,6 +263,39 @@ export default function RoleManagement() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={resetOpen} onOpenChange={(open) => { setResetOpen(open); if (!open) { setResetError(null); setResetPassword(""); setResetTarget(null); } }}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Set Password</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">{resetTarget?.email}</p>
+          <form
+            onSubmit={(e) => { e.preventDefault(); if (resetTarget) resetPasswordMutation.mutate({ userId: resetTarget.id, password: resetPassword }); }}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="reset-pw">Kata laluan baharu</Label>
+              <Input
+                id="reset-pw"
+                type="password"
+                value={resetPassword}
+                onChange={e => setResetPassword(e.target.value)}
+                required
+                minLength={6}
+                placeholder="Min 6 aksara"
+              />
+            </div>
+            {resetError && <p className="text-sm text-destructive">{resetError}</p>}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setResetOpen(false)}>Batal</Button>
+              <Button type="submit" disabled={resetPasswordMutation.isPending}>
+                {resetPasswordMutation.isPending ? "Menyimpan…" : "Simpan"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={addUserOpen} onOpenChange={(open) => { setAddUserOpen(open); if (!open) setAddUserError(null); }}>
         <DialogContent className="sm:max-w-sm">
