@@ -97,8 +97,8 @@ export function AppSidebar() {
           <Pill className="h-4 w-4 text-sidebar-primary" />
         </div>
         {!collapsed && (
-          <span className="text-sm font-semibold tracking-tight text-sidebar-primary leading-tight">
-            Drug Control<br />
+          <span className="text-sm font-semibold tracking-tight leading-tight">
+            <span className="shimmer-emerald-on-dark text-base font-bold">PharmaSync</span><br />
             <span className="text-xs font-normal text-sidebar-foreground/70">KK Kempas</span>
           </span>
         )}

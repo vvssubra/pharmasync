@@ -222,7 +222,7 @@ export default function AntibioticForm() {
       </Button>
 
       {/* Header */}
-      <Card className="border-none text-primary-foreground" style={{ backgroundColor: "#1A3C6E" }}>
+      <Card className="border-none text-primary-foreground" style={{ backgroundColor: "#0b3b28" }}>
         <CardHeader className="text-center">
           <CardTitle className="text-lg">ANTIBIOTIC CHECKLIST (Based on Clinical Pathway NAG 2024)</CardTitle>
           <p className="text-sm opacity-80">JK Kawalan Infeksi & Antibiotik PKD Johor Bahru — Versi Mac 2025</p>
@@ -310,11 +310,11 @@ export default function AntibioticForm() {
                   )}
                 </div>
                 {AI_ENABLED && aiSuggestion && (
-                  <div className="rounded-md border border-blue-200 bg-blue-50 p-3 space-y-2 text-sm">
+                  <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 space-y-2 text-sm">
                     <div className="flex items-start justify-between gap-2">
                       <div className="space-y-1 flex-1">
-                        <p className="font-semibold text-blue-900">{aiSuggestion.suggestion}</p>
-                        <p className="text-xs text-blue-700">{aiSuggestion.rationale}</p>
+                        <p className="font-semibold text-emerald-900">{aiSuggestion.suggestion}</p>
+                        <p className="text-xs text-emerald-700">{aiSuggestion.rationale}</p>
                         {aiSuggestion.warning && (
                           <div className="flex items-start gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
                             <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
@@ -544,7 +544,7 @@ export default function AntibioticForm() {
         <p className="text-xs text-muted-foreground text-center">
           Please attach this form together with the prescription or patient documents for pharmacy reference.
         </p>
-        <Button className="w-full gap-2" style={{ backgroundColor: "#1A3C6E" }} onClick={handleSubmit} disabled={submitting}>
+        <Button className="w-full gap-2" style={{ backgroundColor: "#0b3b28" }} onClick={handleSubmit} disabled={submitting}>
           <ShieldCheck className="h-4 w-4" />
           {submitting ? "Submitting..." : "Submit for Specialist Approval"}
         </Button>

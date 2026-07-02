@@ -143,7 +143,7 @@ export default function MoDashboard() {
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
-            <Pill className="h-6 w-6 text-blue-600" />
+            <Pill className="h-6 w-6 text-primary" />
             <div>
               <p className="text-2xl font-bold">{drugStock.length}</p>
               <p className="text-xs text-muted-foreground">Total Active Drugs</p>

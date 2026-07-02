@@ -16,7 +16,7 @@ export function TopNavbar() {
       <div className="flex items-center gap-3">
         <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
         <div className="hidden sm:block">
-          <p className="text-sm font-semibold text-foreground leading-tight">Digital Drug Control</p>
+          <p className="shimmer-emerald text-base font-bold leading-tight">PharmaSync</p>
           <p className="text-xs text-muted-foreground">
             {profile?.facility ?? "Klinik Kesihatan Kempas"}
           </p>

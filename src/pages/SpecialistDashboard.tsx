@@ -262,7 +262,7 @@ export default function SpecialistDashboard() {
 
   const stats = [
     { label: "Pending (Drug)", count: allPending.length, icon: Clock, bg: "bg-yellow-100 dark:bg-yellow-900/30", color: "text-yellow-700 dark:text-yellow-400" },
-    { label: "Pending (Antibiotic)", count: abPending.length, icon: Clock, bg: "bg-cyan-100 dark:bg-cyan-900/30", color: "text-cyan-700 dark:text-cyan-400" },
+    { label: "Pending (Antibiotic)", count: abPending.length, icon: Clock, bg: "bg-teal-100 dark:bg-teal-900/30", color: "text-teal-700 dark:text-teal-400" },
     { label: "Approved Today", count: approvedToday + abApprovedToday, icon: CheckCircle, bg: "bg-green-100 dark:bg-green-900/30", color: "text-green-700 dark:text-green-400" },
     { label: "Rejected Today", count: rejectedToday + abRejectedToday, icon: XCircle, bg: "bg-red-100 dark:bg-red-900/30", color: "text-red-700 dark:text-red-400" },
   ];

@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
+import { ArrowLeft, Check, Loader2, Lock, Pill, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import PharmaMatrix from "@/components/ui/pharma-matrix";
 
 export default function Login() {
   const { user, loading } = useAuth();
@@ -22,10 +24,10 @@ export default function Login() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#050d1a]">
+      <div className="flex min-h-screen items-center justify-center bg-[#04140d]">
         <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-blue-400" />
-          <p className="text-sm text-white/40">Loading…</p>
+          <Loader2 className="h-7 w-7 animate-spin text-emerald-300" />
+          <p className="text-sm text-emerald-100/60">Loading…</p>
         </div>
       </div>
     );
@@ -81,343 +83,313 @@ export default function Login() {
     setForgotLoading(false);
   };
 
+  const inputClass =
+    "h-11 border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 " +
+    "focus-visible:ring-2 focus-visible:ring-emerald-500/40 focus-visible:border-emerald-500";
+  const labelClass = "text-[13px] font-medium text-slate-700";
+  const primaryBtn =
+    "h-11 w-full bg-emerald-600 text-[15px] font-semibold text-white hover:bg-emerald-700";
+
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 pb-12"
-      style={{ background: "linear-gradient(135deg, #050d1a 0%, #0d2040 45%, #1a3a6e 100%)" }}
-    >
-      {/* Decorative background orbs */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div className="flex min-h-screen bg-slate-50">
+      {/* ── Brand panel (desktop) ─────────────────────────────── */}
+      <aside className="relative hidden w-[46%] max-w-[620px] flex-col justify-between overflow-hidden bg-[#04140d] px-12 py-11 text-white lg:flex">
+        {/* Depth wash */}
         <div
-          className="absolute -top-40 -left-40 h-[500px] w-[500px] rounded-full opacity-20"
-          style={{ background: "radial-gradient(circle, #3b82f6 0%, transparent 70%)", filter: "blur(60px)" }}
-        />
-        <div
-          className="absolute top-1/2 -right-56 h-[600px] w-[600px] rounded-full opacity-15"
-          style={{ background: "radial-gradient(circle, #2563eb 0%, transparent 70%)", filter: "blur(80px)" }}
-        />
-        <div
-          className="absolute -bottom-56 left-1/4 h-[500px] w-[500px] rounded-full opacity-15"
-          style={{ background: "radial-gradient(circle, #4f46e5 0%, transparent 70%)", filter: "blur(70px)" }}
-        />
-        {/* Subtle grid overlay */}
-        <div
-          className="absolute inset-0 opacity-[0.03]"
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
           style={{
-            backgroundImage: "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
-            backgroundSize: "40px 40px",
+            background:
+              "radial-gradient(120% 90% at 15% 0%, #0b3b28 0%, #073221 42%, #04140d 100%)",
           }}
         />
-      </div>
+        {/* Interactive emerald pharma matrix */}
+        <PharmaMatrix variant="dark" />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-40 -left-24 h-[460px] w-[460px] rounded-full opacity-40"
+          style={{ background: "radial-gradient(circle, #10b981 0%, transparent 70%)", filter: "blur(70px)" }}
+        />
 
-      {/* Main content */}
-      <div className="relative z-10 w-full max-w-sm">
-
-        {/* Logo + Title header */}
-        <div className="mb-7 flex flex-col items-center gap-4">
-          {/* Dual logos row */}
-          <div className="flex items-center gap-5">
-            {/* Anthropic logo — left */}
-            <div className="flex h-24 w-24 flex-col items-center justify-center gap-1.5 rounded-2xl border border-white/20 bg-white/10 shadow-xl backdrop-blur-xl">
-              <img
-                src="https://www.anthropic.com/favicon.ico"
-                alt="Anthropic"
-                className="h-10 w-10 object-contain drop-shadow-lg"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                }}
-              />
-              <span className="text-[9px] font-semibold uppercase tracking-widest text-white/60">Anthropic</span>
-            </div>
-
-            {/* Divider */}
-            <div className="h-14 w-px bg-white/20" />
-
-            {/* KKM logo — right */}
-            <div className="flex h-24 w-24 flex-col items-center justify-center gap-1.5 rounded-2xl border border-white/20 bg-white/10 shadow-xl backdrop-blur-xl">
-              <img
-                src="https://ecentral.my/wp-content/uploads/2023/05/logo-kkm.png"
-                alt="Kementerian Kesihatan Malaysia"
-                className="h-14 w-14 object-contain drop-shadow-lg"
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).style.display = "none";
-                }}
-              />
-            </div>
+        {/* Identity */}
+        <div className="pointer-events-none relative z-10 flex items-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-emerald-300/20 bg-emerald-400/10 backdrop-blur-sm">
+            <Pill className="h-6 w-6 text-emerald-300" />
           </div>
-
-          <div className="text-center">
-            <h1 className="text-base font-bold uppercase tracking-widest text-white">
-              Pharmacy Drug Monitoring System
-            </h1>
-            <p className="mt-1 text-xs tracking-wider text-white/45">
-              Kementerian Kesihatan Malaysia
-            </p>
+          <div className="leading-tight">
+            <p className="text-sm font-semibold tracking-wide">KLINIK KESIHATAN KEMPAS</p>
+            <p className="text-xs text-emerald-200/60">PEJABAT KESIHATAN JOHOR BAHRU</p>
           </div>
         </div>
 
-        {/* Glass card */}
-        <div
-          className="rounded-2xl p-6 shadow-2xl"
-          style={{
-            background: "rgba(255, 255, 255, 0.08)",
-            backdropFilter: "blur(24px)",
-            WebkitBackdropFilter: "blur(24px)",
-            border: "1px solid rgba(255, 255, 255, 0.14)",
-            boxShadow: "0 25px 60px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.12)",
-          }}
-        >
-          {/* Forgot password mode */}
-          {forgotMode && (
-            <div className="space-y-4">
-              {forgotSent ? (
-                <div className="space-y-4 text-center">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-500/20">
-                    <svg className="h-6 w-6 text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                  </div>
-                  <p className="text-sm text-white/80">Reset link sent! Check your email.</p>
-                  <Button
-                    type="button"
-                    className="w-full border border-white/20 bg-white/10 text-white hover:bg-white/20"
-                    onClick={() => { setForgotMode(false); setForgotSent(false); setForgotEmail(""); }}
-                  >
-                    Back to Login
-                  </Button>
+        {/* Headline */}
+        <div className="pointer-events-none relative z-10 max-w-md">
+          <h1
+            className="shimmer-emerald-on-dark text-6xl font-bold leading-[1.05] tracking-tight"
+            style={{ textWrap: "balance" as never }}
+          >
+            PharmaSync
+          </h1>
+          <p className="mt-4 text-[15px] leading-relaxed text-emerald-50/70">
+            Drug monitoring &amp; inventory for Klinik Kesihatan Kempas — control stock,
+            drug requests, and antibiotic approvals in one place, precise and auditable.
+          </p>
+
+          <ul className="mt-8 space-y-3">
+            {[
+              { icon: ShieldCheck, text: "Digital bin cards & full audit trail" },
+              { icon: Check, text: "Antibiotic approval per Clinical Pathway NAG 2024" },
+              { icon: Lock, text: "Role-based access — officers, specialists, pharmacy" },
+            ].map(({ icon: Icon, text }) => (
+              <li key={text} className="flex items-start gap-3 text-sm text-emerald-50/85">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-400/15 text-emerald-300">
+                  <Icon className="h-3 w-3" />
+                </span>
+                {text}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        {/* Footer spacer keeps the three-row justify-between rhythm */}
+        <div className="relative z-10 h-1" />
+      </aside>
+
+      {/* ── Form panel ────────────────────────────────────────── */}
+      <main className="relative flex flex-1 flex-col items-center justify-center overflow-hidden px-5 py-10 sm:px-8">
+        {/* Interactive matrix — deep emerald on white, contrasting the left panel */}
+        <PharmaMatrix variant="light" />
+        <div className="relative z-10 w-full max-w-[400px] rounded-2xl border border-slate-200/70 bg-white/95 p-7 shadow-xl shadow-emerald-950/[0.06] backdrop-blur-sm sm:p-8">
+          {/* Compact brand header (mobile only) */}
+          <div className="mb-8 flex items-center gap-3 lg:hidden">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-600">
+              <Pill className="h-6 w-6 text-white" />
+            </div>
+            <div className="leading-tight">
+              <p className="shimmer-emerald text-lg font-bold tracking-tight">PharmaSync</p>
+              <p className="text-xs text-slate-500">Klinik Kesihatan Kempas</p>
+            </div>
+          </div>
+
+          {forgotMode ? (
+            /* ── Reset password ── */
+            forgotSent ? (
+              <div className="space-y-5 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                  <Check className="h-6 w-6" />
                 </div>
-              ) : (
-                <form onSubmit={handleForgotPassword} className="space-y-4">
-                  <div className="text-center">
-                    <h2 className="text-sm font-semibold text-white">Reset Password</h2>
-                    <p className="mt-1 text-xs text-white/50">Enter your email to receive a reset link</p>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="forgot-email" className="text-xs font-medium text-white/70">Email</Label>
-                    <Input
-                      id="forgot-email"
-                      type="email"
-                      value={forgotEmail}
-                      onChange={e => setForgotEmail(e.target.value)}
-                      required
-                      autoComplete="email"
-                      placeholder="your@email.com"
-                      className="border-white/20 bg-white/10 text-white placeholder:text-white/30 focus-visible:ring-blue-400/50 focus-visible:border-blue-400/50"
-                    />
-                  </div>
-                  {error && (
-                    <p className="text-xs text-red-300" role="alert" aria-live="polite">{error}</p>
-                  )}
-                  <Button
-                    type="submit"
-                    className="w-full bg-blue-600 text-white hover:bg-blue-500"
-                    disabled={forgotLoading}
-                  >
-                    {forgotLoading ? "Sending…" : "Send Reset Link"}
-                  </Button>
-                  <Button
-                    type="button"
-                    className="w-full border border-white/20 bg-transparent text-white/70 hover:bg-white/10 hover:text-white"
-                    onClick={() => { setForgotMode(false); setError(null); }}
-                  >
-                    Cancel
-                  </Button>
-                </form>
-              )}
-            </div>
-          )}
-
-          {/* Login / Signup tabs */}
-          {!forgotMode && (
-            <Tabs defaultValue="login" onValueChange={() => setError(null)}>
-              <TabsList
-                className="mb-5 grid w-full grid-cols-2 rounded-xl p-1"
-                style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}
-              >
-                <TabsTrigger
-                  value="login"
-                  className="rounded-lg text-white/60 data-[state=active]:bg-white/20 data-[state=active]:text-white data-[state=active]:shadow-sm"
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900">Link sent</h2>
+                  <p className="mt-1.5 text-sm text-slate-500">
+                    Check your email for a password reset link.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  className="w-full"
+                  variant="outline"
+                  onClick={() => { setForgotMode(false); setForgotSent(false); setForgotEmail(""); }}
                 >
-                  Log In
-                </TabsTrigger>
-                <TabsTrigger
-                  value="signup"
-                  className="rounded-lg text-white/60 data-[state=active]:bg-white/20 data-[state=active]:text-white data-[state=active]:shadow-sm"
+                  <ArrowLeft className="h-4 w-4" /> Back to sign in
+                </Button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotPassword} className="space-y-5">
+                <div>
+                  <h2 className="text-xl font-semibold tracking-tight text-slate-900">Reset password</h2>
+                  <p className="mt-1.5 text-sm text-slate-500">
+                    Enter your email and we'll send you a reset link.
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="forgot-email" className={labelClass}>Email</Label>
+                  <Input
+                    id="forgot-email"
+                    type="email"
+                    value={forgotEmail}
+                    onChange={e => setForgotEmail(e.target.value)}
+                    required
+                    autoComplete="email"
+                    placeholder="name@moh.gov.my"
+                    className={inputClass}
+                  />
+                </div>
+                {error && (
+                  <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600" role="alert" aria-live="polite">
+                    {error}
+                  </p>
+                )}
+                <Button type="submit" className={primaryBtn} disabled={forgotLoading}>
+                  {forgotLoading ? (<><Loader2 className="h-4 w-4 animate-spin" /> Sending…</>) : "Send reset link"}
+                </Button>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-center gap-1.5 text-sm text-slate-500 transition-colors hover:text-slate-900"
+                  onClick={() => { setForgotMode(false); setError(null); }}
                 >
-                  Sign Up
-                </TabsTrigger>
-              </TabsList>
+                  <ArrowLeft className="h-4 w-4" /> Back to sign in
+                </button>
+              </form>
+            )
+          ) : (
+            /* ── Sign in / Sign up ── */
+            <>
+              <div className="mb-6">
+                <h2 className="text-2xl font-bold tracking-tight text-slate-900">Welcome back</h2>
+                <p className="mt-1.5 text-sm text-slate-500">Sign in to continue to the pharmacy system.</p>
+              </div>
 
-              {/* Login tab */}
-              <TabsContent value="login">
-                <form onSubmit={handleLogin} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="login-email" className="text-xs font-medium text-white/70">Email</Label>
-                    <Input
-                      id="login-email"
-                      type="email"
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      required
-                      autoComplete="email"
-                      placeholder="your@email.com"
-                      className="border-white/20 bg-white/10 text-white placeholder:text-white/30 focus-visible:ring-blue-400/50 focus-visible:border-blue-400/50"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="login-password" className="text-xs font-medium text-white/70">Password</Label>
-                    <Input
-                      id="login-password"
-                      type="password"
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      required
-                      autoComplete="current-password"
-                      placeholder="••••••••"
-                      className="border-white/20 bg-white/10 text-white placeholder:text-white/30 focus-visible:ring-blue-400/50 focus-visible:border-blue-400/50"
-                    />
-                  </div>
-                  <div className="flex justify-end">
-                    <button
-                      type="button"
-                      className="text-xs text-white/45 underline underline-offset-2 hover:text-white/80 transition-colors"
-                      onClick={() => { setForgotMode(true); setError(null); }}
-                    >
-                      Forgot password?
-                    </button>
-                  </div>
-                  {error && (
-                    <p id="login-error" role="alert" aria-live="polite" className="text-xs text-red-300">
-                      {error}
-                    </p>
-                  )}
-                  <Button
-                    type="submit"
-                    className="w-full bg-blue-600 font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
-                    disabled={submitting}
-                    aria-describedby={error ? "login-error" : undefined}
-                  >
-                    {submitting ? (
-                      <span className="flex items-center gap-2">
-                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                        Logging in…
-                      </span>
-                    ) : "Log In"}
-                  </Button>
+              <Tabs defaultValue="login" onValueChange={() => setError(null)}>
+                <TabsList className="mb-6 grid w-full grid-cols-2 bg-slate-100">
+                  <TabsTrigger value="login">Sign In</TabsTrigger>
+                  <TabsTrigger value="signup">Sign Up</TabsTrigger>
+                </TabsList>
 
-                  <div className="relative my-1 flex items-center gap-3">
-                    <div className="h-px flex-1 bg-white/15" />
-                    <span className="text-[10px] uppercase tracking-wider text-white/30">or</span>
-                    <div className="h-px flex-1 bg-white/15" />
-                  </div>
-
-                  <Button
-                    type="button"
-                    className="w-full border border-white/20 bg-white/10 text-white/80 hover:bg-white/20 hover:text-white disabled:opacity-50"
-                    disabled={googleLoading || submitting}
-                    onClick={handleGoogleLogin}
-                  >
-                    {googleLoading ? (
-                      <span className="flex items-center gap-2">
-                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                        Processing…
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-2">
-                        <svg className="h-4 w-4" viewBox="0 0 24 24">
-                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                        </svg>
-                        Continue with Google
-                      </span>
+                {/* Sign in */}
+                <TabsContent value="login">
+                  <form onSubmit={handleLogin} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="login-email" className={labelClass}>Email</Label>
+                      <Input
+                        id="login-email"
+                        type="email"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        required
+                        autoComplete="email"
+                        placeholder="name@moh.gov.my"
+                        className={inputClass}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="login-password" className={labelClass}>Password</Label>
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-emerald-600 transition-colors hover:text-emerald-700"
+                          onClick={() => { setForgotMode(true); setError(null); }}
+                        >
+                          Forgot password?
+                        </button>
+                      </div>
+                      <Input
+                        id="login-password"
+                        type="password"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        required
+                        autoComplete="current-password"
+                        placeholder="••••••••"
+                        className={inputClass}
+                      />
+                    </div>
+                    {error && (
+                      <p id="login-error" role="alert" aria-live="polite" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+                        {error}
+                      </p>
                     )}
-                  </Button>
-                </form>
-              </TabsContent>
+                    <Button
+                      type="submit"
+                      className={primaryBtn}
+                      disabled={submitting}
+                      aria-describedby={error ? "login-error" : undefined}
+                    >
+                      {submitting ? (<><Loader2 className="h-4 w-4 animate-spin" /> Signing in…</>) : "Sign In"}
+                    </Button>
 
-              {/* Signup tab */}
-              <TabsContent value="signup">
-                <form onSubmit={handleSignup} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="signup-name" className="text-xs font-medium text-white/70">Full Name</Label>
-                    <Input
-                      id="signup-name"
-                      type="text"
-                      value={fullName}
-                      onChange={e => setFullName(e.target.value)}
-                      required
-                      autoComplete="name"
-                      placeholder="Nama penuh anda"
-                      className="border-white/20 bg-white/10 text-white placeholder:text-white/30 focus-visible:ring-blue-400/50 focus-visible:border-blue-400/50"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="signup-email" className="text-xs font-medium text-white/70">Email</Label>
-                    <Input
-                      id="signup-email"
-                      type="email"
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      required
-                      autoComplete="email"
-                      placeholder="your@email.com"
-                      className="border-white/20 bg-white/10 text-white placeholder:text-white/30 focus-visible:ring-blue-400/50 focus-visible:border-blue-400/50"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="signup-password" className="text-xs font-medium text-white/70">Password</Label>
-                    <Input
-                      id="signup-password"
-                      type="password"
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      required
-                      minLength={6}
-                      autoComplete="new-password"
-                      placeholder="Minimum 6 characters"
-                      className="border-white/20 bg-white/10 text-white placeholder:text-white/30 focus-visible:ring-blue-400/50 focus-visible:border-blue-400/50"
-                    />
-                  </div>
-                  {error && (
-                    <p id="signup-error" role="alert" aria-live="polite" className="text-xs text-red-300">
-                      {error}
-                    </p>
-                  )}
-                  <Button
-                    type="submit"
-                    className="w-full bg-blue-600 font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
-                    disabled={submitting}
-                    aria-describedby={error ? "signup-error" : undefined}
-                  >
-                    {submitting ? (
-                      <span className="flex items-center gap-2">
-                        <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                        Creating account…
-                      </span>
-                    ) : "Create Account"}
-                  </Button>
-                </form>
-              </TabsContent>
-            </Tabs>
+                    <div className="relative flex items-center gap-3 py-1">
+                      <div className="h-px flex-1 bg-slate-200" />
+                      <span className="text-xs font-medium uppercase tracking-wide text-slate-400">or</span>
+                      <div className="h-px flex-1 bg-slate-200" />
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 w-full font-medium"
+                      disabled={googleLoading || submitting}
+                      onClick={handleGoogleLogin}
+                    >
+                      {googleLoading ? (
+                        <><Loader2 className="h-4 w-4 animate-spin" /> Processing…</>
+                      ) : (
+                        <>
+                          <svg className="h-4 w-4" viewBox="0 0 24 24">
+                            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                          </svg>
+                          Continue with Google
+                        </>
+                      )}
+                    </Button>
+                  </form>
+                </TabsContent>
+
+                {/* Sign up */}
+                <TabsContent value="signup">
+                  <form onSubmit={handleSignup} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="signup-name" className={labelClass}>Full Name</Label>
+                      <Input
+                        id="signup-name"
+                        type="text"
+                        value={fullName}
+                        onChange={e => setFullName(e.target.value)}
+                        required
+                        autoComplete="name"
+                        placeholder="Your full name"
+                        className={inputClass}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="signup-email" className={labelClass}>Email</Label>
+                      <Input
+                        id="signup-email"
+                        type="email"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        required
+                        autoComplete="email"
+                        placeholder="name@moh.gov.my"
+                        className={inputClass}
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="signup-password" className={labelClass}>Password</Label>
+                      <Input
+                        id="signup-password"
+                        type="password"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        required
+                        minLength={6}
+                        autoComplete="new-password"
+                        placeholder="Minimum 6 characters"
+                        className={inputClass}
+                      />
+                    </div>
+                    {error && (
+                      <p id="signup-error" role="alert" aria-live="polite" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
+                        {error}
+                      </p>
+                    )}
+                    <Button
+                      type="submit"
+                      className={primaryBtn}
+                      disabled={submitting}
+                      aria-describedby={error ? "signup-error" : undefined}
+                    >
+                      {submitting ? (<><Loader2 className="h-4 w-4 animate-spin" /> Creating account…</>) : "Create Account"}
+                    </Button>
+                  </form>
+                </TabsContent>
+              </Tabs>
+            </>
           )}
         </div>
-      </div>
-
-      {/* Bottom AI banner */}
-      <div
-        className="fixed bottom-0 left-0 right-0 z-20 py-2.5"
-        style={{
-          background: "rgba(255,255,255,0.05)",
-          backdropFilter: "blur(16px)",
-          WebkitBackdropFilter: "blur(16px)",
-          borderTop: "1px solid rgba(255,255,255,0.10)",
-        }}
-      >
-        <p className="text-center text-[10px] font-semibold uppercase tracking-[0.3em] text-white/40">
-          ✦&nbsp;&nbsp;Powered by Anthropic Claude · World's Most Capable AI&nbsp;&nbsp;✦
-        </p>
-      </div>
+      </main>
     </div>
   );
 }

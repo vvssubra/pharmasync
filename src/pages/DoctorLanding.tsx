@@ -9,7 +9,7 @@ const services = [
     title: "Controlled Drug Request",
     description: "Controlled drug dispensing form requiring pharmacist approval",
     badge: "Requires Pharmacist Approval",
-    badgeClass: "bg-blue-100 text-blue-700 border-blue-300",
+    badgeClass: "bg-emerald-100 text-emerald-700 border-emerald-300",
     to: "/request/ubat",
   },
   {
@@ -37,12 +37,12 @@ export default function DoctorLanding() {
           {services.map((s) => (
             <Card
               key={s.to}
-              className="cursor-pointer transition-all hover:border-[#1A3C6E] hover:shadow-md group"
+              className="cursor-pointer transition-all hover:border-[#047857] hover:shadow-md group"
               onClick={() => navigate(s.to)}
             >
               <CardContent className="flex flex-col items-center gap-4 p-8 text-center">
                 <div className="rounded-xl bg-muted p-4">
-                  <s.icon className="h-8 w-8" style={{ color: "#1A3C6E" }} />
+                  <s.icon className="h-8 w-8" style={{ color: "#047857" }} />
                 </div>
                 <div className="space-y-2">
                   <h2 className="text-lg font-semibold text-foreground">{s.title}</h2>
