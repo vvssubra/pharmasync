@@ -289,7 +289,7 @@ export default function DoctorRequest() {
                 </FormItem>
               )} />
 
-              <Button type="submit" className="w-full" style={{ backgroundColor: "#1A3C6E" }} disabled={submitMutation.isPending || stockExceeded}>
+              <Button type="submit" className="w-full bg-primary text-primary-foreground" disabled={submitMutation.isPending || stockExceeded}>
                 {submitMutation.isPending ? "Submitting..." : "Submit Request"}
               </Button>
             </form>

@@ -5,27 +5,27 @@
 /* Design system: healthcare / pharmacy dashboard — professional, readable, trustworthy */
 @layer base {
   :root {
-    --background: 0 0% 98%;
-    --foreground: 216 50% 12%;
+    --background: 150 24% 98%;
+    --foreground: 168 44% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 216 50% 12%;
+    --card-foreground: 168 44% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 216 50% 12%;
+    --popover-foreground: 168 44% 10%;
 
-    --primary: 216 62% 27%;
+    --primary: 162 73% 22%;
     --primary-foreground: 0 0% 98%;
 
-    --accent: 211 61% 45%;
+    --accent: 160 76% 36%;
     --accent-foreground: 0 0% 98%;
 
-    --secondary: 214 32% 94%;
-    --secondary-foreground: 216 62% 27%;
+    --secondary: 152 30% 93%;
+    --secondary-foreground: 162 73% 22%;
 
-    --muted: 214 20% 94%;
-    /* Muted text: ≥4.5:1 contrast on background (HSL lightness ~40% or below) */
-    --muted-foreground: 215 22% 40%;
+    --muted: 150 22% 93%;
+    /* Muted text: ≥4.5:1 contrast on background (HSL lightness ~38% or below) */
+    --muted-foreground: 165 14% 38%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
@@ -36,20 +36,20 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 10%;
 
-    --border: 214 20% 88%;
-    --input: 214 20% 88%;
-    --ring: 216 62% 27%;
+    --border: 150 20% 87%;
+    --input: 150 20% 87%;
+    --ring: 160 76% 36%;
 
     --radius: 0.5rem;
 
-    --sidebar-background: 216 62% 27%;
-    --sidebar-foreground: 214 32% 91%;
+    --sidebar-background: 163 74% 17%;
+    --sidebar-foreground: 152 30% 90%;
     --sidebar-primary: 0 0% 100%;
-    --sidebar-primary-foreground: 216 62% 27%;
-    --sidebar-accent: 216 55% 22%;
+    --sidebar-primary-foreground: 163 74% 17%;
+    --sidebar-accent: 164 68% 13%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 216 55% 22%;
-    --sidebar-ring: 211 61% 45%;
+    --sidebar-border: 164 68% 13%;
+    --sidebar-ring: 160 76% 42%;
   }
 }
 
@@ -93,7 +93,53 @@
   }
 }
 
+/* Brand wordmark shimmer — a moving emerald sheen sweeps across the name.
+   Deliberate single-wordmark delight, not decorative gradient text. */
+@keyframes shimmer-sweep {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+.shimmer-emerald,
+.shimmer-emerald-on-dark {
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: shimmer-sweep 4.5s linear infinite;
+}
+/* On light surfaces: deep-emerald base, brighter emerald sheen. */
+.shimmer-emerald {
+  background-image: linear-gradient(100deg,
+    hsl(162 73% 24%) 0%, hsl(162 73% 24%) 42%,
+    hsl(152 80% 55%) 50%,
+    hsl(162 73% 24%) 58%, hsl(162 73% 24%) 100%);
+}
+/* On dark surfaces: light-emerald base, white sheen. */
+.shimmer-emerald-on-dark {
+  background-image: linear-gradient(100deg,
+    hsl(152 55% 82%) 0%, hsl(152 55% 82%) 42%,
+    #ffffff 50%,
+    hsl(152 55% 82%) 58%, hsl(152 55% 82%) 100%);
+}
+
 /* Respect user motion preference (a11y) */
+@media (prefers-reduced-motion: reduce) {
+  .shimmer-emerald {
+    animation: none;
+    background-image: none;
+    -webkit-text-fill-color: hsl(162 73% 24%);
+    color: hsl(162 73% 24%);
+  }
+  .shimmer-emerald-on-dark {
+    animation: none;
+    background-image: none;
+    -webkit-text-fill-color: hsl(152 55% 82%);
+    color: hsl(152 55% 82%);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

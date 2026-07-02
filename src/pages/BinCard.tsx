@@ -32,8 +32,25 @@ type Drug = {
   stok_max: number;
 };
 
-type MockTx = {
-  id: number;
+// Raw transaction row fetched from Supabase for this drug.
+type Tx = {
+  id: string;
+  tarikh: string;
+  jenis: "baki_awal" | "terimaan" | "keluaran";
+  kuantiti: number;
+  created_at: string;
+  nama_pegawai: string | null;
+  no_rujukan: string | null;
+  terima_daripada: string | null;
+  nama_pesakit: string | null;
+  no_ic: string | null;
+  harga_seunit: number | null;
+  jumlah_rm: number | null;
+};
+
+// Computed bin-card display row with running balance.
+type BinRow = {
+  id: string;
   tarikh: string;
   jenis: "baki_awal" | "terimaan" | "keluaran";
   no_rujukan: string;
@@ -49,109 +66,6 @@ type MockTx = {
   nama_pegawai: string;
 };
 
-function generateMockData(): MockTx[] {
-  const rows: MockTx[] = [];
-  let baki = 500;
-  const unitPrice = 2.50;
-  let id = 1;
-
-  // Row 1: Baki Awal
-  rows.push({
-    id: id++, tarikh: "2026-01-01", jenis: "baki_awal", no_rujukan: "", nama: "BALANCE BROUGHT FORWARD", subtext: "",
-    terimaan_qty: null, terimaan_seunit: null, terimaan_jumlah: null,
-    keluaran_qty: null, keluaran_jumlah: null,
-    baki_qty: baki, baki_jumlah: baki * unitPrice, nama_pegawai: "",
-  });
-
-  // Terimaan 1
-  const t1 = 200; baki += t1;
-  rows.push({
-    id: id++, tarikh: "2026-01-15", jenis: "terimaan", no_rujukan: "BTB-2026-001", nama: "Stor Utama", subtext: "",
-    terimaan_qty: t1, terimaan_seunit: unitPrice, terimaan_jumlah: t1 * unitPrice,
-    keluaran_qty: null, keluaran_jumlah: null,
-    baki_qty: baki, baki_jumlah: baki * unitPrice, nama_pegawai: "Pn. Siti Aminah",
-  });
-
-  // Keluaran batch 1 (5 patients)
-  const patients1 = [
-    { nama: "AHMAD BIN HASSAN", rx: "OUTPATIENT0000272091", qty: 60 },
-    { nama: "MARY LOO AH KENG", rx: "OUTPATIENT0000272105", qty: 30 },
-    { nama: "MUTHU A/L RAJU", rx: "OUTPATIENT0000272118", qty: 60 },
-    { nama: "NUR AISYAH BINTI OSMAN", rx: "OUTPATIENT0000272130", qty: 30 },
-    { nama: "TAN WEI LING", rx: "OUTPATIENT0000272142", qty: 60 },
-  ];
-  patients1.forEach((p, i) => {
-    baki -= p.qty;
-    rows.push({
-      id: id++, tarikh: `2026-01-${String(20 + i).padStart(2, "0")}`, jenis: "keluaran",
-      no_rujukan: `PK-2026-${String(id).padStart(3, "0")}`, nama: p.nama, subtext: p.rx,
-      terimaan_qty: null, terimaan_seunit: null, terimaan_jumlah: null,
-      keluaran_qty: p.qty, keluaran_jumlah: p.qty * unitPrice,
-      baki_qty: baki, baki_jumlah: baki * unitPrice, nama_pegawai: "En. Rizal",
-    });
-  });
-
-  // Terimaan 2
-  const t2 = 300; baki += t2;
-  rows.push({
-    id: id++, tarikh: "2026-02-01", jenis: "terimaan", no_rujukan: "BTB-2026-002", nama: "Stor Utama", subtext: "",
-    terimaan_qty: t2, terimaan_seunit: unitPrice, terimaan_jumlah: t2 * unitPrice,
-    keluaran_qty: null, keluaran_jumlah: null,
-    baki_qty: baki, baki_jumlah: baki * unitPrice, nama_pegawai: "Pn. Siti Aminah",
-  });
-
-  // Keluaran batch 2 (5 patients)
-  const patients2 = [
-    { nama: "WONG KAH YONG", rx: "OUTPATIENT0000273001", qty: 60 },
-    { nama: "SALMAH BINTI YUSOF", rx: "OUTPATIENT0000273015", qty: 30 },
-    { nama: "RAVI A/L KRISHNAN", rx: "OUTPATIENT0000273028", qty: 60 },
-    { nama: "FARAH BINTI AHMAD", rx: "OUTPATIENT0000273040", qty: 60 },
-    { nama: "LEE CHONG WEI", rx: "OUTPATIENT0000273055", qty: 30 },
-  ];
-  patients2.forEach((p, i) => {
-    baki -= p.qty;
-    rows.push({
-      id: id++, tarikh: `2026-02-${String(5 + i * 3).padStart(2, "0")}`, jenis: "keluaran",
-      no_rujukan: `PK-2026-${String(id).padStart(3, "0")}`, nama: p.nama, subtext: p.rx,
-      terimaan_qty: null, terimaan_seunit: null, terimaan_jumlah: null,
-      keluaran_qty: p.qty, keluaran_jumlah: p.qty * unitPrice,
-      baki_qty: baki, baki_jumlah: baki * unitPrice, nama_pegawai: "En. Rizal",
-    });
-  });
-
-  // Terimaan 3
-  const t3 = 150; baki += t3;
-  rows.push({
-    id: id++, tarikh: "2026-02-20", jenis: "terimaan", no_rujukan: "BPSS-2026-001", nama: "Stor Utama", subtext: "",
-    terimaan_qty: t3, terimaan_seunit: unitPrice, terimaan_jumlah: t3 * unitPrice,
-    keluaran_qty: null, keluaran_jumlah: null,
-    baki_qty: baki, baki_jumlah: baki * unitPrice, nama_pegawai: "Pn. Siti Aminah",
-  });
-
-  // Keluaran batch 3 — push baki below 100
-  const patients3 = [
-    { nama: "ZAINAB BINTI IBRAHIM", rx: "OUTPATIENT0000274001", qty: 60 },
-    { nama: "KUMAR A/L SELVARAJ", rx: "OUTPATIENT0000274015", qty: 60 },
-    { nama: "NURUL HUDA BINTI ALI", rx: "OUTPATIENT0000274030", qty: 60 },
-    { nama: "CHEN MEI FONG", rx: "OUTPATIENT0000274045", qty: 60 },
-    { nama: "KAMAL BIN RAZAK", rx: "OUTPATIENT0000274060", qty: 60 },
-    { nama: "PRIYA A/P SUBRAMANIAM", rx: "OUTPATIENT0000274075", qty: 60 },
-  ];
-  patients3.forEach((p, i) => {
-    baki -= p.qty;
-    rows.push({
-      id: id++, tarikh: `2026-03-${String(1 + i * 2).padStart(2, "0")}`, jenis: "keluaran",
-      no_rujukan: `PK-2026-${String(id).padStart(3, "0")}`, nama: p.nama, subtext: p.rx,
-      terimaan_qty: null, terimaan_seunit: null, terimaan_jumlah: null,
-      keluaran_qty: p.qty, keluaran_jumlah: p.qty * unitPrice,
-      baki_qty: baki, baki_jumlah: baki * unitPrice, nama_pegawai: "En. Rizal",
-    });
-  });
-
-  return rows;
-}
-
-const MOCK_DATA = generateMockData();
 const PAGE_SIZE = 50;
 
 export default function BinCard() {
@@ -174,8 +88,66 @@ export default function BinCard() {
     enabled: !!id,
   });
 
+  const { data: transactions, isLoading: txLoading } = useQuery({
+    queryKey: ["bincard-transactions", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select(
+          "id, tarikh, jenis, kuantiti, created_at, nama_pegawai, no_rujukan, terima_daripada, nama_pesakit, no_ic, harga_seunit, jumlah_rm"
+        )
+        .eq("drug_id", id!)
+        .order("tarikh", { ascending: true })
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data as Tx[];
+    },
+    enabled: !!id,
+  });
+
+  // Compute the running balance across ALL transactions in chronological order,
+  // then filtering/pagination operates over the precomputed rows.
+  const allRows = useMemo<BinRow[]>(() => {
+    if (!transactions) return [];
+    let baki = 0;
+    let lastPrice = 0;
+    return transactions.map((t) => {
+      const isBaki = t.jenis === "baki_awal";
+      const isTerimaan = t.jenis === "terimaan";
+      const isKeluaran = t.jenis === "keluaran";
+
+      if (isTerimaan || isBaki) baki += t.kuantiti;
+      else if (isKeluaran) baki -= t.kuantiti;
+      if (t.harga_seunit != null) lastPrice = t.harga_seunit;
+
+      const nama = isBaki
+        ? "BALANCE BROUGHT FORWARD"
+        : isTerimaan
+        ? t.terima_daripada || "—"
+        : t.nama_pesakit || "—";
+      const subtext = isKeluaran ? t.no_ic || "" : "";
+
+      return {
+        id: t.id,
+        tarikh: t.tarikh,
+        jenis: t.jenis,
+        no_rujukan: t.no_rujukan || "",
+        nama,
+        subtext,
+        terimaan_qty: isTerimaan ? t.kuantiti : null,
+        terimaan_seunit: isTerimaan ? t.harga_seunit : null,
+        terimaan_jumlah: isTerimaan ? t.jumlah_rm : null,
+        keluaran_qty: isKeluaran ? t.kuantiti : null,
+        keluaran_jumlah: isKeluaran ? t.jumlah_rm : null,
+        baki_qty: baki,
+        baki_jumlah: baki * lastPrice,
+        nama_pegawai: t.nama_pegawai || "",
+      };
+    });
+  }, [transactions]);
+
   const filtered = useMemo(() => {
-    let rows = [...MOCK_DATA];
+    let rows = [...allRows];
     if (dateFrom) rows = rows.filter((r) => r.tarikh >= format(dateFrom, "yyyy-MM-dd"));
     if (dateTo) rows = rows.filter((r) => r.tarikh <= format(dateTo, "yyyy-MM-dd"));
     if (jenisFilter !== "semua") rows = rows.filter((r) => r.jenis === jenisFilter || r.jenis === "baki_awal");
@@ -184,7 +156,7 @@ export default function BinCard() {
       rows = rows.filter((r) => r.nama.toLowerCase().includes(q) || r.no_rujukan.toLowerCase().includes(q) || r.subtext.toLowerCase().includes(q));
     }
     return rows;
-  }, [dateFrom, dateTo, jenisFilter, searchQ]);
+  }, [allRows, dateFrom, dateTo, jenisFilter, searchQ]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paged = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -201,7 +173,7 @@ export default function BinCard() {
     setPage(1);
   };
 
-  const currentBaki = MOCK_DATA[MOCK_DATA.length - 1]?.baki_qty ?? 0;
+  const currentBaki = allRows.length > 0 ? allRows[allRows.length - 1].baki_qty : 0;
 
   const getBakiStatus = () => {
     if (!drug) return { label: "—", color: "bg-muted text-muted-foreground" };
@@ -213,7 +185,7 @@ export default function BinCard() {
 
   const status = getBakiStatus();
 
-  if (isLoading) {
+  if (isLoading || txLoading) {
     return <div className="flex items-center justify-center py-24 text-muted-foreground">Loading...</div>;
   }
 
@@ -246,7 +218,7 @@ export default function BinCard() {
       {/* BAHAGIAN A */}
       <Card className="overflow-hidden">
         {/* Navy header */}
-        <div className="flex items-center justify-between px-6 py-3" style={{ backgroundColor: "#1A3C6E" }}>
+        <div className="flex items-center justify-between px-6 py-3" style={{ backgroundColor: "#0b3b28" }}>
           <span className="text-sm font-bold tracking-wide text-white">KEW.PS-3 &nbsp;|&nbsp; DAFTAR STOK</span>
           <span className="text-sm text-white/80">Klinik Kesihatan Kempas</span>
         </div>
@@ -256,7 +228,7 @@ export default function BinCard() {
           <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
             <div className="col-span-2 md:col-span-2">
               <p className="text-xs text-muted-foreground">Stock Description</p>
-              <p className="mt-1 rounded bg-blue-50 px-3 py-2 text-lg font-bold text-foreground dark:bg-blue-900/20">{drug.drug_name}</p>
+              <p className="mt-1 rounded bg-emerald-50 px-3 py-2 text-lg font-bold text-foreground dark:bg-emerald-900/20">{drug.drug_name}</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Code No.</p>
@@ -421,6 +393,15 @@ export default function BinCard() {
                 </tr>
               </thead>
               <tbody>
+                {paged.length === 0 && (
+                  <tr>
+                    <td colSpan={11} className="px-3 py-10 text-center text-sm text-muted-foreground">
+                      {allRows.length === 0
+                        ? "No transactions recorded for this drug yet."
+                        : "No transactions match the current filters."}
+                    </td>
+                  </tr>
+                )}
                 {paged.map((row) => {
                   const isBaki = row.jenis === "baki_awal";
                   const isTerimaan = row.jenis === "terimaan";

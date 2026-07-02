@@ -31,50 +31,6 @@ interface DrugStock {
   lastUpdated: string | null;
 }
 
-// ---------- mock data for 50 drugs ----------
-const MOCK_DRUG_NAMES = [
-  "Paracetamol 500mg","Amoxicillin 250mg","Metformin 500mg","Amlodipine 5mg","Losartan 50mg",
-  "Omeprazole 20mg","Atorvastatin 20mg","Aspirin 100mg","Hydrochlorothiazide 25mg","Simvastatin 20mg",
-  "Clopidogrel 75mg","Metoprolol 50mg","Gliclazide 80mg","Prednisolone 5mg","Cetirizine 10mg",
-  "Salbutamol Inhaler","Insulin Mixtard 30/70","Lovastatin 20mg","Captopril 25mg","Diclofenac 50mg",
-  "Ranitidine 150mg","Furosemide 40mg","Warfarin 2mg","Enalapril 5mg","Nifedipine 30mg",
-  "Ciprofloxacin 500mg","Doxycycline 100mg","Erythromycin 250mg","Ibuprofen 400mg","Chlorpheniramine 4mg",
-  "Promethazine 25mg","Domperidone 10mg","Loperamide 2mg","Mefenamic Acid 500mg","Tramadol 50mg",
-  "Gabapentin 300mg","Carbamazepine 200mg","Phenytoin 100mg","Fluoxetine 20mg","Risperidone 2mg",
-  "Haloperidol 5mg","Diazepam 5mg","Alprazolam 0.5mg","Vitamin B Complex","Folic Acid 5mg",
-  "Ferrous Fumarate 200mg","Calcium Carbonate 500mg","Methyldopa 250mg","Glyceryl Trinitrate 0.5mg","Isosorbide Dinitrate 10mg",
-];
-
-function generateMockDrugs(): DrugStock[] {
-  return MOCK_DRUG_NAMES.map((name, i) => {
-    const min = 50 + (i % 5) * 20;
-    const reorder = min + 30;
-    const max = reorder + 100;
-    // distribute statuses
-    let baki: number;
-    if (i % 10 === 0) baki = Math.floor(min * 0.5); // CRITICAL
-    else if (i % 7 === 0) baki = min + Math.floor((reorder - min) * 0.3); // LOW
-    else if (i % 13 === 0) baki = max + 20; // EXCESS
-    else baki = reorder + Math.floor(Math.random() * (max - reorder));
-
-    const status = getStatus(baki, min, reorder, max);
-    const daysAgo = Math.floor(Math.random() * 14);
-    const lastUpdated = new Date(Date.now() - daysAgo * 86400000).toISOString();
-
-    return {
-      id: `mock-${i}`,
-      drug_name: name,
-      unit_pengukuran: i % 3 === 0 ? "vial" : i % 5 === 0 ? "sachet" : "tablet",
-      stok_min: min,
-      stok_reorder: reorder,
-      stok_max: max,
-      baki,
-      status,
-      lastUpdated,
-    };
-  });
-}
-
 function getStatus(baki: number, min: number, reorder: number, max: number): StockStatus {
   if (!min && !max) return "NO LEVEL";
   if (baki < min) return "CRITICAL";
@@ -94,20 +50,6 @@ const STATUS_CONFIG: Record<StockStatus, { color: string; badgeClass: string }> 
 const STATUS_ORDER: Record<StockStatus, number> = {
   CRITICAL: 0, LOW: 1, NORMAL: 2, EXCESS: 3, "NO LEVEL": 4,
 };
-
-// ---------- mock activity ----------
-const MOCK_ACTIVITY = [
-  { drug_name: "Paracetamol 500mg", jenis: "terimaan", kuantiti: 500, nama_pegawai: "Pn. Siti", created_at: new Date(Date.now() - 3600000).toISOString() },
-  { drug_name: "Amoxicillin 250mg", jenis: "keluaran", kuantiti: 120, nama_pegawai: "En. Ahmad", created_at: new Date(Date.now() - 7200000).toISOString() },
-  { drug_name: "Metformin 500mg", jenis: "terimaan", kuantiti: 300, nama_pegawai: "Pn. Siti", created_at: new Date(Date.now() - 18000000).toISOString() },
-  { drug_name: "Amlodipine 5mg", jenis: "keluaran", kuantiti: 60, nama_pegawai: "Dr. Lee", created_at: new Date(Date.now() - 36000000).toISOString() },
-  { drug_name: "Losartan 50mg", jenis: "terimaan", kuantiti: 200, nama_pegawai: "Pn. Siti", created_at: new Date(Date.now() - 86400000).toISOString() },
-  { drug_name: "Omeprazole 20mg", jenis: "keluaran", kuantiti: 80, nama_pegawai: "En. Ahmad", created_at: new Date(Date.now() - 172800000).toISOString() },
-  { drug_name: "Atorvastatin 20mg", jenis: "terimaan", kuantiti: 150, nama_pegawai: "Pn. Siti", created_at: new Date(Date.now() - 259200000).toISOString() },
-  { drug_name: "Aspirin 100mg", jenis: "keluaran", kuantiti: 45, nama_pegawai: "Dr. Lee", created_at: new Date(Date.now() - 345600000).toISOString() },
-  { drug_name: "Simvastatin 20mg", jenis: "terimaan", kuantiti: 400, nama_pegawai: "En. Ahmad", created_at: new Date(Date.now() - 432000000).toISOString() },
-  { drug_name: "Clopidogrel 75mg", jenis: "keluaran", kuantiti: 30, nama_pegawai: "Pn. Siti", created_at: new Date(Date.now() - 518400000).toISOString() },
-];
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -147,9 +89,24 @@ export default function Dashboard() {
     },
   });
 
+  // Fetch last 5 fulfilled dispensing requests
+  const { data: recentDispensing } = useQuery({
+    queryKey: ["recent-dispensing"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("dispensing_requests")
+        .select("id, patient_name, no_ic, quantity, fulfilled_at, drugs(drug_name)")
+        .eq("status", "fulfilled")
+        .order("fulfilled_at", { ascending: false })
+        .limit(5);
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Compute drug stocks
   const drugStocks: DrugStock[] = useMemo(() => {
-    if (!drugs || drugs.length === 0 || !transactions) return generateMockDrugs();
+    if (!drugs || drugs.length === 0 || !transactions) return [];
 
     const bakiMap = new Map<string, { baki: number; lastDate: string | null }>();
     for (const tx of transactions) {
@@ -182,7 +139,7 @@ export default function Dashboard() {
 
   // Activity feed
   const activityFeed = useMemo(() => {
-    if (!recentTx || recentTx.length === 0) return MOCK_ACTIVITY;
+    if (!recentTx || recentTx.length === 0) return [];
     return recentTx.map((tx) => ({
       drug_name: (tx.drugs as any)?.drug_name ?? "—",
       jenis: tx.jenis,
@@ -275,6 +232,13 @@ export default function Dashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
+              {drugStocks.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                    No drugs yet. Add drugs in Drug Master to start tracking stock.
+                  </TableCell>
+                </TableRow>
+              )}
               {drugStocks.map((d) => {
                 const pct = d.stok_max > 0 ? Math.min(Math.round((d.baki / d.stok_max) * 100), 100) : 0;
                 const cfg = STATUS_CONFIG[d.status];
@@ -321,6 +285,9 @@ export default function Dashboard() {
             </Button>
           </CardHeader>
           <CardContent className="space-y-3">
+            {activityFeed.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">No recent activity</p>
+            )}
             {activityFeed.map((a, i) => (
               <div key={i} className="flex items-center justify-between gap-3 text-sm">
                 <div className="flex items-center gap-3 min-w-0">
@@ -362,27 +329,29 @@ export default function Dashboard() {
                   <TableHead className="text-xs">Patient</TableHead>
                   <TableHead className="text-xs">IC</TableHead>
                   <TableHead className="text-xs text-right">Qty</TableHead>
-                  <TableHead className="text-xs">Officer</TableHead>
                   <TableHead className="text-xs">Time</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {[
-                  { drug: "Empagliflozin 25mg", pesakit: "AHMAD BIN HASSAN", ic: "720315-01-5533", qty: 30, pegawai: "Pn. Siti", masa: "10:30" },
-                  { drug: "Metformin 500mg", pesakit: "MARY LOO AH KENG", ic: "650822-01-6744", qty: 60, pegawai: "En. Ahmad", masa: "10:15" },
-                  { drug: "Amlodipine 5mg", pesakit: "MUTHU A/L RAJU", ic: "580114-01-4421", qty: 30, pegawai: "Dr. Lee", masa: "09:55" },
-                  { drug: "Losartan 50mg", pesakit: "NOR AZIZAH BINTI YUSOF", ic: "810607-01-5566", qty: 30, pegawai: "Pn. Siti", masa: "09:40" },
-                  { drug: "Omeprazole 20mg", pesakit: "TAN AH BENG", ic: "700430-01-3322", qty: 14, pegawai: "En. Ahmad", masa: "09:20" },
-                ].map((r, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="text-xs font-medium truncate max-w-[120px]">{r.drug}</TableCell>
-                    <TableCell className="text-xs truncate max-w-[130px]">{r.pesakit}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{r.ic}</TableCell>
-                    <TableCell className="text-xs text-right font-semibold">{r.qty}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{r.pegawai}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{r.masa}</TableCell>
+                {!recentDispensing || recentDispensing.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-8 text-center text-xs text-muted-foreground">
+                      No dispensing records yet
+                    </TableCell>
                   </TableRow>
-                ))}
+                ) : (
+                  recentDispensing.map((r) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="text-xs font-medium truncate max-w-[120px]">{(r.drugs as any)?.drug_name ?? "—"}</TableCell>
+                      <TableCell className="text-xs truncate max-w-[130px]">{r.patient_name}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{r.no_ic}</TableCell>
+                      <TableCell className="text-xs text-right font-semibold">{r.quantity}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                        {r.fulfilled_at ? formatDistanceToNow(new Date(r.fulfilled_at), { addSuffix: true }) : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>

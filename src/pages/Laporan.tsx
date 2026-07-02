@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { format } from "date-fns";
 import {
   FileDown, FileSpreadsheet, Search, CalendarIcon, ChevronDown,
@@ -17,36 +17,29 @@ import { Calendar } from "@/components/ui/calendar";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 
-// Mock quarterly data
-const mockQuarterlyData = [
-  { drug: "Paracetamol 500mg", terimaan: 5000, keluaran: 4200, baki: 800 },
-  { drug: "Amoxicillin 250mg", terimaan: 3000, keluaran: 2800, baki: 200 },
-  { drug: "Metformin 500mg", terimaan: 4000, keluaran: 3500, baki: 500 },
-  { drug: "Amlodipine 5mg", terimaan: 2000, keluaran: 1800, baki: 200 },
-  { drug: "Omeprazole 20mg", terimaan: 2500, keluaran: 2100, baki: 400 },
-  { drug: "Atorvastatin 20mg", terimaan: 1500, keluaran: 1300, baki: 200 },
-];
+// A single transaction row (with joined drug name/unit) used to derive every report below.
+interface TxRow {
+  drug_id: string;
+  jenis: "terimaan" | "keluaran" | "baki_awal";
+  kuantiti: number;
+  tarikh: string | null;
+  created_at: string;
+  nama_pegawai: string | null;
+  nama_pesakit: string | null;
+  no_ic: string | null;
+  jumlah_rm: number | null;
+  drugs?: { drug_name: string | null; unit_pengukuran: string | null } | null;
+}
 
-// Mock movement data
-const mockMovementData = [
-  { drug: "Paracetamol 500mg", totalQty: 4200, totalRM: 840.00, count: 42, avg: 100, lastDate: "2026-03-10" },
-  { drug: "Amoxicillin 250mg", totalQty: 2800, totalRM: 1680.00, count: 28, avg: 100, lastDate: "2026-03-09" },
-  { drug: "Metformin 500mg", totalQty: 3500, totalRM: 525.00, count: 35, avg: 100, lastDate: "2026-03-11" },
-  { drug: "Amlodipine 5mg", totalQty: 1800, totalRM: 720.00, count: 18, avg: 100, lastDate: "2026-03-08" },
-  { drug: "Omeprazole 20mg", totalQty: 2100, totalRM: 1050.00, count: 21, avg: 100, lastDate: "2026-03-07" },
-];
+// Normalise a transaction to a "yyyy-MM-dd" string (prefer the recorded tarikh, fall back to created_at).
+function txDateStr(tx: TxRow): string {
+  if (tx.tarikh) return tx.tarikh.slice(0, 10);
+  return format(new Date(tx.created_at), "yyyy-MM-dd");
+}
 
-// Mock daily dispensing data
-const mockDailyDispensing = [
-  { drug: "Empagliflozin 25mg", pesakit: "AHMAD BIN HASSAN", ic: "720315-01-5533", qty: 30, pegawai: "Pn. Siti", masa: "10:30" },
-  { drug: "Metformin 500mg", pesakit: "MARY LOO AH KENG", ic: "650822-01-6744", qty: 60, pegawai: "En. Ahmad", masa: "10:15" },
-  { drug: "Amlodipine 5mg", pesakit: "MUTHU A/L RAJU", ic: "580114-01-4421", qty: 30, pegawai: "Dr. Lee", masa: "09:55" },
-  { drug: "Losartan 50mg", pesakit: "NOR AZIZAH BINTI YUSOF", ic: "810607-01-5566", qty: 30, pegawai: "Pn. Siti", masa: "09:40" },
-  { drug: "Omeprazole 20mg", pesakit: "TAN AH BENG", ic: "700430-01-3322", qty: 14, pegawai: "En. Ahmad", masa: "09:20" },
-  { drug: "Paracetamol 500mg", pesakit: "SITI NURHALIZA BINTI AHMAD", ic: "890215-01-7788", qty: 20, pegawai: "Pn. Siti", masa: "09:00" },
-  { drug: "Atorvastatin 20mg", pesakit: "LEE CHONG WEI", ic: "821021-01-5511", qty: 30, pegawai: "Dr. Lee", masa: "08:45" },
-  { drug: "Aspirin 100mg", pesakit: "RAJESH A/L KUMAR", ic: "750903-01-4455", qty: 30, pegawai: "En. Ahmad", masa: "08:30" },
-];
+function drugNameOf(tx: TxRow): string {
+  return (tx.drugs as any)?.drug_name ?? "—";
+}
 
 function DatePickerField({ label, date, onSelect }: { label: string; date?: Date; onSelect: (d?: Date) => void }) {
   return (
@@ -79,7 +72,7 @@ export default function Laporan() {
   const [pdfTo, setPdfTo] = useState<Date>();
 
   // Card 2 state
-  const [year, setYear] = useState("2026");
+  const [year, setYear] = useState(String(new Date().getFullYear()));
   const [quarter, setQuarter] = useState("all");
 
   // Card 3 state
@@ -100,7 +93,79 @@ export default function Laporan() {
     },
   });
 
+  // Fetch every transaction (with joined drug info) once; all report tables derive from this ledger.
+  const { data: allTx = [], isLoading: txLoading } = useQuery({
+    queryKey: ["laporan-transactions"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("drug_id, jenis, kuantiti, tarikh, created_at, nama_pegawai, nama_pesakit, no_ic, jumlah_rm, drugs(drug_name, unit_pengukuran)")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as TxRow[];
+    },
+  });
+
   const selectedDrugName = drugs.find((d) => d.id === selectedDrug)?.drug_name;
+
+  // CARD 2 — Quarterly Summary: group the ledger by drug for the chosen year/quarter.
+  // Received = stock added (terimaan + baki_awal opening balance); Dispensed = keluaran; Balance = Received − Dispensed for the period.
+  const quarterlyData = useMemo(() => {
+    const yearNum = parseInt(year, 10);
+    const map = new Map<string, { drug: string; terimaan: number; keluaran: number }>();
+    for (const tx of allTx) {
+      const ds = txDateStr(tx);
+      const [y, m] = ds.split("-").map(Number);
+      if (y !== yearNum) continue;
+      const q = Math.floor((m - 1) / 3) + 1; // 1..4
+      if (quarter !== "all" && `Q${q}` !== quarter) continue;
+      const entry = map.get(tx.drug_id) ?? { drug: drugNameOf(tx), terimaan: 0, keluaran: 0 };
+      if (tx.jenis === "terimaan" || tx.jenis === "baki_awal") entry.terimaan += tx.kuantiti;
+      else if (tx.jenis === "keluaran") entry.keluaran += tx.kuantiti;
+      map.set(tx.drug_id, entry);
+    }
+    return Array.from(map.values())
+      .map((e) => ({ ...e, baki: e.terimaan - e.keluaran }))
+      .sort((a, b) => b.keluaran - a.keluaran);
+  }, [allTx, year, quarter]);
+
+  // CARD 3 — Drug Movement Summary: dispensing (keluaran) totals per drug within the selected date range.
+  const movementData = useMemo(() => {
+    if (!showMovement) return [];
+    const fromStr = movFrom ? format(movFrom, "yyyy-MM-dd") : null;
+    const toStr = movTo ? format(movTo, "yyyy-MM-dd") : null;
+    const map = new Map<string, { drug: string; totalQty: number; totalRM: number; count: number; lastDate: string }>();
+    for (const tx of allTx) {
+      if (tx.jenis !== "keluaran") continue;
+      const ds = txDateStr(tx);
+      if (fromStr && ds < fromStr) continue;
+      if (toStr && ds > toStr) continue;
+      const entry = map.get(tx.drug_id) ?? { drug: drugNameOf(tx), totalQty: 0, totalRM: 0, count: 0, lastDate: ds };
+      entry.totalQty += tx.kuantiti;
+      entry.totalRM += tx.jumlah_rm ?? 0;
+      entry.count += 1;
+      if (ds > entry.lastDate) entry.lastDate = ds;
+      map.set(tx.drug_id, entry);
+    }
+    return Array.from(map.values())
+      .map((e) => ({ ...e, avg: e.count ? Math.round(e.totalQty / e.count) : 0 }))
+      .sort((a, b) => b.totalQty - a.totalQty);
+  }, [allTx, showMovement, movFrom, movTo]);
+
+  // CARD 4 — Daily Dispensing Report: every keluaran (drug issued to a patient) on the selected day.
+  const dailyDispensing = useMemo(() => {
+    const target = format(dailyDate, "yyyy-MM-dd");
+    return allTx
+      .filter((tx) => tx.jenis === "keluaran" && txDateStr(tx) === target)
+      .map((tx) => ({
+        drug: drugNameOf(tx),
+        pesakit: tx.nama_pesakit ?? "—",
+        ic: tx.no_ic ?? "—",
+        qty: tx.kuantiti,
+        pegawai: tx.nama_pegawai ?? "—",
+        masa: format(new Date(tx.created_at), "HH:mm"),
+      }));
+  }, [allTx, dailyDate]);
 
   return (
     <div className="space-y-6">
@@ -206,14 +271,24 @@ export default function Laporan() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mockQuarterlyData.map((r) => (
-                  <TableRow key={r.drug}>
-                    <TableCell className="text-xs font-medium">{r.drug}</TableCell>
-                    <TableCell className="text-xs text-right">{r.terimaan.toLocaleString()}</TableCell>
-                    <TableCell className="text-xs text-right">{r.keluaran.toLocaleString()}</TableCell>
-                    <TableCell className="text-xs text-right font-semibold">{r.baki.toLocaleString()}</TableCell>
+                {txLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-8 text-center text-xs text-muted-foreground">Loading…</TableCell>
                   </TableRow>
-                ))}
+                ) : quarterlyData.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={4} className="py-8 text-center text-xs text-muted-foreground">No data for this period yet.</TableCell>
+                  </TableRow>
+                ) : (
+                  quarterlyData.map((r) => (
+                    <TableRow key={r.drug}>
+                      <TableCell className="text-xs font-medium">{r.drug}</TableCell>
+                      <TableCell className="text-xs text-right">{r.terimaan.toLocaleString()}</TableCell>
+                      <TableCell className="text-xs text-right">{r.keluaran.toLocaleString()}</TableCell>
+                      <TableCell className="text-xs text-right font-semibold">{r.baki.toLocaleString()}</TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -248,16 +323,26 @@ export default function Laporan() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockMovementData.map((r) => (
-                      <TableRow key={r.drug}>
-                        <TableCell className="text-xs font-medium">{r.drug}</TableCell>
-                        <TableCell className="text-xs text-right">{r.totalQty.toLocaleString()}</TableCell>
-                        <TableCell className="text-xs text-right">{r.totalRM.toFixed(2)}</TableCell>
-                        <TableCell className="text-xs text-right">{r.count}</TableCell>
-                        <TableCell className="text-xs text-right">{r.avg}</TableCell>
-                        <TableCell className="text-xs">{r.lastDate}</TableCell>
+                    {txLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="py-8 text-center text-xs text-muted-foreground">Loading…</TableCell>
                       </TableRow>
-                    ))}
+                    ) : movementData.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="py-8 text-center text-xs text-muted-foreground">No data for this period yet.</TableCell>
+                      </TableRow>
+                    ) : (
+                      movementData.map((r) => (
+                        <TableRow key={r.drug}>
+                          <TableCell className="text-xs font-medium">{r.drug}</TableCell>
+                          <TableCell className="text-xs text-right">{r.totalQty.toLocaleString()}</TableCell>
+                          <TableCell className="text-xs text-right">{r.totalRM.toFixed(2)}</TableCell>
+                          <TableCell className="text-xs text-right">{r.count}</TableCell>
+                          <TableCell className="text-xs text-right">{r.avg}</TableCell>
+                          <TableCell className="text-xs">{r.lastDate}</TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </div>
@@ -294,16 +379,26 @@ export default function Laporan() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {mockDailyDispensing.map((r, i) => (
-                    <TableRow key={i}>
-                      <TableCell className="text-xs font-medium">{r.drug}</TableCell>
-                      <TableCell className="text-xs">{r.pesakit}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{r.ic}</TableCell>
-                      <TableCell className="text-xs text-right font-semibold">{r.qty}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{r.pegawai}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{r.masa}</TableCell>
+                  {txLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-8 text-center text-xs text-muted-foreground">Loading…</TableCell>
                     </TableRow>
-                  ))}
+                  ) : dailyDispensing.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-8 text-center text-xs text-muted-foreground">No dispensing for this day yet.</TableCell>
+                    </TableRow>
+                  ) : (
+                    dailyDispensing.map((r, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="text-xs font-medium">{r.drug}</TableCell>
+                        <TableCell className="text-xs">{r.pesakit}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{r.ic}</TableCell>
+                        <TableCell className="text-xs text-right font-semibold">{r.qty}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{r.pegawai}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{r.masa}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </div>

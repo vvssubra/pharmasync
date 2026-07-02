@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
-type MockRow = {
+type LedgerRow = {
   id: string;
   tarikh: string;
   noRujukan: string;
@@ -33,26 +33,8 @@ type MockRow = {
   seunit?: number;
   jumlahRM?: number;
   namaPegawai: string;
-  sumber: "Excel Import" | "Manual" | "Opening Balance";
+  sumber: string;
 };
-
-const MOCK_ROWS: MockRow[] = [
-  { id: "1", tarikh: "2025-01-02", noRujukan: "BA-001", pihak: "-", jenis: "baki_awal", kuantiti: 500, seunit: 0.25, jumlahRM: 125.0, namaPegawai: "Pn. Siti", sumber: "Opening Balance" },
-  { id: "2", tarikh: "2025-01-08", noRujukan: "DO-20250108-A", pihak: "Stor Utama JKNJ", jenis: "terimaan", kuantiti: 200, seunit: 0.25, jumlahRM: 50.0, namaPegawai: "En. Ahmad", sumber: "Excel Import" },
-  { id: "3", tarikh: "2025-01-10", noRujukan: "KEL-001", pihak: "Bilik Rawatan 1", jenis: "keluaran", kuantiti: 50, jumlahRM: 12.5, namaPegawai: "Pn. Lina", sumber: "Manual" },
-  { id: "4", tarikh: "2025-01-15", noRujukan: "KEL-002", pihak: "Bilik Rawatan 2", jenis: "keluaran", kuantiti: 80, jumlahRM: 20.0, namaPegawai: "En. Razak", sumber: "Excel Import" },
-  { id: "5", tarikh: "2025-01-22", noRujukan: "DO-20250122-B", pihak: "Stor Utama JKNJ", jenis: "terimaan", kuantiti: 300, seunit: 0.25, jumlahRM: 75.0, namaPegawai: "En. Ahmad", sumber: "Excel Import" },
-  { id: "6", tarikh: "2025-02-01", noRujukan: "KEL-003", pihak: "Outpatient Pharmacy", jenis: "keluaran", kuantiti: 120, jumlahRM: 30.0, namaPegawai: "Pn. Siti", sumber: "Manual" },
-  { id: "7", tarikh: "2025-02-05", noRujukan: "KEL-004", pihak: "Bilik Rawatan 1", jenis: "keluaran", kuantiti: 60, jumlahRM: 15.0, namaPegawai: "Pn. Lina", sumber: "Excel Import" },
-  { id: "8", tarikh: "2025-02-12", noRujukan: "DO-20250212-C", pihak: "Stor Utama JKNJ", jenis: "terimaan", kuantiti: 150, seunit: 0.28, jumlahRM: 42.0, namaPegawai: "En. Ahmad", sumber: "Excel Import" },
-  { id: "9", tarikh: "2025-02-18", noRujukan: "KEL-005", pihak: "Bilik Rawatan 3", jenis: "keluaran", kuantiti: 90, jumlahRM: 25.2, namaPegawai: "En. Razak", sumber: "Manual" },
-  { id: "10", tarikh: "2025-02-25", noRujukan: "KEL-006", pihak: "Outpatient Pharmacy", jenis: "keluaran", kuantiti: 200, jumlahRM: 56.0, namaPegawai: "Pn. Siti", sumber: "Excel Import" },
-  { id: "11", tarikh: "2025-03-01", noRujukan: "DO-20250301-D", pihak: "Stor Utama JKNJ", jenis: "terimaan", kuantiti: 400, seunit: 0.28, jumlahRM: 112.0, namaPegawai: "En. Ahmad", sumber: "Excel Import" },
-  { id: "12", tarikh: "2025-03-05", noRujukan: "KEL-007", pihak: "Bilik Rawatan 2", jenis: "keluaran", kuantiti: 150, jumlahRM: 42.0, namaPegawai: "Pn. Lina", sumber: "Manual" },
-  { id: "13", tarikh: "2025-03-08", noRujukan: "KEL-008", pihak: "Bilik Rawatan 1", jenis: "keluaran", kuantiti: 100, jumlahRM: 28.0, namaPegawai: "Pn. Siti", sumber: "Excel Import" },
-  { id: "14", tarikh: "2025-03-10", noRujukan: "DO-20250310-E", pihak: "Stor Utama JKNJ", jenis: "terimaan", kuantiti: 250, seunit: 0.30, jumlahRM: 75.0, namaPegawai: "En. Ahmad", sumber: "Manual" },
-  { id: "15", tarikh: "2025-03-11", noRujukan: "KEL-009", pihak: "Outpatient Pharmacy", jenis: "keluaran", kuantiti: 70, jumlahRM: 21.0, namaPegawai: "En. Razak", sumber: "Excel Import" },
-];
 
 function getBakiLevel(qty: number, min: number, max: number) {
   if (qty <= 0 || qty < min * 0.5) return { label: "CRITICAL", className: "bg-destructive text-destructive-foreground" };
@@ -81,7 +63,7 @@ export default function DrugLedger() {
   const [typeFilter, setTypeFilter] = useState("semua");
   const [search, setSearch] = useState("");
 
-  const { data: drug, isLoading } = useQuery({
+  const { data: drug, isLoading: drugLoading } = useQuery({
     queryKey: ["drug", id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -95,8 +77,73 @@ export default function DrugLedger() {
     enabled: !!id,
   });
 
-  const filteredRows = useMemo(() => {
-    let rows = [...MOCK_ROWS];
+  // Fetch this drug's transactions, ordered ascending for running-balance calc
+  const { data: transactions, isLoading: txLoading } = useQuery({
+    queryKey: ["drug-ledger-transactions", id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("drug_id", id!)
+        .order("tarikh", { ascending: true })
+        .order("created_at", { ascending: true });
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!id,
+  });
+
+  const isLoading = drugLoading || txLoading;
+
+  // Normalize live transactions into ledger rows with running balance attached.
+  // Balance is computed over ALL rows (ledger order), before any filtering.
+  const allRowsWithBaki = useMemo(() => {
+    const rows = transactions ?? [];
+    let runQty = 0;
+    let runRM = 0;
+    return rows.map((tx) => {
+      const t = tx as any;
+      const jenis = t.jenis as "terimaan" | "keluaran" | "baki_awal";
+      const kuantiti = Number(t.kuantiti) || 0;
+      const jumlahRM = t.jumlah_rm != null ? Number(t.jumlah_rm) : undefined;
+      const seunit = t.harga_seunit != null ? Number(t.harga_seunit) : undefined;
+
+      if (jenis === "baki_awal" || jenis === "terimaan") {
+        runQty += kuantiti;
+        runRM += jumlahRM ?? 0;
+      } else {
+        runQty -= kuantiti;
+        runRM -= jumlahRM ?? 0;
+      }
+
+      const pihak =
+        jenis === "keluaran"
+          ? t.nama_pesakit || t.terima_daripada || "-"
+          : t.terima_daripada || "-";
+      const sumber =
+        t.sumber || (jenis === "baki_awal" ? "Opening Balance" : "Manual");
+
+      const row: LedgerRow & { bakiQty: number; bakiRM: number } = {
+        id: t.id,
+        tarikh: t.tarikh,
+        noRujukan: t.no_rujukan || "-",
+        pihak,
+        jenis,
+        kuantiti,
+        seunit,
+        jumlahRM,
+        namaPegawai: t.nama_pegawai || "-",
+        sumber,
+        bakiQty: runQty,
+        bakiRM: Math.max(0, runRM),
+      };
+      return row;
+    });
+  }, [transactions]);
+
+  // Apply filters/search over the real rows (balance already attached)
+  const rowsWithBaki = useMemo(() => {
+    let rows = allRowsWithBaki;
     if (typeFilter === "terimaan") rows = rows.filter((r) => r.jenis === "terimaan");
     else if (typeFilter === "keluaran") rows = rows.filter((r) => r.jenis === "keluaran");
 
@@ -119,37 +166,18 @@ export default function DrugLedger() {
       );
     }
     return rows;
-  }, [typeFilter, startDate, endDate, search]);
-
-  // Compute running balance over ALL mock rows, then map to filtered
-  const rowsWithBaki = useMemo(() => {
-    const balanceMap = new Map<string, { bakiQty: number; bakiRM: number }>();
-    let runQty = 0;
-    let runRM = 0;
-    for (const row of MOCK_ROWS) {
-      if (row.jenis === "baki_awal" || row.jenis === "terimaan") {
-        runQty += row.kuantiti;
-        runRM += row.jumlahRM ?? 0;
-      } else {
-        runQty -= row.kuantiti;
-        runRM -= row.jumlahRM ?? 0;
-      }
-      balanceMap.set(row.id, { bakiQty: runQty, bakiRM: Math.max(0, runRM) });
-    }
-    return filteredRows.map((r) => ({
-      ...r,
-      ...(balanceMap.get(r.id) ?? { bakiQty: 0, bakiRM: 0 }),
-    }));
-  }, [filteredRows]);
+  }, [allRowsWithBaki, typeFilter, startDate, endDate, search]);
 
   const currentBaki = useMemo(() => {
     let qty = 0;
-    for (const row of MOCK_ROWS) {
+    for (const row of allRowsWithBaki) {
       if (row.jenis === "baki_awal" || row.jenis === "terimaan") qty += row.kuantiti;
       else qty -= row.kuantiti;
     }
     return qty;
-  }, []);
+  }, [allRowsWithBaki]);
+
+  const hasAnyRows = allRowsWithBaki.length > 0;
 
   if (isLoading) {
     return (
@@ -296,10 +324,14 @@ export default function DrugLedger() {
                   <TableCell colSpan={12}>
                     <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                       <FileText className="mb-2 h-8 w-8" />
-                      <p className="text-sm font-medium">No transactions found</p>
-                      <Button variant="link" size="sm" className="mt-1" onClick={() => navigate("/drugs")}>
-                        Start by setting an opening balance
-                      </Button>
+                      <p className="text-sm font-medium">
+                        {hasAnyRows ? "No transactions match your filters" : "No ledger entries yet."}
+                      </p>
+                      {!hasAnyRows && (
+                        <Button variant="link" size="sm" className="mt-1" onClick={() => navigate("/drugs")}>
+                          Start by setting an opening balance
+                        </Button>
+                      )}
                     </div>
                   </TableCell>
                 </TableRow>

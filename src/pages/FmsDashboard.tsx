@@ -363,7 +363,7 @@ export default function FmsDashboard() {
       <div className="grid gap-4 sm:grid-cols-4">
         <Card>
           <CardContent className="flex items-center gap-3 p-4">
-            <Package className="h-6 w-6 text-blue-600" />
+            <Package className="h-6 w-6 text-emerald-600" />
             <div>
               <p className="text-2xl font-bold">{drugStock.length}</p>
               <p className="text-xs text-muted-foreground">Active Drugs</p>
@@ -603,7 +603,7 @@ export default function FmsDashboard() {
                 <YAxis tick={{ fontSize: 11 }} />
                 <Tooltip />
                 <Legend />
-                <Line type="monotone" dataKey="qty" name="Units dispensed" stroke="#2563eb" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="qty" name="Units dispensed" stroke="#059669" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           )}

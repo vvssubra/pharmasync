@@ -232,7 +232,7 @@ export default function PatientRegistry() {
           <h1 className="text-2xl font-semibold text-foreground">Patient Registry</h1>
           <p className="text-sm text-muted-foreground">Patient list and drug dispensing history</p>
         </div>
-        <Button onClick={openRefillWalkin} style={{ backgroundColor: "#1A3C6E" }}>
+        <Button onClick={openRefillWalkin} style={{ backgroundColor: "#059669" }}>
           <UserPlus className="mr-1 h-4 w-4" /> Refill Walk-in
         </Button>
       </div>
