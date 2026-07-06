@@ -171,6 +171,7 @@ export type Database = {
       }
       drug_quotas: {
         Row: {
+          alert_threshold_pct: number
           created_by: string | null
           drug_id: string
           id: string
@@ -179,6 +180,7 @@ export type Database = {
           year: number
         }
         Insert: {
+          alert_threshold_pct?: number
           created_by?: string | null
           drug_id: string
           id?: string
@@ -187,6 +189,7 @@ export type Database = {
           year: number
         }
         Update: {
+          alert_threshold_pct?: number
           created_by?: string | null
           drug_id?: string
           id?: string

@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo } from "react";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -26,11 +26,6 @@ const drugSchema = z.object({
   unit_pengukuran: z.string().min(1).default("tablet"),
   kumpulan: z.string().max(50).optional().default(""),
   pergerakan: z.string().max(50).optional().default(""),
-  gudang_seksyen: z.string().max(50).optional().default(""),
-  baris: z.string().max(50).optional().default(""),
-  rak: z.string().max(50).optional().default(""),
-  tingkat: z.string().max(50).optional().default(""),
-  petak: z.string().max(50).optional().default(""),
   stok_min: z.coerce.number().int().min(0).optional().default(0),
   stok_reorder: z.coerce.number().int().min(0).optional().default(0),
   stok_max: z.coerce.number().int().min(0).optional().default(0),
@@ -45,12 +40,6 @@ interface Drug {
   unit_pengukuran: string;
   kumpulan: string;
   pergerakan: string;
-  gudang_seksyen: string;
-  baris: string;
-  rak: string;
-  tingkat: string;
-  petak: string;
-  kod_lokasi_penuh: string;
   stok_min: number;
   stok_reorder: number;
   stok_max: number;
@@ -75,11 +64,6 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
       unit_pengukuran: "tablet",
       kumpulan: "",
       pergerakan: "",
-      gudang_seksyen: "",
-      baris: "",
-      rak: "",
-      tingkat: "",
-      petak: "",
       stok_min: 0,
       stok_reorder: 0,
       stok_max: 0,
@@ -95,11 +79,6 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
           unit_pengukuran: drug.unit_pengukuran,
           kumpulan: drug.kumpulan ?? "",
           pergerakan: drug.pergerakan ?? "",
-          gudang_seksyen: drug.gudang_seksyen ?? "",
-          baris: drug.baris ?? "",
-          rak: drug.rak ?? "",
-          tingkat: drug.tingkat ?? "",
-          petak: drug.petak ?? "",
           stok_min: drug.stok_min ?? 0,
           stok_reorder: drug.stok_reorder ?? 0,
           stok_max: drug.stok_max ?? 0,
@@ -109,11 +88,6 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
       }
     }
   }, [open, drug, form]);
-
-  const kodLokasi = useMemo(() => {
-    const vals = form.watch(["gudang_seksyen", "baris", "rak", "tingkat", "petak"]);
-    return vals.filter(Boolean).join("-");
-  }, [form.watch("gudang_seksyen"), form.watch("baris"), form.watch("rak"), form.watch("tingkat"), form.watch("petak")]);
 
   const mutation = useMutation({
     mutationFn: async (values: DrugFormValues) => {
@@ -208,25 +182,6 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
                   <FormControl><Input {...field} /></FormControl>
                 </FormItem>
               )} />
-            </div>
-
-            {/* Storage Location */}
-            <div className="space-y-3">
-              <h4 className="text-sm font-medium text-foreground">Storage Location</h4>
-              <div className="grid grid-cols-5 gap-2">
-                {(["gudang_seksyen", "baris", "rak", "tingkat", "petak"] as const).map((name) => (
-                  <FormField key={name} control={form.control} name={name} render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-xs capitalize">{name === "gudang_seksyen" ? "Warehouse/Section" : name}</FormLabel>
-                      <FormControl><Input {...field} /></FormControl>
-                    </FormItem>
-                  )} />
-                ))}
-              </div>
-              <div>
-                <FormLabel className="text-xs">Full Location Code</FormLabel>
-                <Input value={kodLokasi} readOnly className="bg-muted" />
-              </div>
             </div>
 
             {/* Stock levels */}

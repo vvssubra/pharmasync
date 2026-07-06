@@ -82,8 +82,8 @@ export default function SpecialistDashboard() {
   const { data: drugQuotas = [] } = useQuery({
     queryKey: ["specialist-drug-quotas", currentYear],
     queryFn: async () => {
-      const { data } = await supabase.from("drug_quotas").select("drug_id, quota_limit").eq("year", currentYear);
-      return (data ?? []) as { drug_id: string; quota_limit: number }[];
+      const { data } = await supabase.from("drug_quotas").select("drug_id, quota_limit, alert_threshold_pct").eq("year", currentYear);
+      return (data ?? []) as { drug_id: string; quota_limit: number; alert_threshold_pct: number }[];
     },
   });
 
@@ -345,7 +345,7 @@ export default function SpecialistDashboard() {
                         const quotaRow = drugQuotas.find(q => q.drug_id === r.drug_id);
                         const quotaLimit = quotaRow ? quotaRow.quota_limit : null;
                         const usedCount = quotaCounts.regular[r.drug_id] ?? 0;
-                        const badgeState = quotaBadgeState(usedCount, quotaLimit);
+                        const badgeState = quotaBadgeState(usedCount, quotaLimit, quotaRow?.alert_threshold_pct ?? 20);
                         return (
                           <TableRow key={r.id}>
                             <TableCell className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(r.created_at), { addSuffix: true })}</TableCell>

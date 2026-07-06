@@ -64,6 +64,44 @@ export default function DoctorRequest() {
     },
   });
 
+  const currentYear = new Date().getFullYear();
+
+  // Annual quotas per drug (controlled drugs only)
+  const { data: drugQuotas = [] } = useQuery({
+    queryKey: ["mo-drug-quotas", currentYear],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("drug_quotas")
+        .select("drug_id, quota_limit, alert_threshold_pct")
+        .eq("year", currentYear);
+      return (data ?? []) as { drug_id: string; quota_limit: number; alert_threshold_pct: number }[];
+    },
+  });
+
+  // Distinct patients already counted against quota this year, per drug (non-pesara, approved+)
+  const { data: quotaUsage = {} } = useQuery({
+    queryKey: ["mo-quota-usage", currentYear],
+    refetchInterval: 30000,
+    queryFn: async () => {
+      const yearStart = `${currentYear}-01-01`;
+      const yearEnd = `${currentYear + 1}-01-01`;
+      const { data, error } = await supabase
+        .from("dispensing_requests")
+        .select("drug_id, no_ic")
+        .in("status", ["pending_pharmacy", "fulfilled"])
+        .eq("is_pesara", false)
+        .gte("created_at", yearStart)
+        .lt("created_at", yearEnd);
+      if (error) throw error;
+      const byDrug: Record<string, Set<string>> = {};
+      for (const r of data ?? []) {
+        if (!byDrug[r.drug_id]) byDrug[r.drug_id] = new Set();
+        byDrug[r.drug_id].add(r.no_ic);
+      }
+      return byDrug;
+    },
+  });
+
   // Compute current stock for selected drug
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -79,7 +117,35 @@ export default function DoctorRequest() {
 
   const watchDrugId = form.watch("drug_id");
   const watchQty = form.watch("quantity");
+  const watchNoIc = form.watch("no_ic");
+  const watchIsPesara = form.watch("is_pesara");
   const selectedDrug = useMemo(() => drugs.find(d => d.id === watchDrugId), [drugs, watchDrugId]);
+
+  // Quota state for the selected drug (pesara patients are exempt from quota entirely)
+  const quotaInfo = useMemo(() => {
+    if (!watchDrugId || watchIsPesara) return null;
+    const quotaRow = drugQuotas.find(q => q.drug_id === watchDrugId);
+    if (!quotaRow) return null;
+    const usedSet = quotaUsage[watchDrugId];
+    const used = usedSet?.size ?? 0;
+    const remaining = quotaRow.quota_limit - used;
+    // A patient already counted toward this year's quota isn't a "new" patient — don't block them.
+    const alreadyCounted = !!watchNoIc && !!usedSet?.has(watchNoIc);
+    const exhausted = remaining <= 0 && !alreadyCounted;
+    const lowQuota = !exhausted && remaining <= quotaRow.quota_limit * (quotaRow.alert_threshold_pct / 100);
+    return { limit: quotaRow.quota_limit, used, remaining, exhausted, lowQuota };
+  }, [watchDrugId, watchIsPesara, watchNoIc, drugQuotas, quotaUsage]);
+
+  const quotaBlocked = !!quotaInfo?.exhausted;
+
+  const exhaustedDrugIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const q of drugQuotas) {
+      const used = quotaUsage[q.drug_id]?.size ?? 0;
+      if (used >= q.quota_limit) ids.add(q.drug_id);
+    }
+    return ids;
+  }, [drugQuotas, quotaUsage]);
 
   const { data: currentStock } = useQuery({
     queryKey: ["drug-stock", watchDrugId],
@@ -123,7 +189,13 @@ export default function DoctorRequest() {
     onError: () => toast.error("Failed to submit request"),
   });
 
-  const onSubmit = (values: FormValues) => submitMutation.mutate(values);
+  const onSubmit = (values: FormValues) => {
+    if (quotaBlocked) {
+      toast.error("Kuota tahunan ubat ini telah habis. Permohonan tidak boleh dihantar.");
+      return;
+    }
+    submitMutation.mutate(values);
+  };
 
   const stockExceeded = currentStock !== undefined && watchQty > currentStock;
 
@@ -248,6 +320,9 @@ export default function DoctorRequest() {
                                 {d.perlu_kelulusan_pakar && (
                                   <Badge className="ml-2 bg-yellow-100 text-yellow-700 border-yellow-300 text-[10px]">Requires Specialist Approval</Badge>
                                 )}
+                                {exhaustedDrugIds.has(d.id) && (
+                                  <Badge className="ml-2 bg-red-100 text-red-700 border-red-300 text-[10px]">Kuota Habis</Badge>
+                                )}
                               </CommandItem>
                             ))}
                           </CommandGroup>
@@ -259,6 +334,22 @@ export default function DoctorRequest() {
                 </FormItem>
               )} />
 
+              {quotaInfo?.exhausted && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Kuota tahunan ubat ini telah habis ({quotaInfo.used}/{quotaInfo.limit} pesakit). Permohonan baru tidak boleh dihantar.
+                  </AlertDescription>
+                </Alert>
+              )}
+              {quotaInfo?.lowQuota && (
+                <Alert className="border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+                  <Info className="h-4 w-4" />
+                  <AlertDescription>
+                    Baki kuota rendah: {quotaInfo.remaining} lagi daripada {quotaInfo.limit} pesakit tahun ini.
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <FormField control={form.control} name="quantity" render={({ field }) => (
                 <FormItem>
@@ -289,7 +380,7 @@ export default function DoctorRequest() {
                 </FormItem>
               )} />
 
-              <Button type="submit" className="w-full bg-primary text-primary-foreground" disabled={submitMutation.isPending || stockExceeded}>
+              <Button type="submit" className="w-full bg-primary text-primary-foreground" disabled={submitMutation.isPending || stockExceeded || quotaBlocked}>
                 {submitMutation.isPending ? "Submitting..." : "Submit Request"}
               </Button>
             </form>
