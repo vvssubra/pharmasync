@@ -29,12 +29,6 @@ type Drug = {
   unit_pengukuran: string;
   kumpulan: string;
   pergerakan: string;
-  gudang_seksyen: string;
-  baris: string;
-  rak: string;
-  tingkat: string;
-  petak: string;
-  kod_lokasi_penuh: string;
   stok_min: number;
   stok_reorder: number;
   stok_max: number;
@@ -151,7 +145,6 @@ export default function DrugMaster() {
                 <TableHead>No. Kod</TableHead>
                 <TableHead>Unit</TableHead>
                 <TableHead>Group</TableHead>
-                <TableHead>Storage Location</TableHead>
                 <TableHead>Stock Levels</TableHead>
                 <TableHead>Opening Balance</TableHead>
                 <TableHead>Status</TableHead>
@@ -161,13 +154,13 @@ export default function DrugMaster() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                     Loading...
                   </TableCell>
                 </TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9}>
+                  <TableCell colSpan={8}>
                     <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                       <FileText className="mb-2 h-8 w-8" />
                       <p className="text-sm">
@@ -193,7 +186,6 @@ export default function DrugMaster() {
                       <TableCell>{drug.no_kod}</TableCell>
                       <TableCell className="capitalize">{drug.unit_pengukuran}</TableCell>
                       <TableCell>{drug.kumpulan}</TableCell>
-                      <TableCell className="text-xs">{drug.kod_lokasi_penuh}</TableCell>
                       <TableCell className="text-xs tabular-nums">
                         {drug.stok_min} / {drug.stok_reorder} / {drug.stok_max}
                       </TableCell>

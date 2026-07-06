@@ -33,10 +33,10 @@ export function projectedExhaustion(remaining: number, avgPerMonth: number): str
 
 export type QuotaBadgeState = "healthy" | "warning" | "exhausted" | "no-quota";
 
-export function quotaBadgeState(used: number, limit: number | null): QuotaBadgeState {
+export function quotaBadgeState(used: number, limit: number | null, alertThresholdPct = 20): QuotaBadgeState {
   if (limit === null) return "no-quota";
   if (used >= limit) return "exhausted";
-  if (used >= limit * 0.8) return "warning";
+  if (used >= limit * (1 - alertThresholdPct / 100)) return "warning";
   return "healthy";
 }
 
