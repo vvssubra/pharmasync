@@ -18,7 +18,7 @@ const ROUTE_PERMISSIONS: Array<{ prefix: string; roles: AppRole[] }> = [
   { prefix: "/terimaan",        roles: ["admin", "fms", "pharmacist"] },
   { prefix: "/pesakit",         roles: ["admin", "fms", "pharmacist"] },
   { prefix: "/laporan",         roles: ["admin", "fms", "pharmacist"] },
-  { prefix: "/",                roles: ["admin", "pharmacist"] },
+  { prefix: "/",                roles: ["admin", "fms", "mo", "pharmacist"] },
 ];
 
 function getAllowedRoles(pathname: string): AppRole[] {

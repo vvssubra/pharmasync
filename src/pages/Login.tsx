@@ -137,7 +137,7 @@ export default function Login() {
 
           <ul className="mt-8 space-y-3">
             {[
-              { icon: ShieldCheck, text: "Digital bin cards & full audit trail" },
+              { icon: ShieldCheck, text: "Quota management for special drugs" },
               { icon: Check, text: "Antibiotic approval per Clinical Pathway NAG 2024" },
               { icon: Lock, text: "Role-based access — officers, specialists, pharmacy" },
             ].map(({ icon: Icon, text }) => (
