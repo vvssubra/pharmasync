@@ -32,6 +32,44 @@ test("parseNoteFile extracts frontmatter + verbatim body", async () => {
   await rm(dir, { recursive: true, force: true });
 });
 
+test("parseNoteFile extracts example_dose when present", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "vault-test-"));
+  const file = path.join(dir, "note.md");
+  await writeFile(
+    file,
+    "---\ndrug: Amoxicillin\nexample_dose: Amoxicillin 500mg PO TDS x 5 days\n---\nLong guidance body.",
+    "utf8",
+  );
+
+  const parsed = await parseNoteFile(file);
+  assert.equal(parsed.example_dose, "Amoxicillin 500mg PO TDS x 5 days");
+
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("parseNoteFile defaults example_dose to empty string when absent", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "vault-test-"));
+  const file = path.join(dir, "note.md");
+  await writeFile(file, "---\ndrug: X\n---\nBody text.", "utf8");
+
+  const parsed = await parseNoteFile(file);
+  assert.equal(parsed.example_dose, "");
+
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("buildEmbedInput ignores example_dose (must not affect matching)", () => {
+  const input = buildEmbedInput({
+    drug: "Amoxicillin",
+    indication: "Acute Otitis Media",
+    patient_group: "Paediatric",
+    tags: ["antibiotic"],
+    body: "Dose text here.",
+    example_dose: "Amoxicillin 500mg PO TDS x 5 days",
+  });
+  assert.doesNotMatch(input, /500mg PO TDS/);
+});
+
 test("parseNoteFile defaults patient_group to Any when absent", async () => {
   const dir = await mkdtemp(path.join(tmpdir(), "vault-test-"));
   const file = path.join(dir, "note.md");

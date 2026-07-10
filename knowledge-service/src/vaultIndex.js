@@ -108,6 +108,7 @@ export function createVaultIndex({ vaultPath, cachePath, ollama, log = console }
       patient_group: note.patient_group,
       source: note.source,
       body: note.body,
+      example_dose: note.example_dose ?? "",
       score: Math.round(score * 1000) / 1000,
     }));
   }
