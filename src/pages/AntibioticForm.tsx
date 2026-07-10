@@ -6,8 +6,10 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { ArrowLeft, ShieldCheck, CheckCircle, Sparkles, AlertTriangle } from "lucide-react";
 import { usePathwayCheck } from "@/hooks/usePathwayCheck";
+import { useDoseSuggestion } from "@/hooks/useDoseSuggestion";
 import PathwayCheckBanner from "@/components/PathwayCheckBanner";
-import { AI_ENABLED } from "@/lib/featureFlags";
+import { AI_ENABLED, KNOWLEDGE_ENABLED } from "@/lib/featureFlags";
+import { deriveDoseQuery, type ChecklistState } from "@/lib/doseQuery";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,15 +40,6 @@ function getAgeFromIC(ic: string): number | null {
   let age = now.getFullYear() - dob.getFullYear();
   if (now < new Date(now.getFullYear(), dob.getMonth(), dob.getDate())) age--;
   return age;
-}
-
-interface ChecklistState {
-  pneumonia: { acute_cough: boolean; tachycardia: boolean; tachypnoea: boolean; fever: boolean; hypoxemia: boolean; consolidation: boolean };
-  aom: { otalgia: boolean; urti: boolean; fever: boolean; poor_appetite: boolean; crying: boolean; vomiting: boolean; otoscopy_sign: string };
-  pharyngitis: { temp: number; no_cough: number; adenopathy: number; exudate: number; age_score: number };
-  rhinosinusitis: { nasal_obstruction: boolean; smell_loss: boolean; fever: boolean; discoloured_mucus: boolean; double_sickening: boolean; severe_pain: boolean; raised_esr: boolean };
-  ssti: { erythema: boolean; abscess_incision: boolean; inadequate_drainage: boolean; extensive_cellulitis: boolean; valvular_heart: boolean; diabetes: boolean; impetigo_localised: boolean; impetigo_generalised: boolean; cellulitis: boolean };
-  uti: { nit_positive: boolean; leu_positive: boolean; frequency: boolean; dysuria: boolean; hematuria: boolean; suprapubic: boolean; urgency: boolean; polyuria: boolean; pregnancy_culture: string };
 }
 
 const defaultChecklist: ChecklistState = {
@@ -103,6 +96,11 @@ export default function AntibioticForm() {
     patient_age: age ?? undefined,
   }, { enabled: AI_ENABLED });
   const centorTotal = checklist.pharyngitis.temp + checklist.pharyngitis.no_cough + checklist.pharyngitis.adenopathy + checklist.pharyngitis.exudate + checklist.pharyngitis.age_score;
+
+  const doseQuery = deriveDoseQuery(checklist, diagnosis, age);
+  const { matches: doseMatches, status: doseStatus, message: doseMessage } = useDoseSuggestion(doseQuery, {
+    enabled: KNOWLEDGE_ENABLED,
+  });
 
   const updateChecklist = <S extends keyof ChecklistState>(section: S, field: keyof ChecklistState[S], value: any) => {
     setChecklist(prev => ({ ...prev, [section]: { ...prev[section], [field]: value } }));
@@ -333,6 +331,40 @@ export default function AntibioticForm() {
                     </div>
                     <p className="text-xs text-muted-foreground">AI suggestion based on NAG 2024. Verify before prescribing.</p>
                   </div>
+                )}
+                {KNOWLEDGE_ENABLED && doseMatches.length > 0 && (
+                  <div className="space-y-2">
+                    {doseMatches.map((match, i) => {
+                      const applied = antibioticRegimen === match.body;
+                      return (
+                        <div key={`${match.drug}-${match.indication}-${i}`} className="rounded-md border border-sky-200 bg-sky-50 p-3 space-y-2 text-sm">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="space-y-1 flex-1">
+                              <div className="font-semibold text-sky-900 flex items-center gap-2">
+                                <span>{match.drug} — {match.indication}</span>
+                                <Badge variant="outline" className="border-sky-300 text-sky-700 text-[10px]">{match.patient_group}</Badge>
+                              </div>
+                              <p className="text-xs text-sky-800 whitespace-pre-line">{match.body}</p>
+                              <p className="text-[11px] text-sky-600">Source: {match.source} · Local knowledge base · shown verbatim</p>
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant={applied ? "secondary" : "default"}
+                              disabled={applied}
+                              className="h-7 text-xs shrink-0"
+                              onClick={() => setAntibioticRegimen(match.body)}
+                            >
+                              {applied ? "Applied ✓" : "Use"}
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {KNOWLEDGE_ENABLED && doseStatus === "ok" && doseMatches.length === 0 && doseMessage && (
+                  <p className="text-xs text-muted-foreground">{doseMessage}</p>
                 )}
                 <Textarea value={antibioticRegimen} onChange={e => setAntibioticRegimen(e.target.value)} placeholder="e.g. Amoxicillin 500mg TDS x 5 days" />
                 <Input value={fmsCode} onChange={e => setFmsCode(e.target.value)} placeholder="FMS Code (if A/KK item prescribed by MO)" />
