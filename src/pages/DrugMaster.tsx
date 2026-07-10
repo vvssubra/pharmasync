@@ -4,9 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
-import { FileText, Plus, Search, Pencil, Ban, RotateCcw, BookOpen, CreditCard, CalendarRange } from "lucide-react";
+import { FileText, Plus, Search, Pencil, Ban, RotateCcw, BookOpen, CreditCard, CalendarRange, Lock, Unlock, PackagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -19,28 +18,20 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { DrugFormDialog } from "@/components/DrugFormDialog";
-import { OpeningBalanceDialog } from "@/components/OpeningBalanceDialog";
 import DrugQuotaDialog from "@/components/DrugQuotaDialog";
+import ReplenishQuotaDialog from "@/components/ReplenishQuotaDialog";
 
 type Drug = {
   id: string;
   drug_name: string;
-  no_kod: string;
-  unit_pengukuran: string;
-  kumpulan: string;
-  pergerakan: string;
-  stok_min: number;
-  stok_reorder: number;
-  stok_max: number;
   is_active: boolean;
+  is_blocked: boolean;
   perlu_kelulusan_pakar: boolean;
 };
 
-type BakiAwal = {
-  id: string;
+type DrugQuota = {
   drug_id: string;
-  kuantiti: number;
-  tarikh: string;
+  quota_limit: number;
 };
 
 export default function DrugMaster() {
@@ -48,12 +39,12 @@ export default function DrugMaster() {
   const [formOpen, setFormOpen] = useState(false);
   const [editDrug, setEditDrug] = useState<Drug | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<Drug | null>(null);
-  const [balanceTarget, setBalanceTarget] = useState<Drug | null>(null);
   const [quotaTarget, setQuotaTarget] = useState<Drug | null>(null);
+  const [replenishTarget, setReplenishTarget] = useState<Drug | null>(null);
   const { role } = useAuth();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const isAdmin = role === "admin" || role === "pharmacist";
+  const currentYear = new Date().getFullYear();
 
   const { data: drugs = [], isLoading } = useQuery({
     queryKey: ["drugs"],
@@ -67,19 +58,33 @@ export default function DrugMaster() {
     },
   });
 
-  const { data: bakiMap = {} } = useQuery({
-    queryKey: ["transactions-baki-awal"],
+  const { data: drugQuotas = [] } = useQuery({
+    queryKey: ["drug-master-quotas", currentYear],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("transactions")
-        .select("id, drug_id, kuantiti, tarikh")
-        .eq("jenis", "baki_awal");
+        .from("drug_quotas")
+        .select("drug_id, quota_limit")
+        .eq("year", currentYear);
       if (error) throw error;
-      const map: Record<string, BakiAwal> = {};
-      (data ?? []).forEach((t) => {
-        map[t.drug_id] = t as BakiAwal;
-      });
-      return map;
+      return data as DrugQuota[];
+    },
+  });
+
+  const { data: ytdCounts = {} } = useQuery({
+    queryKey: ["drug-master-ytd-counts", currentYear],
+    queryFn: async () => {
+      const yearStart = `${currentYear}-01-01`;
+      const yearEnd = `${currentYear + 1}-01-01`;
+      const { data, error } = await supabase
+        .from("dispensing_requests")
+        .select("drug_id")
+        .neq("status", "rejected")
+        .gte("created_at", yearStart)
+        .lt("created_at", yearEnd);
+      if (error) throw error;
+      const counts: Record<string, number> = {};
+      for (const r of data ?? []) counts[r.drug_id] = (counts[r.drug_id] ?? 0) + 1;
+      return counts;
     },
   });
 
@@ -95,14 +100,22 @@ export default function DrugMaster() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  const blockMutation = useMutation({
+    mutationFn: async ({ id, is_blocked }: { id: string; is_blocked: boolean }) => {
+      const { error } = await supabase.from("drugs").update({ is_blocked }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["drugs"] });
+      queryClient.invalidateQueries({ queryKey: ["drugs-for-request"] });
+      toast.success(vars.is_blocked ? "Drug blocked — MO can no longer request it" : "Drug unblocked");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+
   const filtered = drugs
     .filter((d) => d.drug_name.toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => {
-      const aHas = !!bakiMap[a.id];
-      const bHas = !!bakiMap[b.id];
-      if (aHas !== bHas) return aHas ? 1 : -1;
-      return a.drug_name.localeCompare(b.drug_name);
-    });
+    .sort((a, b) => a.drug_name.localeCompare(b.drug_name));
 
   const handleEdit = (drug: Drug) => {
     setEditDrug(drug);
@@ -142,11 +155,7 @@ export default function DrugMaster() {
             <TableHeader>
               <TableRow>
                 <TableHead>Drug Name</TableHead>
-                <TableHead>No. Kod</TableHead>
-                <TableHead>Unit</TableHead>
-                <TableHead>Group</TableHead>
-                <TableHead>Stock Levels</TableHead>
-                <TableHead>Opening Balance</TableHead>
+                <TableHead>Quota Balance</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -154,13 +163,13 @@ export default function DrugMaster() {
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
+                  <TableCell colSpan={4} className="text-center py-12 text-muted-foreground">
                     Loading...
                   </TableCell>
                 </TableRow>
               ) : filtered.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8}>
+                  <TableCell colSpan={4}>
                     <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                       <FileText className="mb-2 h-8 w-8" />
                       <p className="text-sm">
@@ -171,7 +180,7 @@ export default function DrugMaster() {
                 </TableRow>
               ) : (
                 filtered.map((drug) => {
-                  const baki = bakiMap[drug.id];
+                  const quotaRow = drugQuotas.find((q) => q.drug_id === drug.id);
                   return (
                     <TableRow key={drug.id} className={drug.is_active ? "" : "opacity-50"}>
                       <TableCell className="font-medium">
@@ -183,41 +192,31 @@ export default function DrugMaster() {
                           {drug.drug_name}
                         </button>
                       </TableCell>
-                      <TableCell>{drug.no_kod}</TableCell>
-                      <TableCell className="capitalize">{drug.unit_pengukuran}</TableCell>
-                      <TableCell>{drug.kumpulan}</TableCell>
-                      <TableCell className="text-xs tabular-nums">
-                        {drug.stok_min} / {drug.stok_reorder} / {drug.stok_max}
+                      <TableCell>
+                        {!quotaRow ? (
+                          <Badge variant="outline" className="text-xs text-muted-foreground">No quota set</Badge>
+                        ) : (() => {
+                          const remaining = quotaRow.quota_limit - (ytdCounts[drug.id] ?? 0);
+                          const pct = quotaRow.quota_limit > 0 ? remaining / quotaRow.quota_limit : 0;
+                          const cls = pct <= 0.1
+                            ? "bg-red-100 text-red-700 border-red-300 dark:bg-red-950 dark:text-red-400"
+                            : pct <= 0.25
+                            ? "bg-amber-100 text-amber-700 border-amber-300 dark:bg-amber-950 dark:text-amber-400"
+                            : "bg-green-100 text-green-700 border-green-300 dark:bg-green-950 dark:text-green-400";
+                          return <Badge variant="outline" className={`text-xs ${cls}`}>{remaining} / {quotaRow.quota_limit}</Badge>;
+                        })()}
                       </TableCell>
                       <TableCell>
-                        {baki ? (
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs text-green-600 dark:text-green-400">
-                              {baki.kuantiti} {drug.unit_pengukuran} — {format(new Date(baki.tarikh), "dd/MM/yyyy")}
-                            </span>
-                            {isAdmin && (
-                              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setBalanceTarget(drug)}>
-                                <Pencil className="h-3 w-3" />
-                              </Button>
-                            )}
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            <Badge variant="outline" className="border-yellow-500 text-yellow-600 dark:text-yellow-400 text-xs">
-                              Not Set
+                        <div className="flex items-center gap-1">
+                          <Badge variant={drug.is_active ? "default" : "secondary"}>
+                            {drug.is_active ? "Active" : "Inactive"}
+                          </Badge>
+                          {drug.is_blocked && (
+                            <Badge variant="outline" className="border-red-500 text-red-600 dark:text-red-400 text-xs">
+                              Blocked
                             </Badge>
-                            {isAdmin && (
-                              <Button variant="outline" size="sm" className="h-6 text-xs" onClick={() => setBalanceTarget(drug)}>
-                                Set Balance
-                              </Button>
-                            )}
-                          </div>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={drug.is_active ? "default" : "secondary"}>
-                          {drug.is_active ? "Active" : "Inactive"}
-                        </Badge>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
@@ -241,9 +240,25 @@ export default function DrugMaster() {
                           >
                             {drug.is_active ? <Ban className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
                           </Button>
-                          {role === "admin" && drug.perlu_kelulusan_pakar && (
+                          {role === "admin" && (
                             <Button variant="ghost" size="icon" className="h-7 w-7" title="Set Annual Quota" onClick={() => setQuotaTarget(drug)}>
                               <CalendarRange className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {role === "admin" && quotaRow && (
+                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Replenish Quota" onClick={() => setReplenishTarget(drug)}>
+                              <PackagePlus className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          {role === "admin" && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              title={drug.is_blocked ? "Unblock requests" : "Block requests"}
+                              onClick={() => blockMutation.mutate({ id: drug.id, is_blocked: !drug.is_blocked })}
+                            >
+                              {drug.is_blocked ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
                             </Button>
                           )}
                         </div>
@@ -266,11 +281,12 @@ export default function DrugMaster() {
         drugName={quotaTarget?.drug_name ?? ""}
       />
 
-      <OpeningBalanceDialog
-        open={!!balanceTarget}
-        onOpenChange={(o) => !o && setBalanceTarget(null)}
-        drug={balanceTarget}
-        existing={balanceTarget ? bakiMap[balanceTarget.id] ?? null : null}
+      <ReplenishQuotaDialog
+        open={!!replenishTarget}
+        onOpenChange={open => { if (!open) setReplenishTarget(null); }}
+        drugId={replenishTarget?.id ?? ""}
+        drugName={replenishTarget?.drug_name ?? ""}
+        currentQuotaLimit={replenishTarget ? drugQuotas.find(q => q.drug_id === replenishTarget.id)?.quota_limit ?? 0 : 0}
       />
 
       <AlertDialog open={!!deactivateTarget} onOpenChange={(o) => !o && setDeactivateTarget(null)}>

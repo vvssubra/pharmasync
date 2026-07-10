@@ -26,6 +26,10 @@ vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: vi.fn(() => ({ user: { id: "user-1" } })),
+}));
+
 function makeQueryClient() {
   return new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -59,10 +63,9 @@ describe("DrugFormDialog English labels — Add Drug mode", () => {
     expect(screen.getByText("Drug Name *")).toBeInTheDocument();
   });
 
-  it("renders form label 'Unit of Measure'", () => {
+  it("renders form label 'Number of Quota'", () => {
     renderDialog(true);
-    // Currently shows "Unit Pengukuran" — this FAILS until ENGL-02 translation
-    expect(screen.getByText("Unit of Measure")).toBeInTheDocument();
+    expect(screen.getByText("Number of Quota")).toBeInTheDocument();
   });
 
   it("renders submit button 'Save'", () => {

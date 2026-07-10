@@ -20,6 +20,10 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: vi.fn(() => ({ user: { id: "user-1" } })),
+}));
+
 function makeQC() {
   return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 }
