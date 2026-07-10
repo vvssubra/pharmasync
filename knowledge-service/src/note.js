@@ -9,6 +9,8 @@ export function hashContent(raw) {
 
 // Text fed to the embedding model — combines structured fields + body so
 // matching considers drug/indication/tags as well as the free-text dose.
+// Note: example_dose is deliberately excluded here — it's an authoring
+// convenience for the "Use" button, not a matching signal.
 export function buildEmbedInput({ drug, indication, patient_group, tags, body }) {
   const parts = [
     drug && `Drug: ${drug}`,
@@ -31,6 +33,7 @@ export async function parseNoteFile(filePath) {
     patient_group: typeof data.patient_group === "string" ? data.patient_group.trim() : "Any",
     source: typeof data.source === "string" ? data.source.trim() : "",
     tags: Array.isArray(data.tags) ? data.tags.map(String) : [],
+    example_dose: typeof data.example_dose === "string" ? data.example_dose.trim() : "",
     body,
     hash: hashContent(raw),
   };

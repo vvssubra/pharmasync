@@ -70,6 +70,44 @@ test("query returns the best-matching note verbatim above threshold", async () =
   await rm(dir, { recursive: true, force: true });
 });
 
+test("query passes through example_dose when the note frontmatter has one", async () => {
+  const dir = await mkdtemp(path.join(tmpdir(), "vault-index-test-"));
+  await writeNote(
+    dir,
+    "aom.md",
+    {
+      drug: "Amoxicillin",
+      indication: "Acute Otitis Media",
+      patient_group: "Paediatric",
+      source: "NAG",
+      example_dose: "Amoxicillin 80mg/kg/day PO BD x 5 days",
+    },
+    "Amoxicillin dose for ear infection in a child.",
+  );
+  const ollama = makeFakeOllama();
+  const cachePath = path.join(dir, "cache.json");
+  const index = createVaultIndex({ vaultPath: dir, cachePath, ollama, log: { info() {}, error() {} } });
+  await index.buildIndex();
+
+  const results = await index.query("ear infection in a child", { threshold: 0.3, maxMatches: 3 });
+  assert.equal(results[0].example_dose, "Amoxicillin 80mg/kg/day PO BD x 5 days");
+
+  await rm(dir, { recursive: true, force: true });
+});
+
+test("query returns empty example_dose when the note has none", async () => {
+  const dir = await setupVault();
+  const ollama = makeFakeOllama();
+  const cachePath = path.join(dir, "cache.json");
+  const index = createVaultIndex({ vaultPath: dir, cachePath, ollama, log: { info() {}, error() {} } });
+  await index.buildIndex();
+
+  const results = await index.query("ear infection in a child", { threshold: 0.3, maxMatches: 3 });
+  assert.equal(results[0].example_dose, "");
+
+  await rm(dir, { recursive: true, force: true });
+});
+
 test("query returns no matches when nothing clears the threshold", async () => {
   const dir = await setupVault();
   const ollama = makeFakeOllama();

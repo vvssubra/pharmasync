@@ -10,6 +10,7 @@ import { useDoseSuggestion } from "@/hooks/useDoseSuggestion";
 import PathwayCheckBanner from "@/components/PathwayCheckBanner";
 import { AI_ENABLED, KNOWLEDGE_ENABLED } from "@/lib/featureFlags";
 import { deriveDoseQuery, type ChecklistState } from "@/lib/doseQuery";
+import { exampleDoseFor } from "@/lib/knowledgeClient";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -335,7 +336,8 @@ export default function AntibioticForm() {
                 {KNOWLEDGE_ENABLED && doseMatches.length > 0 && (
                   <div className="space-y-2">
                     {doseMatches.map((match, i) => {
-                      const applied = antibioticRegimen === match.body;
+                      const exampleDose = exampleDoseFor(match);
+                      const applied = antibioticRegimen === exampleDose;
                       return (
                         <div key={`${match.drug}-${match.indication}-${i}`} className="rounded-md border border-sky-200 bg-sky-50 p-3 space-y-2 text-sm">
                           <div className="flex items-start justify-between gap-2">
@@ -346,6 +348,7 @@ export default function AntibioticForm() {
                               </div>
                               <p className="text-xs text-sky-800 whitespace-pre-line">{match.body}</p>
                               <p className="text-[11px] text-sky-600">Source: {match.source} · Local knowledge base · shown verbatim</p>
+                              <p className="text-[11px] text-sky-600">Butang Guna masukkan regimen pilihan sahaja — banding pilihan di atas dan edit medan jika perlu.</p>
                             </div>
                             <Button
                               type="button"
@@ -353,7 +356,7 @@ export default function AntibioticForm() {
                               variant={applied ? "secondary" : "default"}
                               disabled={applied}
                               className="h-7 text-xs shrink-0"
-                              onClick={() => setAntibioticRegimen(match.body)}
+                              onClick={() => setAntibioticRegimen(exampleDose)}
                             >
                               {applied ? "Applied ✓" : "Use"}
                             </Button>
