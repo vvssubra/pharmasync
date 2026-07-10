@@ -216,6 +216,7 @@ export type Database = {
           gudang_seksyen: string | null
           id: string
           is_active: boolean
+          is_blocked: boolean
           kod_lokasi_penuh: string | null
           kumpulan: string | null
           no_kod: string | null
@@ -238,6 +239,7 @@ export type Database = {
           gudang_seksyen?: string | null
           id?: string
           is_active?: boolean
+          is_blocked?: boolean
           kod_lokasi_penuh?: string | null
           kumpulan?: string | null
           no_kod?: string | null
@@ -260,6 +262,7 @@ export type Database = {
           gudang_seksyen?: string | null
           id?: string
           is_active?: boolean
+          is_blocked?: boolean
           kod_lokasi_penuh?: string | null
           kumpulan?: string | null
           no_kod?: string | null

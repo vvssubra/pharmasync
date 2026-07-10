@@ -1,0 +1,19 @@
+{
+  "name": "pharmasync-knowledge-service",
+  "version": "1.0.0",
+  "description": "Local offline knowledge sidecar: embeds an Obsidian vault via Ollama and serves verbatim dosing-note matches for the antibiotic form.",
+  "private": true,
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=20.6.0"
+  },
+  "dependencies": {
+    "chokidar": "^3.6.0",
+    "gray-matter": "^4.0.3"
+  }
+}

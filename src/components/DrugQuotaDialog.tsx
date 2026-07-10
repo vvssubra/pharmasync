@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { format } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -16,6 +18,7 @@ interface Props {
 
 export default function DrugQuotaDialog({ open, onOpenChange, drugId, drugName }: Props) {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
   const currentYear = new Date().getFullYear();
   const [quotaInput, setQuotaInput] = useState<string>("");
   const [alertPctInput, setAlertPctInput] = useState<string>("20");
@@ -52,15 +55,40 @@ export default function DrugQuotaDialog({ open, onOpenChange, drugId, drugName }
           { onConflict: "drug_id,year" },
         );
       if (error) throw error;
+
+      // Opening balance = allocated quota. Seed it once, only if this drug has never
+      // had a stock movement recorded (avoids clobbering a real ledger on correction).
+      if (limit > 0) {
+        const { count, error: countError } = await supabase
+          .from("transactions")
+          .select("id", { count: "exact", head: true })
+          .eq("drug_id", drugId);
+        if (countError) throw countError;
+        if (!count) {
+          const { error: baliError } = await supabase.from("transactions").insert({
+            drug_id: drugId,
+            jenis: "baki_awal",
+            kuantiti: limit,
+            tarikh: format(new Date(), "yyyy-MM-dd"),
+            created_by: user?.id,
+            catatan: "Auto-seeded from annual quota",
+          });
+          if (baliError) throw baliError;
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["drug-quota"] });
       queryClient.invalidateQueries({ queryKey: ["fms-drug-quotas"] });
       queryClient.invalidateQueries({ queryKey: ["mo-drug-quotas"] });
+      queryClient.invalidateQueries({ queryKey: ["drug-master-quotas"] });
+      queryClient.invalidateQueries({ queryKey: ["mo-drug-quota"] });
+      queryClient.invalidateQueries({ queryKey: ["fms-drug-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions-baki-awal"] });
       toast.success("Quota saved.");
       onOpenChange(false);
     },
-    onError: () => toast.error("Failed to save quota."),
+    onError: (err: Error) => toast.error(err.message || "Failed to save quota."),
   });
 
   return (

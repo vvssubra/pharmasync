@@ -56,7 +56,7 @@ export default function DoctorRequest() {
     queryFn: async () => {
       const { data: drugList, error: drugError } = await supabase
         .from("drugs")
-        .select("id, drug_name, unit_pengukuran, perlu_kelulusan_pakar")
+        .select("id, drug_name, unit_pengukuran, perlu_kelulusan_pakar, is_blocked")
         .eq("is_active", true)
         .order("drug_name");
       if (drugError) throw drugError;
@@ -78,7 +78,8 @@ export default function DoctorRequest() {
     },
   });
 
-  // Distinct patients already counted against quota this year, per drug (non-pesara, approved+)
+  // Requests already counted against quota this year, per drug (non-pesara).
+  // Deducted the moment a request is submitted; only "rejected" gives the quota back.
   const { data: quotaUsage = {} } = useQuery({
     queryKey: ["mo-quota-usage", currentYear],
     refetchInterval: 30000,
@@ -87,18 +88,15 @@ export default function DoctorRequest() {
       const yearEnd = `${currentYear + 1}-01-01`;
       const { data, error } = await supabase
         .from("dispensing_requests")
-        .select("drug_id, no_ic")
-        .in("status", ["pending_pharmacy", "fulfilled"])
+        .select("drug_id")
+        .neq("status", "rejected")
         .eq("is_pesara", false)
         .gte("created_at", yearStart)
         .lt("created_at", yearEnd);
       if (error) throw error;
-      const byDrug: Record<string, Set<string>> = {};
-      for (const r of data ?? []) {
-        if (!byDrug[r.drug_id]) byDrug[r.drug_id] = new Set();
-        byDrug[r.drug_id].add(r.no_ic);
-      }
-      return byDrug;
+      const counts: Record<string, number> = {};
+      for (const r of data ?? []) counts[r.drug_id] = (counts[r.drug_id] ?? 0) + 1;
+      return counts;
     },
   });
 
@@ -117,7 +115,6 @@ export default function DoctorRequest() {
 
   const watchDrugId = form.watch("drug_id");
   const watchQty = form.watch("quantity");
-  const watchNoIc = form.watch("no_ic");
   const watchIsPesara = form.watch("is_pesara");
   const selectedDrug = useMemo(() => drugs.find(d => d.id === watchDrugId), [drugs, watchDrugId]);
 
@@ -126,26 +123,26 @@ export default function DoctorRequest() {
     if (!watchDrugId || watchIsPesara) return null;
     const quotaRow = drugQuotas.find(q => q.drug_id === watchDrugId);
     if (!quotaRow) return null;
-    const usedSet = quotaUsage[watchDrugId];
-    const used = usedSet?.size ?? 0;
+    const used = quotaUsage[watchDrugId] ?? 0;
     const remaining = quotaRow.quota_limit - used;
-    // A patient already counted toward this year's quota isn't a "new" patient — don't block them.
-    const alreadyCounted = !!watchNoIc && !!usedSet?.has(watchNoIc);
-    const exhausted = remaining <= 0 && !alreadyCounted;
+    const exhausted = remaining <= 0;
     const lowQuota = !exhausted && remaining <= quotaRow.quota_limit * (quotaRow.alert_threshold_pct / 100);
     return { limit: quotaRow.quota_limit, used, remaining, exhausted, lowQuota };
-  }, [watchDrugId, watchIsPesara, watchNoIc, drugQuotas, quotaUsage]);
+  }, [watchDrugId, watchIsPesara, drugQuotas, quotaUsage]);
 
-  const quotaBlocked = !!quotaInfo?.exhausted;
+  const adminBlocked = !!selectedDrug?.is_blocked;
+  const quotaBlocked = !!quotaInfo?.exhausted || adminBlocked;
 
   const exhaustedDrugIds = useMemo(() => {
     const ids = new Set<string>();
     for (const q of drugQuotas) {
-      const used = quotaUsage[q.drug_id]?.size ?? 0;
+      const used = quotaUsage[q.drug_id] ?? 0;
       if (used >= q.quota_limit) ids.add(q.drug_id);
     }
     return ids;
   }, [drugQuotas, quotaUsage]);
+
+  const blockedDrugIds = useMemo(() => new Set(drugs.filter(d => d.is_blocked).map(d => d.id)), [drugs]);
 
   const { data: currentStock } = useQuery({
     queryKey: ["drug-stock", watchDrugId],
@@ -185,12 +182,18 @@ export default function DoctorRequest() {
     onSuccess: (result, values) => {
       setSubmitted({ ...values, ...result });
       queryClient.invalidateQueries({ queryKey: ["drug-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["mo-quota-usage"] });
+      queryClient.invalidateQueries({ queryKey: ["drug-master-ytd-counts"] });
     },
     onError: () => toast.error("Failed to submit request"),
   });
 
   const onSubmit = (values: FormValues) => {
-    if (quotaBlocked) {
+    if (adminBlocked) {
+      toast.error("Ubat ini telah disekat oleh admin. Permohonan tidak boleh dihantar.");
+      return;
+    }
+    if (quotaInfo?.exhausted) {
       toast.error("Kuota tahunan ubat ini telah habis. Permohonan tidak boleh dihantar.");
       return;
     }
@@ -320,7 +323,10 @@ export default function DoctorRequest() {
                                 {d.perlu_kelulusan_pakar && (
                                   <Badge className="ml-2 bg-yellow-100 text-yellow-700 border-yellow-300 text-[10px]">Requires Specialist Approval</Badge>
                                 )}
-                                {exhaustedDrugIds.has(d.id) && (
+                                {blockedDrugIds.has(d.id) && (
+                                  <Badge className="ml-2 bg-red-100 text-red-700 border-red-300 text-[10px]">Blocked</Badge>
+                                )}
+                                {!blockedDrugIds.has(d.id) && exhaustedDrugIds.has(d.id) && (
                                   <Badge className="ml-2 bg-red-100 text-red-700 border-red-300 text-[10px]">Kuota Habis</Badge>
                                 )}
                               </CommandItem>
@@ -334,11 +340,19 @@ export default function DoctorRequest() {
                 </FormItem>
               )} />
 
-              {quotaInfo?.exhausted && (
+              {adminBlocked && (
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    Kuota tahunan ubat ini telah habis ({quotaInfo.used}/{quotaInfo.limit} pesakit). Permohonan baru tidak boleh dihantar.
+                    Ubat ini telah disekat oleh admin. Permohonan baru tidak boleh dihantar.
+                  </AlertDescription>
+                </Alert>
+              )}
+              {!adminBlocked && quotaInfo?.exhausted && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Kuota tahunan ubat ini telah habis ({quotaInfo.used}/{quotaInfo.limit} permohonan). Permohonan baru tidak boleh dihantar.
                   </AlertDescription>
                 </Alert>
               )}
@@ -346,7 +360,7 @@ export default function DoctorRequest() {
                 <Alert className="border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
                   <Info className="h-4 w-4" />
                   <AlertDescription>
-                    Baki kuota rendah: {quotaInfo.remaining} lagi daripada {quotaInfo.limit} pesakit tahun ini.
+                    Baki kuota rendah: {quotaInfo.remaining} lagi daripada {quotaInfo.limit} permohonan tahun ini.
                   </AlertDescription>
                 </Alert>
               )}
