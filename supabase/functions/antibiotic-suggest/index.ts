@@ -1,7 +1,10 @@
 // supabase/functions/antibiotic-suggest/index.ts
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.46.0";
-import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.52.0";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { hermesChat } from "../_shared/hermes.ts";
+import { splitNagSections, selectNagSections } from "../_shared/nagRetrieval.ts";
+import { fetchDoseMatches, doseMatchesBlock } from "../_shared/knowledge.ts";
+import { loadGuidelineDocs } from "../_shared/guidelineDocs.ts";
 import {
   verifyJWT,
   getUserRole,
@@ -101,12 +104,19 @@ Deno.serve(async (req) => {
     `Clinical checklist findings: ${checklistStr}`,
   ].filter(Boolean).join("\n");
 
-  // ── 7. Claude API call with prompt caching on NAG ─────────────────────────
-  const anthropic = new Anthropic({
-    apiKey: Deno.env.get("ANTHROPIC_API_KEY")!,
-    defaultHeaders: { "anthropic-beta": "prompt-caching-2024-07-31" },
-  });
+  // ── 7. Ground the prompt: relevant NAG sections + verbatim vault notes ────
+  // The full corpus (NAG + cached web guidelines) can be far beyond the local
+  // model's context, so only the sections matching this request are included.
+  const guidelineDocs = await loadGuidelineDocs(supabase);
+  const corpus = guidelineDocs ? `${nagText}\n\n${guidelineDocs}` : nagText;
+  const nagExcerpt = selectNagSections(splitNagSections(corpus), [cleanDiagnosis]);
 
+  const patientGroup = patient_age == null
+    ? "Any" as const
+    : patient_age < 12 ? "Paediatric" as const : "Adult" as const;
+  const doseMatches = await fetchDoseMatches(cleanDiagnosis, patientGroup);
+
+  // ── 8. Local LLM call (Hermes via Ollama) ─────────────────────────────────
   const systemPrompt = `You are a clinical pharmacist assistant for a Malaysian government clinic (Klinik Kesihatan).
 Your job is to recommend a specific first-line antibiotic regimen strictly based on the NAG (National Antibiotic Guidelines) provided.
 
@@ -133,37 +143,31 @@ Respond ONLY with valid JSON — no prose before or after:
   };
 
   try {
-    const response = await (anthropic.messages.create as (params: unknown) => Promise<{
-      usage:   { input_tokens: number; output_tokens: number };
-      content: Array<{ type: string; text?: string }>;
-    }>)({
-      model:      "claude-haiku-4-5-20251001",
-      max_tokens: 512,
+    const response = await hermesChat({
       system: [
-        {
-          type:          "text",
-          text:          `## NAG (National Antibiotic Guidelines 2024):\n${nagText}`,
-          cache_control: { type: "ephemeral" },
-        },
-        { type: "text", text: systemPrompt },
-      ],
-      messages: [{ role: "user", content: `Suggest an antibiotic for this patient:\n\n${requestSummary}` }],
+        `## NAG (National Antibiotic Guidelines 2024) — relevant sections:\n${nagExcerpt}`,
+        doseMatchesBlock(doseMatches),
+        systemPrompt,
+      ].filter(Boolean).join("\n\n"),
+      user: `Suggest an antibiotic for this patient:\n\n${requestSummary}`,
+      json: true,
+      maxTokens: 512,
     });
 
-    tokensUsed      = response.usage.input_tokens + response.usage.output_tokens;
-    const rawText   = response.content[0]?.type === "text" ? (response.content[0].text ?? "{}") : "{}";
+    tokensUsed      = response.tokensUsed;
+    const rawText   = response.text || "{}";
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      const claudeResult = JSON.parse(jsonMatch[0]) as { suggestion?: string; rationale?: string; warning?: string | null };
+      const llmResult = JSON.parse(jsonMatch[0]) as { suggestion?: string; rationale?: string; warning?: string | null };
       result = {
-        suggestion: String(claudeResult.suggestion ?? "").slice(0, 300),
-        rationale:  String(claudeResult.rationale  ?? "").slice(0, 500),
-        warning:    claudeResult.warning ? String(claudeResult.warning).slice(0, 300) : null,
+        suggestion: String(llmResult.suggestion ?? "").slice(0, 300),
+        rationale:  String(llmResult.rationale  ?? "").slice(0, 500),
+        warning:    llmResult.warning ? String(llmResult.warning).slice(0, 300) : null,
       };
     }
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    try { await writeAuditLog({ userId: userId!, role, functionName: FUNCTION_NAME, statusCode: 500, errorMessage: `claude_api_error: ${errMsg.slice(0, 200)}` }); } catch { /* non-fatal */ }
+    try { await writeAuditLog({ userId: userId!, role, functionName: FUNCTION_NAME, statusCode: 500, errorMessage: `llm_error: ${errMsg.slice(0, 200)}` }); } catch { /* non-fatal */ }
     return new Response(JSON.stringify({ error: "AI service temporarily unavailable" }), { status: 500, headers: { ...cors, "Content-Type": "application/json" } });
   }
 

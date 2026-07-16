@@ -25,7 +25,11 @@ export const config = {
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean),
-  cachePath: path.resolve(process.cwd(), "cache.json"),
+  // Overridable so the Docker deployment can point it at a persistent volume
+  // (a cwd cache inside a container dies with it → full re-embed every boot).
+  cachePath: process.env.CACHE_PATH
+    ? path.resolve(process.env.CACHE_PATH)
+    : path.resolve(process.cwd(), "cache.json"),
   matchThreshold: parseFloat(process.env.MATCH_THRESHOLD || "0.5"),
   maxMatches: parseInt(process.env.MAX_MATCHES || "3", 10),
 };

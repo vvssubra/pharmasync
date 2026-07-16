@@ -1,0 +1,140 @@
+# PharmaSync additions layered onto the OFFICIAL Supabase self-host compose.
+#
+# Usage (both files in ONE invocation — separate projects would get separate
+# networks and service-name DNS between them would fail):
+#
+#   docker compose \
+#     -f /opt/supabase/docker/docker-compose.yml \
+#     -f /opt/pharmasync/infra/docker-compose.pharmasync.yml \
+#     --env-file /opt/supabase/docker/.env \
+#     up -d
+#
+# Requires docker compose >= 2.24 (uses the `!reset` YAML tag).
+# See infra/DEPLOY.md for the full bring-up and infra/.env.self-host.example
+# for every variable referenced here.
+
+services:
+  # ── Local LLM (Hermes via Ollama) ──────────────────────────────────────────
+  # Internal network only — NEVER published to the host/internet.
+  ollama:
+    container_name: pharmasync-ollama
+    image: ollama/ollama:0.9.6
+    restart: unless-stopped
+    volumes:
+      - ollama-models:/root/.ollama
+    environment:
+      OLLAMA_KEEP_ALIVE: 30m        # keep hermes3 resident; CPU reload costs minutes
+      OLLAMA_MAX_LOADED_MODELS: 2   # hermes3:8b + nomic-embed-text
+      OLLAMA_NUM_PARALLEL: 1        # CPU: serialize generations, don't thrash
+    # Cap so a runaway generation can't OOM Postgres on the same box.
+    mem_limit: 14g
+    healthcheck:
+      test: ["CMD", "ollama", "ls"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ── Rate-limit backend (drop-in for the Upstash REST protocol) ────────────
+  redis:
+    container_name: pharmasync-redis
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--maxmemory", "64mb", "--maxmemory-policy", "allkeys-lru"]
+    # No volume: rate-limit state is disposable.
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  srh:
+    container_name: pharmasync-srh
+    image: hiett/serverless-redis-http:latest
+    restart: unless-stopped
+    environment:
+      SRH_MODE: env
+      SRH_TOKEN: ${SRH_TOKEN}
+      SRH_CONNECTION_STRING: redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  # ── Obsidian-vault dose lookup sidecar ─────────────────────────────────────
+  knowledge-service:
+    container_name: pharmasync-knowledge
+    build: /opt/pharmasync/knowledge-service
+    restart: unless-stopped
+    environment:
+      OLLAMA_URL: http://ollama:11434
+      EMBED_MODEL: nomic-embed-text
+      VAULT_PATH: /vault
+      CACHE_PATH: /cache/cache.json
+      PORT: "8787"
+      KNOWLEDGE_KEY: ${KNOWLEDGE_KEY}
+      ALLOWED_ORIGIN: https://app.${DOMAIN}
+      # inotify events don't propagate reliably through bind mounts — poll.
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - /opt/pharmasync-vault:/vault:ro
+      - knowledge-cache:/cache
+    depends_on:
+      - ollama
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8787/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ── HTTPS front door ───────────────────────────────────────────────────────
+  caddy:
+    container_name: pharmasync-caddy
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+      STUDIO_BASICAUTH_HASH: ${STUDIO_BASICAUTH_HASH}
+    volumes:
+      - /opt/pharmasync/infra/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /opt/pharmasync/dist:/srv/app:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+  # ── Overrides of official Supabase services ───────────────────────────────
+  functions:
+    environment:
+      # All function secrets/config live HERE on self-host (no `supabase
+      # secrets set` equivalent — Deno.env reads the container env).
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_MODEL: hermes3:8b
+      KNOWLEDGE_SERVICE_URL: http://knowledge-service:8787
+      KNOWLEDGE_KEY: ${KNOWLEDGE_KEY}
+      UPSTASH_REDIS_REST_URL: http://srh:80
+      UPSTASH_REDIS_REST_TOKEN: ${SRH_TOKEN}
+      APP_ORIGIN: https://app.${DOMAIN}
+      CRON_SECRET: ${CRON_SECRET}
+      # Functions do their own JWT verification (_shared/security.ts);
+      # ingest-guidelines uses the cron secret instead.
+      VERIFY_JWT: "false"
+    volumes:
+      # Serve THIS repo's functions (includes the main/ router).
+      - /opt/pharmasync/supabase/functions:/home/deno/functions:ro
+    depends_on:
+      - ollama
+      - srh
+
+  # Caddy fronts Kong and Studio — stop publishing their ports on the host.
+  kong:
+    ports: !reset []
+
+  studio:
+    ports: !reset []
+
+volumes:
+  ollama-models:
+  knowledge-cache:
+  caddy-data:
+  caddy-config:

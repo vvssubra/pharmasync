@@ -1,0 +1,33 @@
+# PharmaSync front door — Caddy auto-provisions Let's Encrypt certificates,
+# so the three DNS A records (app/api/studio.<domain>) must point at the VPS
+# BEFORE first start. DOMAIN and STUDIO_BASICAUTH_HASH come from the compose
+# environment (see infra/.env.self-host.example).
+
+# The built React app (dist/ is volume-mounted read-only).
+app.{$DOMAIN} {
+	root * /srv/app
+	encode gzip
+	try_files {path} /index.html
+	file_server
+}
+
+# Supabase API gateway (Kong) + the knowledge-service dose lookup.
+api.{$DOMAIN} {
+	# Verbatim vault-dose lookup for the antibiotic form. Read-only; gated by
+	# the x-knowledge-key header the frontend sends (scrape prevention, not
+	# confidentiality — the key ships in the JS bundle).
+	handle_path /knowledge/* {
+		reverse_proxy knowledge-service:8787
+	}
+
+	reverse_proxy kong:8000
+}
+
+# Supabase Studio — Caddy basic-auth ON TOP of Studio's own dashboard login.
+# Generate the hash with: docker run --rm caddy:2-alpine caddy hash-password
+studio.{$DOMAIN} {
+	basic_auth {
+		admin {$STUDIO_BASICAUTH_HASH}
+	}
+	reverse_proxy studio:3000
+}

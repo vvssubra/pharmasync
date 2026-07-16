@@ -24,6 +24,11 @@ VITE_SUPABASE_URL=
 VITE_SUPABASE_PUBLISHABLE_KEY=
 ```
 
+Optional feature flags (`src/lib/featureFlags.ts`): `VITE_AI_ENABLED` (AI chat
+widget, antibiotic suggest, pathway check), `VITE_KNOWLEDGE_ENABLED` +
+`VITE_KNOWLEDGE_URL` + `VITE_KNOWLEDGE_KEY` (verbatim vault-dose lookup via
+knowledge-service). All off by default.
+
 ## Architecture
 
 ### Tech Stack
@@ -72,8 +77,29 @@ Tables (types at `src/integrations/supabase/types.ts`):
 | `user_roles` | User → role mapping |
 | `drug_quotas` | Annual patient quota per controlled drug (admin sets per year) |
 | `ai_audit_logs` | AI call audit trail (user_id, role, function_name, status_code, tokens_used) |
+| `guideline_sources` | Admin-curated guideline URLs; ingest-guidelines caches them to Storage |
 
-**Stock calculation:** No dedicated stock column. Compute by summing `transactions` per drug (`terimaan` adds, `keluaran` subtracts, `baki_awal` sets opening balance).
+**Stock calculation:** No dedicated stock column. Compute by summing `transactions` per drug (`terimaan` adds, `keluaran` subtracts, `baki_awal` sets opening balance). SQL views `drug_stock_status` (current stock + status) and `drug_stock_forecast` (30-day avg usage, days remaining, projected exhaustion) are the DB-side source of truth; the AI functions read them.
+
+### AI Layer (self-hosted)
+
+Edge functions `ai-query` (role-scoped FAQ chat), `pathway-check`, and
+`antibiotic-suggest` call a self-hosted Hermes model via Ollama
+(`_shared/hermes.ts`) — no cloud LLM. Grounding: `_shared/nagRetrieval.ts`
+picks relevant NAG/guideline sections under a context budget;
+`_shared/knowledge.ts` pulls verbatim dose notes from the knowledge-service
+sidecar (Obsidian vault). `ingest-guidelines` (pg_cron nightly) caches
+admin-curated guideline URLs to the `guideline-documents` bucket.
+Deno tests: `deno test --no-check --allow-env supabase/functions/_shared/`.
+
+### Self-hosted Deployment
+
+`infra/` holds the VPS stack: `docker-compose.pharmasync.yml` (override on the
+official Supabase compose — Ollama, redis+srh rate-limit shim, containerized
+knowledge-service, Caddy HTTPS), `Caddyfile`, `.env.self-host.example`,
+`backup.sh`, `DEPLOY.md` (bring-up runbook), `MIGRATION.md` (office-PC →
+VPS data migration). `supabase/functions/main/` is the self-host edge-runtime
+router entrypoint.
 
 ### Page → Route Map
 

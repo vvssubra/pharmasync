@@ -10,7 +10,7 @@
     "test": "node --test"
   },
   "engines": {
-    "node": ">=20.6.0"
+    "node": ">=22.0.0"
   },
   "dependencies": {
     "chokidar": "^3.6.0",

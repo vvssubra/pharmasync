@@ -1,7 +1,7 @@
 // supabase/functions/ai-query/index.ts
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.46.0";
-import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.52.0";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { hermesChat } from "../_shared/hermes.ts";
 import {
   verifyJWT,
   getUserRole,
@@ -88,26 +88,23 @@ Deno.serve(async (req) => {
   // ── 7. Build system prompt ────────────────────────────────────────────────
   const systemPrompt = buildSystemPrompt(role, dataContext);
 
-  // ── 8. Claude API call ────────────────────────────────────────────────────
-  const anthropic = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY")! });
-
+  // ── 8. Local LLM call (Hermes via Ollama) ─────────────────────────────────
   let tokensUsed = 0;
   let answer = "";
 
   try {
-    const response = await anthropic.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 512,
+    const response = await hermesChat({
       system: systemPrompt,
-      messages: [{ role: "user", content: question }],
+      user: question,
+      maxTokens: 400,
     });
-    tokensUsed = response.usage.input_tokens + response.usage.output_tokens;
-    answer = response.content[0].type === "text" ? response.content[0].text : "";
+    tokensUsed = response.tokensUsed;
+    answer = response.text;
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
-    console.error("Claude API error:", errMsg);
+    console.error("LLM error:", errMsg);
     try {
-      await writeAuditLog({ userId: userId!, role, functionName: FUNCTION_NAME, statusCode: 500, errorMessage: `claude_api_error: ${errMsg.slice(0, 200)}` });
+      await writeAuditLog({ userId: userId!, role, functionName: FUNCTION_NAME, statusCode: 500, errorMessage: `llm_error: ${errMsg.slice(0, 200)}` });
     } catch {
       // Audit log failure must not abort the primary response
     }
@@ -134,19 +131,26 @@ async function fetchDataContext(supabase: ReturnType<typeof createClient>, userI
   const since = thirtyDaysAgo.toISOString();
   const currentYear = new Date().getFullYear();
 
+  // Row caps keep the serialized context small enough for the local model's
+  // context window (CPU prefill cost grows with every token).
+  const MAX_ROWS = 100;
+
   if (role === "admin" || role === "fms") {
-    const [drugsResult, requestsResult, antibioticResult, quotasResult] = await Promise.all([
-      supabase.from("drugs").select("drug_name, unit_pengukuran, perlu_kelulusan_pakar, is_active").eq("is_active", true).order("drug_name"),
-      supabase.from("dispensing_requests").select("patient_name, status, created_at, drugs(drug_name)").gte("created_at", since).order("created_at", { ascending: false }),
-      supabase.from("antibiotic_forms").select("patient_name, status, diagnosis, created_at").gte("created_at", since).order("created_at", { ascending: false }),
+    const [stockResult, forecastResult, requestsResult, antibioticResult, quotasResult] = await Promise.all([
+      supabase.from("drug_stock_status").select("drug_name, unit_pengukuran, current_stock, stok_min, stok_reorder, stok_max, status").eq("is_active", true).order("drug_name").limit(MAX_ROWS),
+      supabase.from("drug_stock_forecast").select("drug_name, current_stock, avg_daily_keluaran, days_remaining, projected_exhaustion_date, forecast_status").eq("is_active", true).not("days_remaining", "is", null).order("days_remaining").limit(40),
+      supabase.from("dispensing_requests").select("patient_name, status, created_at, drugs(drug_name)").gte("created_at", since).order("created_at", { ascending: false }).limit(MAX_ROWS),
+      supabase.from("antibiotic_forms").select("patient_name, status, diagnosis, created_at").gte("created_at", since).order("created_at", { ascending: false }).limit(MAX_ROWS),
       supabase.from("drug_quotas").select("quota_limit, year, drugs(drug_name)").eq("year", currentYear),
     ]);
-    if (drugsResult.error) console.error("Supabase drugs query error:", drugsResult.error.message);
+    if (stockResult.error) console.error("Supabase drug_stock_status query error:", stockResult.error.message);
+    if (forecastResult.error) console.error("Supabase drug_stock_forecast query error:", forecastResult.error.message);
     if (requestsResult.error) console.error("Supabase dispensing_requests query error:", requestsResult.error.message);
     if (antibioticResult.error) console.error("Supabase antibiotic_forms query error:", antibioticResult.error.message);
     if (quotasResult.error) console.error("Supabase drug_quotas query error:", quotasResult.error.message);
     return {
-      drugs: drugsResult.data ?? [],
+      drug_stock_status: stockResult.data ?? [],
+      stock_forecast_soonest_exhausted_first: forecastResult.data ?? [],
       dispensing_requests_last_30d: requestsResult.data ?? [],
       antibiotic_forms_last_30d: antibioticResult.data ?? [],
       drug_quotas_current_year: quotasResult.data ?? [],
@@ -154,14 +158,17 @@ async function fetchDataContext(supabase: ReturnType<typeof createClient>, userI
   }
 
   if (role === "pharmacist") {
-    const [drugsResult, requestsResult] = await Promise.all([
-      supabase.from("drugs").select("drug_name, unit_pengukuran, is_active").eq("is_active", true).order("drug_name"),
-      supabase.from("dispensing_requests").select("patient_name, status, created_at, drugs(drug_name)").gte("created_at", since),
+    const [stockResult, forecastResult, requestsResult] = await Promise.all([
+      supabase.from("drug_stock_status").select("drug_name, unit_pengukuran, current_stock, stok_min, stok_reorder, stok_max, status").eq("is_active", true).order("drug_name").limit(MAX_ROWS),
+      supabase.from("drug_stock_forecast").select("drug_name, current_stock, avg_daily_keluaran, days_remaining, projected_exhaustion_date, forecast_status").eq("is_active", true).not("days_remaining", "is", null).order("days_remaining").limit(40),
+      supabase.from("dispensing_requests").select("patient_name, status, created_at, drugs(drug_name)").gte("created_at", since).limit(MAX_ROWS),
     ]);
-    if (drugsResult.error) console.error("Supabase drugs query error:", drugsResult.error.message);
+    if (stockResult.error) console.error("Supabase drug_stock_status query error:", stockResult.error.message);
+    if (forecastResult.error) console.error("Supabase drug_stock_forecast query error:", forecastResult.error.message);
     if (requestsResult.error) console.error("Supabase dispensing_requests query error:", requestsResult.error.message);
     return {
-      drugs: drugsResult.data ?? [],
+      drug_stock_status: stockResult.data ?? [],
+      stock_forecast_soonest_exhausted_first: forecastResult.data ?? [],
       dispensing_requests_last_30d: requestsResult.data ?? [],
     };
   }
@@ -210,7 +217,8 @@ Answer ONLY from the pharmacy data provided below.
 You can help with:
 - Which dispensing requests are pending and need your action (list them specifically)
 - How many requests are in each status (pending/approved/fulfilled/rejected)
-- Drug inventory — which specific drugs are available and their units
+- Drug inventory — current stock levels, units, and status (critical/low/normal/excess)
+- Stock projections — average daily usage, days remaining, and projected exhaustion dates from the forecast data
 - Recent request history for a specific patient or drug
 
 If the answer is not in the data, say "I don't have that information."
@@ -225,7 +233,8 @@ ${dataStr}`;
 Answer ONLY from the pharmacy data provided below.
 
 You can help with:
-- Drug inventory overview: which drugs are active, units, specialist-approval flags
+- Drug inventory overview: current stock levels, units, and status (critical/low/normal/excess)
+- Stock projections — average daily usage, days remaining, and projected exhaustion dates from the forecast data (e.g. which drugs run out soonest)
 - Dispensing request counts and status breakdown for the last 30 days
 - Antibiotic form submissions: how many are pending specialist approval, approved, or rejected
 - Controlled drug quotas: limits vs request volume for the current year

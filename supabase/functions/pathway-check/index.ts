@@ -1,7 +1,10 @@
 // supabase/functions/pathway-check/index.ts
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import Anthropic from "https://esm.sh/@anthropic-ai/sdk";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { hermesChat } from "../_shared/hermes.ts";
+import { splitNagSections, selectNagSections } from "../_shared/nagRetrieval.ts";
+import { fetchDoseMatches, doseMatchesBlock } from "../_shared/knowledge.ts";
+import { loadGuidelineDocs } from "../_shared/guidelineDocs.ts";
 import {
   verifyJWT,
   getUserRole,
@@ -119,14 +122,27 @@ Allergy status: ${formData.allergy_status ?? "not specified"}
 Patient age: ${formData.patient_age ?? "not specified"} years`,
   );
 
-  // ── 7. Claude API call with prompt caching ────────────────────────────────
-  const anthropic = new Anthropic({
-    apiKey: Deno.env.get("ANTHROPIC_API_KEY")!,
-    defaultHeaders: {
-      "anthropic-beta": "prompt-caching-2024-07-31",
-    },
-  });
+  // ── 7. Ground the prompt: relevant NAG sections + verbatim vault notes ────
+  // The full corpus (NAG + cached web guidelines) can be far beyond the local
+  // model's context, so only the sections matching this request are included.
+  const guidelineDocs = await loadGuidelineDocs(createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  ));
+  const corpus = guidelineDocs ? `${nagDocumentCache}\n\n${guidelineDocs}` : nagDocumentCache;
+  const queryTerms = [formData.diagnosis ?? "", formData.antibiotic ?? "", formData.indication ?? ""]
+    .filter(Boolean);
+  const nagExcerpt = selectNagSections(splitNagSections(corpus), queryTerms);
 
+  const patientGroup = formData.patient_age == null
+    ? "Any" as const
+    : formData.patient_age < 12 ? "Paediatric" as const : "Adult" as const;
+  const doseMatches = await fetchDoseMatches(
+    `${formData.diagnosis ?? ""} ${formData.antibiotic ?? ""}`.trim(),
+    patientGroup,
+  );
+
+  // ── 8. Local LLM call (Hermes via Ollama) ─────────────────────────────────
   let verdict: "supported" | "review" | "not_supported" | "refer_specialist" = "refer_specialist";
   let explanation = "";
   let tokensUsed = 0;
@@ -153,45 +169,32 @@ Verdict meanings:
 - refer_specialist: case complexity exceeds pathway scope`;
 
   try {
-    const response = await (anthropic.messages.create as (params: unknown) => Promise<{
-      usage: { input_tokens: number; output_tokens: number };
-      content: Array<{ type: string; text?: string }>;
-    }>)({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 256,
+    const response = await hermesChat({
       system: [
-        {
-          type: "text",
-          text: `## NAG Guidelines Document:\n${nagDocumentCache}`,
-          cache_control: { type: "ephemeral" },
-        },
-        {
-          type: "text",
-          text: systemPrompt,
-        },
-      ],
-      messages: [
-        {
-          role: "user",
-          content: `Please assess this antibiotic request:\n\n${formSummary}`,
-        },
-      ],
+        `## NAG Guidelines (relevant sections):\n${nagExcerpt}`,
+        doseMatchesBlock(doseMatches),
+        systemPrompt,
+      ].filter(Boolean).join("\n\n"),
+      user: `Please assess this antibiotic request:\n\n${formSummary}`,
+      json: true,
+      maxTokens: 256,
     });
 
-    tokensUsed = response.usage.input_tokens + response.usage.output_tokens;
-    const rawText = response.content[0].type === "text" ? (response.content[0].text ?? "") : "{}";
+    tokensUsed = response.tokensUsed;
+    const rawText = response.text || "{}";
 
-    // Parse Claude's JSON response
+    // Parse the model's JSON response (format:"json" constrains it, but the
+    // extract + allowlist below stays as belt-and-braces)
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
-      const claudeResult = JSON.parse(jsonMatch[0]) as { verdict?: string; explanation?: string };
-      if (["supported", "review", "not_supported", "refer_specialist"].includes(claudeResult.verdict ?? "")) {
-        verdict = claudeResult.verdict as typeof verdict;
-        explanation = String(claudeResult.explanation ?? "").slice(0, 500);
+      const llmResult = JSON.parse(jsonMatch[0]) as { verdict?: string; explanation?: string };
+      if (["supported", "review", "not_supported", "refer_specialist"].includes(llmResult.verdict ?? "")) {
+        verdict = llmResult.verdict as typeof verdict;
+        explanation = String(llmResult.explanation ?? "").slice(0, 500);
       }
     }
   } catch {
-    await writeAuditLog({ userId: userId!, role, functionName: FUNCTION_NAME, statusCode: 500, errorMessage: "claude_api_error" });
+    await writeAuditLog({ userId: userId!, role, functionName: FUNCTION_NAME, statusCode: 500, errorMessage: "llm_error" });
     return new Response(
       JSON.stringify({ error: "AI service temporarily unavailable" }),
       { status: 500, headers: { ...cors, "Content-Type": "application/json" } },
