@@ -21,6 +21,7 @@ import PharmacistFulfilment from "@/pages/PharmacistFulfilment";
 import PatientRegistry from "@/pages/PatientRegistry";
 import RoleManagement from "@/pages/RoleManagement";
 import ResetPassword from "@/pages/ResetPassword";
+import Survey from "@/pages/Survey";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -41,6 +42,7 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/survey" element={<Survey />} />
             {/* MO routes */}
             <Route path="/request" element={<ProtectedRoute><AppLayout><DoctorLanding /></AppLayout></ProtectedRoute>} />
             <Route path="/request/ubat" element={<ProtectedRoute><AppLayout><DoctorRequest /></AppLayout></ProtectedRoute>} />
