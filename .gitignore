@@ -31,3 +31,6 @@ dist-ssr
 # Supabase temp
 supabase/.temp/
 .vercel
+
+# Local Netlify folder
+.netlify
