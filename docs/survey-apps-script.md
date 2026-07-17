@@ -10,8 +10,13 @@ appends each response as a row in a Google Sheet. No backend to host.
 3. Add a header row:
 
    ```
-   timestamp | name | email | role | q1 | q2 | q3 | q4 | q5 | q6 | q7 | frustration
+   timestamp | name | email | role | a1 | a2 | a3 | a4 | a5 | a6 | b1 | b2 | b3 | b4 | c1 | c2 | c3 | o1 | o2 | o3 | o4
    ```
+
+   `a1`–`a6` = Section A (Application and Approval Process), `b1`–`b4` =
+   Section B (Tracking), `c1`–`c3` = Section C (Overall User Experience),
+   `o1`–`o4` = the four open-ended questions. Question wording lives in
+   `src/pages/Survey.tsx`.
 
 ## 2. Add the Apps Script
 
@@ -27,8 +32,10 @@ appends each response as a row in a Google Sheet. No backend to host.
        d.name,
        d.email,
        d.role,
-       d.q1, d.q2, d.q3, d.q4, d.q5, d.q6, d.q7,
-       d.frustration || '',
+       d.a1, d.a2, d.a3, d.a4, d.a5, d.a6,
+       d.b1, d.b2, d.b3, d.b4,
+       d.c1, d.c2, d.c3,
+       d.o1 || '', d.o2 || '', d.o3 || '', d.o4 || '',
      ]);
      return ContentService.createTextOutput(JSON.stringify({ ok: true }))
        .setMimeType(ContentService.MimeType.JSON);

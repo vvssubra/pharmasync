@@ -98,6 +98,16 @@
   margin-bottom: 1.25rem;
 }
 
+.survey-section-title {
+  font-family: "Source Serif 4", Georgia, serif;
+  font-weight: 600;
+  font-size: 1.125rem;
+  letter-spacing: -0.01em;
+  margin: 0 0 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--survey-border);
+}
+
 .survey-field {
   margin-bottom: 1.5rem;
 }
