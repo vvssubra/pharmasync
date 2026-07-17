@@ -8,14 +8,68 @@ import { MascotRunner } from "@/components/survey/MascotRunner";
 import { LikertScale } from "@/components/survey/LikertScale";
 import "./survey.css";
 
-const LIKERT_QUESTIONS: { name: `q${1 | 2 | 3 | 4 | 5 | 6 | 7}`; label: string }[] = [
-  { name: "q1", label: "1. The current manual antibiotic (AMS) form is easy to complete." },
-  { name: "q2", label: "2. Filling the manual form takes a reasonable amount of time." },
-  { name: "q3", label: "3. I always know which antibiotics need specialist approval." },
-  { name: "q4", label: "4. Getting specialist approval through the manual process is fast." },
-  { name: "q5", label: "5. The manual form rarely gets lost or delayed." },
-  { name: "q6", label: "6. I can easily track the status of my antibiotic request." },
-  { name: "q7", label: "7. Overall, I am satisfied with the current manual AMS process." },
+type LikertName =
+  | `a${1 | 2 | 3 | 4 | 5 | 6}`
+  | `b${1 | 2 | 3 | 4}`
+  | `c${1 | 2 | 3}`;
+
+interface LikertSection {
+  title: string;
+  questions: { name: LikertName; label: string }[];
+}
+
+const LIKERT_SECTIONS: LikertSection[] = [
+  {
+    title: "Section A: Application and Approval Process",
+    questions: [
+      { name: "a1", label: "1. The current manual antibiotic (AMS) form is easy to complete." },
+      { name: "a2", label: "2. Filling the manual form takes a reasonable amount of time." },
+      { name: "a3", label: "3. The current process for requesting antibiotics involves a reasonable number of steps." },
+      { name: "a4", label: "4. I always know which antibiotics need specialist approval." },
+      { name: "a5", label: "5. The current specialist approval process can be completed within an acceptable amount of time." },
+      { name: "a6", label: "6. I can complete the request and approval process without using multiple forms, records or communication channels." },
+    ],
+  },
+  {
+    title: "Section B: Tracking of Requests and Approvals",
+    questions: [
+      { name: "b1", label: "1. I can easily check whether my medication request is pending, approved or rejected." },
+      { name: "b2", label: "2. I receive timely notification when a specialist decision has been made regarding my request." },
+      { name: "b3", label: "3. I can retrieve the approval details or approval code without repeatedly contacting the specialist/FMS or pharmacy." },
+      { name: "b4", label: "4. Medication request records are rarely delayed during the current process." },
+    ],
+  },
+  {
+    title: "Section C: Overall User Experience",
+    questions: [
+      { name: "c1", label: "1. The current medication request and approval process supports an efficient clinical workflow." },
+      { name: "c2", label: "2. The current process allows me to obtain medication approval without causing unnecessary delays in patient care." },
+      { name: "c3", label: "3. Overall, I am satisfied with the current manual medication request, approval and monitoring process." },
+    ],
+  },
+];
+
+const OPEN_QUESTIONS: { name: `o${1 | 2 | 3 | 4}`; label: string; placeholder: string }[] = [
+  {
+    name: "o1",
+    label: "Which part of the current medication request and approval process is the most time-consuming?",
+    placeholder: "e.g. waiting for specialist sign-off, filling patient details…",
+  },
+  {
+    name: "o2",
+    label: "Which steps in the current process do you consider repetitive or unnecessary?",
+    placeholder: "e.g. re-entering the same details on multiple forms…",
+  },
+  {
+    name: "o3",
+    label: "Have you experienced any delay, missing form or difficulty retrieving an approval record? Please describe briefly.",
+    placeholder: "Tell us what happened…",
+  },
+  {
+    name: "o4",
+    label: "What is the single most important improvement you would like to see in the current process?",
+    placeholder: "Your top priority…",
+  },
 ];
 
 const likertField = z
@@ -26,14 +80,23 @@ const formSchema = z.object({
   name: z.string().trim().min(2, "Please enter your name."),
   email: z.string().trim().min(1, "Please enter your email.").email("Enter a valid email address."),
   role: z.string().min(1, "Please select your role."),
-  q1: likertField,
-  q2: likertField,
-  q3: likertField,
-  q4: likertField,
-  q5: likertField,
-  q6: likertField,
-  q7: likertField,
-  frustration: z.string().optional(),
+  a1: likertField,
+  a2: likertField,
+  a3: likertField,
+  a4: likertField,
+  a5: likertField,
+  a6: likertField,
+  b1: likertField,
+  b2: likertField,
+  b3: likertField,
+  b4: likertField,
+  c1: likertField,
+  c2: likertField,
+  c3: likertField,
+  o1: z.string().optional(),
+  o2: z.string().optional(),
+  o3: z.string().optional(),
+  o4: z.string().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -49,14 +112,23 @@ const defaultValues: FormValues = {
   name: "",
   email: "",
   role: "",
-  q1: "",
-  q2: "",
-  q3: "",
-  q4: "",
-  q5: "",
-  q6: "",
-  q7: "",
-  frustration: "",
+  a1: "",
+  a2: "",
+  a3: "",
+  a4: "",
+  a5: "",
+  a6: "",
+  b1: "",
+  b2: "",
+  b3: "",
+  b4: "",
+  c1: "",
+  c2: "",
+  c3: "",
+  o1: "",
+  o2: "",
+  o3: "",
+  o4: "",
 };
 
 export default function Survey() {
@@ -112,7 +184,8 @@ export default function Survey() {
             </div>
             <h1 className="survey-title">Thank you</h1>
             <p className="survey-intro">
-              Your feedback on the manual AMS form has been recorded.
+              Your feedback on the manual medication request and approval process has
+              been recorded.
             </p>
             <button
               type="button"
@@ -176,7 +249,7 @@ export default function Survey() {
               {errors.email && <p className="survey-error">{errors.email.message}</p>}
             </div>
 
-            <div className="survey-field">
+            <div className="survey-field" style={{ marginBottom: 0 }}>
               <label className="survey-label" htmlFor="role">
                 Your role *
               </label>
@@ -199,44 +272,54 @@ export default function Survey() {
             </div>
           </div>
 
+          {LIKERT_SECTIONS.map((section) => (
+            <div className="survey-card" key={section.title}>
+              <h2 className="survey-section-title">{section.title}</h2>
+              {section.questions.map((q, i) => (
+                <div
+                  className="survey-field"
+                  key={q.name}
+                  style={i === section.questions.length - 1 ? { marginBottom: 0 } : undefined}
+                >
+                  <p className="survey-question-title">{q.label}</p>
+                  <LikertScale
+                    name={q.name}
+                    value={values[q.name]}
+                    onChange={(v) => setValue(q.name, v, { shouldValidate: true })}
+                    error={!!errors[q.name]}
+                  />
+                  {errors[q.name] && (
+                    <p className="survey-error" style={{ textAlign: "center" }}>
+                      {errors[q.name]?.message}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          ))}
+
           <div className="survey-card">
-            {LIKERT_QUESTIONS.map((q, i) => (
+            <h2 className="survey-section-title">Open-ended questions</h2>
+            {OPEN_QUESTIONS.map((q, i) => (
               <div
                 className="survey-field"
                 key={q.name}
-                style={i === LIKERT_QUESTIONS.length - 1 ? { marginBottom: 0 } : undefined}
+                style={i === OPEN_QUESTIONS.length - 1 ? { marginBottom: 0 } : undefined}
               >
-                <p className="survey-question-title">{q.label}</p>
-                <LikertScale
-                  name={q.name}
-                  value={values[q.name]}
-                  onChange={(v) => setValue(q.name, v, { shouldValidate: true })}
-                  error={!!errors[q.name]}
+                <label className="survey-label" htmlFor={q.name}>
+                  {q.label}
+                </label>
+                <p className="survey-intro" style={{ margin: "0 0 0.75rem", textAlign: "left" }}>
+                  Optional
+                </p>
+                <textarea
+                  id={q.name}
+                  className="survey-textarea"
+                  placeholder={q.placeholder}
+                  {...register(q.name)}
                 />
-                {errors[q.name] && (
-                  <p className="survey-error" style={{ textAlign: "center" }}>
-                    {errors[q.name]?.message}
-                  </p>
-                )}
               </div>
             ))}
-          </div>
-
-          <div className="survey-card">
-            <div className="survey-field" style={{ marginBottom: 0 }}>
-              <label className="survey-label" htmlFor="frustration">
-                Biggest frustration with the current manual form?
-              </label>
-              <p className="survey-intro" style={{ margin: "0 0 0.75rem", textAlign: "left" }}>
-                Optional
-              </p>
-              <textarea
-                id="frustration"
-                className="survey-textarea"
-                placeholder="Tell us what slows you down…"
-                {...register("frustration")}
-              />
-            </div>
           </div>
 
           <button type="submit" className="survey-submit" disabled={submitting}>

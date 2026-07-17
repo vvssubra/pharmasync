@@ -20,12 +20,28 @@ describe("Survey page", () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({} as Response)));
   });
 
-  it("renders the survey title and all 7 Likert questions", () => {
+  it("renders all 3 sections with 13 Likert questions total", () => {
+    render(<Survey />);
+    expect(screen.getByText("Section A: Application and Approval Process")).toBeInTheDocument();
+    expect(screen.getByText("Section B: Tracking of Requests and Approvals")).toBeInTheDocument();
+    expect(screen.getByText("Section C: Overall User Experience")).toBeInTheDocument();
+    expect(screen.getAllByRole("radiogroup")).toHaveLength(13);
+  });
+
+  it("renders all 4 open-ended questions, none duplicating each other", () => {
     render(<Survey />);
     expect(
-      screen.getByText("Pre-Talk Survey — The Manual AMS Form")
+      screen.getByText(/most time-consuming/)
     ).toBeInTheDocument();
-    expect(screen.getAllByRole("radiogroup")).toHaveLength(7);
+    expect(
+      screen.getByText(/repetitive or unnecessary/)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/delay, missing form or difficulty retrieving/)
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/single most important improvement/)
+    ).toBeInTheDocument();
   });
 
   it("blocks submit and shows errors when name, email, role, and Likert answers are missing", async () => {
@@ -38,7 +54,7 @@ describe("Survey page", () => {
       expect(screen.getByText("Please select your role.")).toBeInTheDocument();
       expect(
         screen.getAllByText("Please select an answer from 1 to 5.").length
-      ).toBe(7);
+      ).toBe(13);
     });
     expect(global.fetch).not.toHaveBeenCalled();
   });
@@ -67,7 +83,7 @@ describe("Survey page", () => {
     fireEvent.change(screen.getByLabelText("Your role *"), {
       target: { value: "mo" },
     });
-    for (let i = 0; i < 7; i++) fillLikert(i, 4);
+    for (let i = 0; i < 13; i++) fillLikert(i, 4);
 
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
 
@@ -81,13 +97,38 @@ describe("Survey page", () => {
       name: "Dr. Ahmad",
       email: "ahmad@moh.gov.my",
       role: "mo",
-      q1: "4",
-      q7: "4",
+      a1: "4",
+      a6: "4",
+      b1: "4",
+      b4: "4",
+      c1: "4",
+      c3: "4",
     });
     expect(options.mode).toBe("no-cors");
 
     await waitFor(() => {
       expect(screen.getByText("Thank you")).toBeInTheDocument();
+    });
+  });
+
+  it("allows submit with all Likert questions answered and open questions left blank (optional)", async () => {
+    render(<Survey />);
+
+    fireEvent.change(screen.getByLabelText("Your name *"), {
+      target: { value: "Pn. Aisyah" },
+    });
+    fireEvent.change(screen.getByLabelText("Your email *"), {
+      target: { value: "aisyah@moh.gov.my" },
+    });
+    fireEvent.change(screen.getByLabelText("Your role *"), {
+      target: { value: "pharmacist" },
+    });
+    for (let i = 0; i < 13; i++) fillLikert(i, 3);
+
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledTimes(1);
     });
   });
 });
