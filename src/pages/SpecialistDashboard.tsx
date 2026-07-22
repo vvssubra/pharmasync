@@ -483,6 +483,7 @@ export default function SpecialistDashboard() {
                     <TableHead>IC</TableHead>
                     <TableHead>Diagnosis</TableHead>
                     <TableHead>Submitted By</TableHead>
+                    <TableHead>Assigned FMS</TableHead>
                     <TableHead>Unit</TableHead>
                     <TableHead>NAG Check</TableHead>
                     <TableHead>Action</TableHead>
@@ -490,7 +491,7 @@ export default function SpecialistDashboard() {
                 </TableHeader>
                 <TableBody>
                   {abPending.length === 0 ? (
-                    <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No antibiotic forms pending</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No antibiotic forms pending</TableCell></TableRow>
                   ) : abPending.map((f: any) => (
                     <TableRow key={f.id}>
                       <TableCell className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(f.created_at), { addSuffix: true })}</TableCell>
@@ -498,6 +499,7 @@ export default function SpecialistDashboard() {
                       <TableCell className="text-xs">{formatIC(f.patient_ic)}</TableCell>
                       <TableCell className="text-xs max-w-[150px] truncate">{f.diagnosis}</TableCell>
                       <TableCell className="text-xs font-medium">{f.submitter_name}</TableCell>
+                      <TableCell><Badge variant="outline" className="text-[10px]">{f.assigned_fms || "—"}</Badge></TableCell>
                       <TableCell><Badge variant="outline" className="text-[10px]">{f.prescription_unit || "—"}</Badge></TableCell>
                       <TableCell>{renderNagBadge(f.pathway_check_result)}</TableCell>
                       <TableCell>
@@ -529,7 +531,7 @@ export default function SpecialistDashboard() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Time</TableHead><TableHead>Patient</TableHead><TableHead>Diagnosis</TableHead><TableHead>Decision</TableHead><TableHead>Notes</TableHead>
+                        <TableHead>Time</TableHead><TableHead>Patient</TableHead><TableHead>Diagnosis</TableHead><TableHead>Assigned FMS</TableHead><TableHead>Decision</TableHead><TableHead>Notes</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -538,6 +540,7 @@ export default function SpecialistDashboard() {
                           <TableCell className="text-xs">{formatDistanceToNow(new Date(f.specialist_action_at), { addSuffix: true })}</TableCell>
                           <TableCell>{f.patient_name}</TableCell>
                           <TableCell className="text-xs max-w-[150px] truncate">{f.diagnosis}</TableCell>
+                          <TableCell className="text-xs">{f.assigned_fms || "—"}</TableCell>
                           <TableCell>
                             {f.status === "rejected" ? <Badge variant="destructive" className="text-xs">Rejected</Badge> : <Badge className="bg-green-100 text-green-700 border-green-300 text-xs">Approved</Badge>}
                           </TableCell>
