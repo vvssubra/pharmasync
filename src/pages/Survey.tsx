@@ -4,7 +4,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { CheckCircle2 } from "lucide-react";
-import { MascotRunner } from "@/components/survey/MascotRunner";
 import { LikertScale } from "@/components/survey/LikertScale";
 import "./survey.css";
 
@@ -209,7 +208,6 @@ export default function Survey() {
     <div className="survey-root">
       <div className="survey-shell">
         <header className="survey-header">
-          <MascotRunner />
           <p className="survey-eyebrow">PharmaSync</p>
           <h1 className="survey-title">Pre-Talk Survey — The Manual AMS Form</h1>
           <p className="survey-intro">
