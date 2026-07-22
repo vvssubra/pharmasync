@@ -21,6 +21,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+const FMS_OPTIONS = ["Dr Amelia", "Dr Muslim"] as const;
 
 function formatIC(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 12);
@@ -77,6 +80,7 @@ export default function AntibioticForm() {
   const [drugAllergyDetail, setDrugAllergyDetail] = useState("");
   const [antibioticRegimen, setAntibioticRegimen] = useState("");
   const [fmsCode, setFmsCode] = useState("");
+  const [assignedFms, setAssignedFms] = useState("");
   const [healthEdCompliance, setHealthEdCompliance] = useState(false);
   const [healthEdSideeffect, setHealthEdSideeffect] = useState(false);
   const [healthEdTca, setHealthEdTca] = useState(false);
@@ -153,6 +157,10 @@ export default function AntibioticForm() {
       toast.error("Please complete Name, IC and Diagnosis");
       return;
     }
+    if (!assignedFms) {
+      toast.error("Please select the FMS reviewing this form");
+      return;
+    }
     setSubmitting(true);
     try {
       const { error } = await supabase.from("antibiotic_forms" as any).insert({
@@ -166,6 +174,7 @@ export default function AntibioticForm() {
         drug_allergy_detail: drugAllergy ? drugAllergyDetail : null,
         antibiotic_regimen: antibioticRegimen || null,
         fms_code: fmsCode || null,
+        assigned_fms: assignedFms,
         health_ed_compliance: healthEdCompliance,
         health_ed_sideeffect: healthEdSideeffect,
         health_ed_tca: healthEdTca,
@@ -203,7 +212,7 @@ export default function AntibioticForm() {
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <Button onClick={() => { setSubmitted(null); setPatientName(""); setPatientIC(""); setDiagnosis(""); setChecklist(defaultChecklist); setAntibioticRegimen(""); setPrescriberNotes(""); setAiSuggestion(null); }}>
+              <Button onClick={() => { setSubmitted(null); setPatientName(""); setPatientIC(""); setDiagnosis(""); setChecklist(defaultChecklist); setAntibioticRegimen(""); setPrescriberNotes(""); setAiSuggestion(null); setAssignedFms(""); }}>
                 Submit New Form
               </Button>
               <Button variant="link" onClick={() => navigate("/request")}>Back to Request Options</Button>
@@ -259,6 +268,19 @@ export default function AntibioticForm() {
                 <Label>5. Diagnosis *</Label>
                 <Textarea value={diagnosis} onChange={e => setDiagnosis(e.target.value)} placeholder="Diagnosis" />
               </div>
+              <div className="space-y-2">
+                <Label>6. Assigned FMS *</Label>
+                <Select value={assignedFms} onValueChange={setAssignedFms}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select FMS" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {FMS_OPTIONS.map(name => (
+                      <SelectItem key={name} value={name}>{name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="space-y-4">
@@ -275,7 +297,7 @@ export default function AntibioticForm() {
               </div>
 
               <div className="space-y-2">
-                <Label>6. Any Drug Allergy?</Label>
+                <Label>7. Any Drug Allergy?</Label>
                 <RadioGroup value={drugAllergy ? "yes" : "no"} onValueChange={v => setDrugAllergy(v === "yes")} className="flex gap-4">
                   <div className="flex items-center gap-2">
                     <RadioGroupItem value="no" id="allergy-no" />
@@ -293,7 +315,7 @@ export default function AntibioticForm() {
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label>7. Antibiotic Regimen (Dose, frequency, duration)</Label>
+                  <Label>8. Antibiotic Regimen (Dose, frequency, duration)</Label>
                   {AI_ENABLED && (
                     <Button
                       type="button"
@@ -374,7 +396,7 @@ export default function AntibioticForm() {
               </div>
 
               <div className="space-y-2">
-                <Label>8. Health Education (tick if done)</Label>
+                <Label>9. Health Education (tick if done)</Label>
                 <div className="flex flex-wrap gap-4">
                   <label className="flex items-center gap-2 text-sm">
                     <Checkbox checked={healthEdCompliance} onCheckedChange={v => setHealthEdCompliance(!!v)} /> Compliance

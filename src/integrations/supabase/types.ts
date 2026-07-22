@@ -19,6 +19,7 @@ export type Database = {
           acknowledged_at: string | null
           acknowledged_by: string | null
           antibiotic_regimen: string | null
+          assigned_fms: string | null
           checklist_data: Json | null
           created_at: string | null
           diagnosis: string
@@ -45,6 +46,7 @@ export type Database = {
           acknowledged_at?: string | null
           acknowledged_by?: string | null
           antibiotic_regimen?: string | null
+          assigned_fms?: string | null
           checklist_data?: Json | null
           created_at?: string | null
           diagnosis: string
@@ -71,6 +73,7 @@ export type Database = {
           acknowledged_at?: string | null
           acknowledged_by?: string | null
           antibiotic_regimen?: string | null
+          assigned_fms?: string | null
           checklist_data?: Json | null
           created_at?: string | null
           diagnosis?: string
