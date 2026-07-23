@@ -34,3 +34,10 @@ supabase/.temp/
 
 # Local Netlify folder
 .netlify
+
+# Personal Obsidian vaults / notes (not project source)
+/Obsidian/
+/Pharmasync Vault/
+
+# Scratch/diagnostic scripts
+*.tmp.mjs

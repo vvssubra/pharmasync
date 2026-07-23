@@ -15,6 +15,10 @@ const CreateUserSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6).max(72),
   role: z.enum(ALLOWED_ROLES),
+  // Only required (and honoured) when the caller is super_admin — a plain
+  // clinic-scoped admin can only create users for their own clinic, which
+  // the server resolves itself (see step 4 below).
+  clinic_id: z.string().uuid().optional(),
 });
 
 const ResetPasswordSchema = z.object({
@@ -54,9 +58,9 @@ Deno.serve(async (req) => {
     );
   }
 
-  // ── 2. Role check: admin only ──────────────────────────────────────────────
+  // ── 2. Role check: admin or super_admin only ──────────────────────────────
   const callerRole = await getUserRole(userId!);
-  if (callerRole !== "admin") {
+  if (callerRole !== "admin" && callerRole !== "super_admin") {
     return new Response(
       JSON.stringify({ error: "Unauthorized: admin role required" }),
       { status: 403, headers: { ...cors, "Content-Type": "application/json" } },
@@ -110,15 +114,43 @@ Deno.serve(async (req) => {
     );
   }
 
-  const { full_name, email, password, role } = parsed.data;
+  const { full_name, email, password, role, clinic_id } = parsed.data;
   const supabase = adminClient();
 
-  // ── 4. Create auth user ────────────────────────────────────────────────────
+  // ── 4. Resolve target clinic ────────────────────────────────────────────────
+  // A plain admin is clinic-scoped and can only create users for their own
+  // clinic — resolved server-side, any clinic_id they pass is ignored.
+  // super_admin manages all clinics, so they must specify one explicitly.
+  let targetClinicId: string;
+  if (callerRole === "super_admin") {
+    if (!clinic_id) {
+      return new Response(
+        JSON.stringify({ error: "clinic_id is required for super_admin" }),
+        { status: 400, headers: { ...cors, "Content-Type": "application/json" } },
+      );
+    }
+    targetClinicId = clinic_id;
+  } else {
+    const { data: callerProfile, error: profileError } = await supabase
+      .from("profiles")
+      .select("clinic_id")
+      .eq("user_id", userId!)
+      .single();
+    if (profileError || !callerProfile?.clinic_id) {
+      return new Response(
+        JSON.stringify({ error: "Could not resolve caller's clinic" }),
+        { status: 500, headers: { ...cors, "Content-Type": "application/json" } },
+      );
+    }
+    targetClinicId = callerProfile.clinic_id as string;
+  }
+
+  // ── 5. Create auth user ────────────────────────────────────────────────────
   const { data: newUser, error: createError } = await supabase.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
-    user_metadata: { full_name },
+    user_metadata: { full_name, clinic_id: targetClinicId },
   });
 
   if (createError) {
@@ -129,7 +161,7 @@ Deno.serve(async (req) => {
     );
   }
 
-  // ── 5. Assign role ─────────────────────────────────────────────────────────
+  // ── 6. Assign role ─────────────────────────────────────────────────────────
   const { error: roleError } = await supabase
     .from("user_roles")
     .upsert({ user_id: newUser.user.id, role }, { onConflict: "user_id" });

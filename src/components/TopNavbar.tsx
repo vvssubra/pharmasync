@@ -18,7 +18,7 @@ export function TopNavbar() {
         <div className="hidden sm:block">
           <p className="shimmer-emerald text-base font-bold leading-tight">PharmaSync</p>
           <p className="text-xs text-muted-foreground">
-            {profile?.facility ?? "Klinik Kesihatan Kempas"}
+            {profile?.clinic_name || "Klinik Kesihatan Kempas"}
           </p>
         </div>
       </div>

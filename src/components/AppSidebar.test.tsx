@@ -55,7 +55,7 @@ function renderSidebar(role: "pharmacist" | "doctor" | "specialist" | "fms") {
   (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
     user: { id: "user-1" },
     role,
-    profile: { full_name: "Test User", facility: "KK Kempas" },
+    profile: { full_name: "Test User", clinic_id: "clinic-1", clinic_name: "KK Kempas" },
     loading: false,
     session: null,
     signOut: vi.fn(),

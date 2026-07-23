@@ -12,7 +12,6 @@ import DrugMaster from "@/pages/DrugMaster";
 import Terimaan from "@/pages/Terimaan";
 import Laporan from "@/pages/Laporan";
 import DrugLedger from "@/pages/DrugLedger";
-import BinCard from "@/pages/BinCard";
 import DoctorLanding from "@/pages/DoctorLanding";
 import DoctorRequest from "@/pages/DoctorRequest";
 import AntibioticForm from "@/pages/AntibioticForm";
@@ -55,7 +54,6 @@ const App = () => (
             <Route path="/" element={<ProtectedRoute><AppLayout><RoleRedirect /></AppLayout></ProtectedRoute>} />
             <Route path="/drugs" element={<ProtectedRoute><AppLayout><DrugMaster /></AppLayout></ProtectedRoute>} />
             <Route path="/drugs/:id/ledger" element={<ProtectedRoute><AppLayout><DrugLedger /></AppLayout></ProtectedRoute>} />
-            <Route path="/drugs/:id/bincard" element={<ProtectedRoute><AppLayout><BinCard /></AppLayout></ProtectedRoute>} />
             <Route path="/terimaan" element={<ProtectedRoute><AppLayout><Terimaan /></AppLayout></ProtectedRoute>} />
             <Route path="/fulfilment" element={<ProtectedRoute><AppLayout><PharmacistFulfilment /></AppLayout></ProtectedRoute>} />
             <Route path="/pesakit" element={<ProtectedRoute><AppLayout><PatientRegistry /></AppLayout></ProtectedRoute>} />

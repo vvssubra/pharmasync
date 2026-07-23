@@ -4,6 +4,7 @@
 // No cloud dependencies — Ollama and the Obsidian vault are both local.
 import { createServer } from "node:http";
 import { pathToFileURL } from "node:url";
+import { timingSafeEqual } from "node:crypto";
 import { config } from "./config.js";
 import { createOllamaClient } from "./ollama.js";
 import { createVaultIndex } from "./vaultIndex.js";
@@ -17,9 +18,15 @@ function corsHeaders(origin, allowedOrigins) {
   };
 }
 
-function isAuthorized(req) {
-  if (!config.knowledgeKey) return true; // no key configured — auth disabled (LAN-trust mode)
-  return req.headers["x-knowledge-key"] === config.knowledgeKey;
+export function isAuthorized(req, knowledgeKey) {
+  if (!knowledgeKey) return true; // no key configured — auth disabled (LAN-trust mode)
+  const provided = req.headers["x-knowledge-key"];
+  if (typeof provided !== "string") return false;
+  const providedBuf = Buffer.from(provided);
+  const expectedBuf = Buffer.from(knowledgeKey);
+  // Constant-time compare — avoids leaking key length/content via response timing.
+  if (providedBuf.length !== expectedBuf.length) return false;
+  return timingSafeEqual(providedBuf, expectedBuf);
 }
 
 async function readJsonBody(req) {
@@ -49,7 +56,7 @@ export function createApp({ vaultIndex, ollama }) {
     }
 
     if (req.method === "POST" && req.url === "/suggest-dose") {
-      if (!isAuthorized(req)) {
+      if (!isAuthorized(req, config.knowledgeKey)) {
         res.writeHead(401, { ...headers, "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "Unauthorized" }));
         return;

@@ -2,11 +2,12 @@ import { createContext, useContext, useEffect, useState, useRef, type ReactNode 
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
-export type AppRole = "admin" | "fms" | "mo" | "pharmacist" | "specialist";
+export type AppRole = "admin" | "fms" | "mo" | "pharmacist" | "specialist" | "super_admin";
 
 interface Profile {
   full_name: string;
-  facility: string;
+  clinic_id: string | null;
+  clinic_name: string;
 }
 
 interface AuthContextValue {
@@ -29,11 +30,17 @@ async function loadProfileAndRole(
   try {
     const { data: profileData } = await supabase
       .from("profiles")
-      .select("full_name, facility")
+      .select("full_name, clinic_id, clinics(name)")
       .eq("user_id", userId)
       .maybeSingle();
 
-    if (profileData) setProfile(profileData);
+    if (profileData) {
+      setProfile({
+        full_name: profileData.full_name,
+        clinic_id: profileData.clinic_id,
+        clinic_name: profileData.clinics?.name ?? "",
+      });
+    }
 
     const { data: roleData, error: roleError } = await supabase
       .from("user_roles")

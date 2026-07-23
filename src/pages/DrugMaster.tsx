@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { FileText, Plus, Search, Pencil, Ban, RotateCcw, BookOpen, CreditCard, CalendarRange, Lock, Unlock, PackagePlus } from "lucide-react";
+import { FileText, Plus, Search, Pencil, Ban, RotateCcw, BookOpen, CalendarRange, Lock, Unlock, PackagePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -187,7 +187,7 @@ export default function DrugMaster() {
                         <button
                           type="button"
                           className="text-left cursor-pointer hover:text-primary hover:underline underline-offset-2 transition-colors min-h-[44px] flex items-center"
-                          onClick={() => navigate(`/drugs/${drug.id}/bincard`)}
+                          onClick={() => navigate(`/drugs/${drug.id}/ledger`)}
                         >
                           {drug.drug_name}
                         </button>
@@ -220,9 +220,6 @@ export default function DrugMaster() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => navigate(`/drugs/${drug.id}/bincard`)} title="View Card">
-                            <CreditCard className="h-4 w-4" />
-                          </Button>
                           <Button variant="ghost" size="icon" onClick={() => navigate(`/drugs/${drug.id}/ledger`)} title="View Ledger">
                             <BookOpen className="h-4 w-4" />
                           </Button>

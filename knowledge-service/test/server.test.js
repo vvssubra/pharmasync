@@ -2,6 +2,11 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { createApp } from "../src/server.js";
+import { config } from "../src/config.js";
+
+// Send the configured shared-secret header on every request so these tests
+// pass regardless of whether the local .env has KNOWLEDGE_KEY set.
+const authHeaders = config.knowledgeKey ? { "x-knowledge-key": config.knowledgeKey } : {};
 
 function fakeVaultIndex(matches) {
   return {
@@ -40,7 +45,7 @@ test("POST /suggest-dose returns matches for a valid query", async () => {
   await withServer(app, async (base) => {
     const resp = await fetch(`${base}/suggest-dose`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ query: "ear infection" }),
     });
     assert.equal(resp.status, 200);
@@ -54,7 +59,7 @@ test("POST /suggest-dose returns a message when there are no matches", async () 
   await withServer(app, async (base) => {
     const resp = await fetch(`${base}/suggest-dose`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({ query: "nonsense" }),
     });
     assert.equal(resp.status, 200);
@@ -69,10 +74,23 @@ test("POST /suggest-dose rejects a missing query", async () => {
   await withServer(app, async (base) => {
     const resp = await fetch(`${base}/suggest-dose`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...authHeaders },
       body: JSON.stringify({}),
     });
     assert.equal(resp.status, 400);
+  });
+});
+
+test("POST /suggest-dose rejects a request missing the shared-secret header when one is configured", async (t) => {
+  if (!config.knowledgeKey) t.skip("no KNOWLEDGE_KEY configured in this environment");
+  const app = createApp({ vaultIndex: fakeVaultIndex([]), ollama: fakeOllama(true) });
+  await withServer(app, async (base) => {
+    const resp = await fetch(`${base}/suggest-dose`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: "ear infection" }),
+    });
+    assert.equal(resp.status, 401);
   });
 });
 
