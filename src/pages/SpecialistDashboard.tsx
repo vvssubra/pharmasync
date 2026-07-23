@@ -23,6 +23,9 @@ import {
 import {
   Collapsible, CollapsibleContent, CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { AntibioticFormReadOnly } from "@/components/AntibioticFormReadOnly";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { quotaBadgeState, QUOTA_BADGE_CLASS, QUOTA_BADGE_LABEL } from "@/lib/quotaHelpers";
@@ -48,13 +51,22 @@ function formatIC(ic: string) {
 }
 
 export default function SpecialistDashboard() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const [approveTarget, setApproveTarget] = useState<any>(null);
   const [rejectTarget, setRejectTarget] = useState<any>(null);
   const [notes, setNotes] = useState("");
   const [rejectReason, setRejectReason] = useState("");
-  const [borrowFacility, setBorrowFacility] = useState("");
+  const [borrowClinicId, setBorrowClinicId] = useState("");
+
+  const { data: otherClinics } = useQuery({
+    queryKey: ["clinics-borrow-picker", profile?.clinic_id],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("clinics").select("id, name").order("name");
+      if (error) throw error;
+      return (data ?? []).filter(c => c.id !== profile?.clinic_id);
+    },
+  });
 
   // Antibiotic states
   const [abApproveTarget, setAbApproveTarget] = useState<any>(null);
@@ -202,7 +214,7 @@ export default function SpecialistDashboard() {
           specialist_id: user?.id,
           specialist_action_at: new Date().toISOString(),
           specialist_notes: notes || null,
-          borrowed_from_facility: borrowFacility.trim() || null,
+          borrowed_from_clinic_id: borrowClinicId || null,
         })
         .eq("id", approveTarget.id);
       if (error) throw error;
@@ -211,7 +223,7 @@ export default function SpecialistDashboard() {
       toast.success("Request approved");
       setApproveTarget(null);
       setNotes("");
-      setBorrowFacility("");
+      setBorrowClinicId("");
       queryClient.invalidateQueries({ queryKey: ["specialist-requests"] });
       queryClient.invalidateQueries({ queryKey: ["specialist-quota-counts"] });
       queryClient.invalidateQueries({ queryKey: ["specialist-drug-quotas"] });
@@ -557,7 +569,7 @@ export default function SpecialistDashboard() {
       </Tabs>
 
       {/* Drug Approve Dialog */}
-      <Dialog open={!!approveTarget} onOpenChange={(open) => { if (!open) { setApproveTarget(null); setNotes(""); setBorrowFacility(""); } }}>
+      <Dialog open={!!approveTarget} onOpenChange={(open) => { if (!open) { setApproveTarget(null); setNotes(""); setBorrowClinicId(""); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Approve Request</DialogTitle></DialogHeader>
           {approveTarget && (
@@ -576,13 +588,17 @@ export default function SpecialistDashboard() {
                     </AlertDescription>
                   </Alert>
                   <div className="space-y-2">
-                    <Label htmlFor="borrow-facility">Borrowing quota from facility</Label>
-                    <Input
-                      id="borrow-facility"
-                      placeholder="Enter facility name"
-                      value={borrowFacility}
-                      onChange={e => setBorrowFacility(e.target.value)}
-                    />
+                    <Label htmlFor="borrow-clinic">Borrowing quota from clinic</Label>
+                    <Select value={borrowClinicId} onValueChange={setBorrowClinicId}>
+                      <SelectTrigger id="borrow-clinic">
+                        <SelectValue placeholder="Select clinic" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {otherClinics?.map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </>
               )}
@@ -593,11 +609,11 @@ export default function SpecialistDashboard() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setApproveTarget(null); setNotes(""); setBorrowFacility(""); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setApproveTarget(null); setNotes(""); setBorrowClinicId(""); }}>Cancel</Button>
             <Button
               className="bg-green-600 hover:bg-green-700 text-white"
               onClick={() => approveMutation.mutate()}
-              disabled={approveMutation.isPending || (isQuotaExhausted && borrowFacility.trim() === "")}
+              disabled={approveMutation.isPending || (isQuotaExhausted && !borrowClinicId)}
             >
               {approveMutation.isPending ? "Processing..." : "Confirm Approval"}
             </Button>

@@ -46,7 +46,7 @@ function renderDoctorRequest() {
   (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
     user: { id: "doctor-1" },
     role: "doctor",
-    profile: { full_name: "Dr. Ahmad", facility: "KK Kempas" },
+    profile: { full_name: "Dr. Ahmad", clinic_id: "clinic-1", clinic_name: "KK Kempas" },
     loading: false,
     session: null,
     signOut: vi.fn(),

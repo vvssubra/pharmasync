@@ -212,7 +212,6 @@ export default function DrugLedger() {
           <span>Code No.: <strong className="text-foreground">{drug.no_kod || "-"}</strong></span>
           <span>Unit: <strong className="text-foreground capitalize">{drug.unit_pengukuran}</strong></span>
           <span>Group: <strong className="text-foreground">{drug.kumpulan || "-"}</strong></span>
-          <span>Location: <strong className="text-foreground">{drug.kod_lokasi_penuh || "-"}</strong></span>
           <span>Stock Levels: <strong className="text-foreground">{drug.stok_min}/{drug.stok_reorder}/{drug.stok_max}</strong></span>
         </div>
       </div>

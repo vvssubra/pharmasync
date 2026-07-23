@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Check, Loader2, Lock, Pill, ShieldCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -7,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import PharmaMatrix from "@/components/ui/pharma-matrix";
 
 export default function Login() {
@@ -14,7 +16,19 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [clinicId, setClinicId] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  // Clinic picker for signup — clinics table is anon-readable so this loads
+  // before the user is authenticated.
+  const { data: clinics } = useQuery({
+    queryKey: ["clinics-signup"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("clinics").select("id, name").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
   const [submitting, setSubmitting] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [forgotMode, setForgotMode] = useState(false);
@@ -51,7 +65,7 @@ export default function Login() {
     const { error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { full_name: fullName } },
+      options: { data: { full_name: fullName, clinic_id: clinicId } },
     });
     if (error) setError(error.message);
     setSubmitting(false);
@@ -344,6 +358,19 @@ export default function Login() {
                       />
                     </div>
                     <div className="space-y-1.5">
+                      <Label htmlFor="signup-clinic" className={labelClass}>Clinic</Label>
+                      <Select value={clinicId} onValueChange={setClinicId} required>
+                        <SelectTrigger id="signup-clinic" className={inputClass}>
+                          <SelectValue placeholder="Select your clinic" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {clinics?.map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5">
                       <Label htmlFor="signup-email" className={labelClass}>Email</Label>
                       <Input
                         id="signup-email"
@@ -378,7 +405,7 @@ export default function Login() {
                     <Button
                       type="submit"
                       className={primaryBtn}
-                      disabled={submitting}
+                      disabled={submitting || !clinicId}
                       aria-describedby={error ? "signup-error" : undefined}
                     >
                       {submitting ? (<><Loader2 className="h-4 w-4 animate-spin" /> Creating account…</>) : "Create Account"}

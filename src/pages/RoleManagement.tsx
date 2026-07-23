@@ -21,7 +21,8 @@ type UserWithRole = {
   user_id: string;
   email: string;
   full_name: string;
-  facility: string | null;
+  clinic_id: string | null;
+  clinic_name: string | null;
   role: string | null;
 };
 
@@ -42,7 +43,8 @@ const ROLE_BADGE_CLASSES: Record<string, string> = {
 };
 
 export default function RoleManagement() {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, role: currentRole } = useAuth();
+  const isSuperAdmin = currentRole === "super_admin";
   const queryClient = useQueryClient();
   const [pendingRole, setPendingRole] = useState<Record<string, string>>({});
 
@@ -51,7 +53,20 @@ export default function RoleManagement() {
   const [newEmail, setNewEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newRole, setNewRole] = useState<string>("mo");
+  const [newClinicId, setNewClinicId] = useState("");
   const [addUserError, setAddUserError] = useState<string | null>(null);
+
+  // Clinic picker — only shown/required for super_admin (a plain admin can
+  // only create users for their own clinic, resolved server-side).
+  const { data: clinics } = useQuery({
+    queryKey: ["clinics-role-mgmt"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("clinics").select("id, name").order("name");
+      if (error) throw error;
+      return data;
+    },
+    enabled: isSuperAdmin,
+  });
 
   const [resetOpen, setResetOpen] = useState(false);
   const [resetTarget, setResetTarget] = useState<{ id: string; email: string } | null>(null);
@@ -102,6 +117,7 @@ export default function RoleManagement() {
           email: newEmail.trim(),
           password: newPassword,
           role: newRole,
+          ...(isSuperAdmin ? { clinic_id: newClinicId } : {}),
         }),
       });
       const json = await res.json();
@@ -112,7 +128,7 @@ export default function RoleManagement() {
       queryClient.invalidateQueries({ queryKey: ["all-users-with-roles"] });
       toast.success("User created successfully.");
       setAddUserOpen(false);
-      setNewName(""); setNewEmail(""); setNewPassword(""); setNewRole("mo");
+      setNewName(""); setNewEmail(""); setNewPassword(""); setNewRole("mo"); setNewClinicId("");
       setAddUserError(null);
     },
     onError: (err: Error) => {
@@ -192,8 +208,8 @@ export default function RoleManagement() {
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{u.full_name || "—"}</p>
                       <p className="text-xs text-muted-foreground truncate">{u.email}</p>
-                      {u.facility && (
-                        <p className="text-xs text-muted-foreground">{u.facility}</p>
+                      {u.clinic_name && (
+                        <p className="text-xs text-muted-foreground">{u.clinic_name}</p>
                       )}
                     </div>
 
@@ -352,6 +368,21 @@ export default function RoleManagement() {
                 </SelectContent>
               </Select>
             </div>
+            {isSuperAdmin && (
+              <div className="space-y-2">
+                <Label htmlFor="add-clinic">Clinic</Label>
+                <Select value={newClinicId} onValueChange={setNewClinicId}>
+                  <SelectTrigger id="add-clinic">
+                    <SelectValue placeholder="Select clinic" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clinics?.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {addUserError && (
               <p className="text-sm text-destructive">{addUserError}</p>
             )}
@@ -359,7 +390,7 @@ export default function RoleManagement() {
               <Button type="button" variant="outline" onClick={() => setAddUserOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={createUser.isPending}>
+              <Button type="submit" disabled={createUser.isPending || (isSuperAdmin && !newClinicId)}>
                 {createUser.isPending ? "Creating…" : "Create User"}
               </Button>
             </DialogFooter>

@@ -45,6 +45,25 @@ match — so keep it precise; it's the source of truth for the dose.
 
 See `vault-sample/` for working examples (also used by automated tests).
 
+### Authoring the vault from PDF guidelines
+
+Most dosing guidance starts life as a PDF (e.g. NAG 2024 pathway documents).
+To turn a PDF into a note:
+
+1. Open the PDF and copy the relevant dosing paragraph for one
+   `drug × indication × patient_group` combination.
+2. In Obsidian, create a new note (or use the *Importer* community plugin to
+   convert the whole PDF to markdown first, then split it into per-drug notes
+   — one topic per note keeps matches precise).
+3. Add the frontmatter block shown above, then paste the dose text **verbatim**
+   as the body — do not paraphrase or summarise; the body is shown exactly as
+   written when it's the best match.
+4. Save. The running sidecar picks up the new/changed file within seconds
+   (chokidar watch) and embeds it automatically — no restart needed.
+5. Repeat per drug/indication/patient_group. It's fine to have several notes
+   for the same indication (e.g. penicillin-allergic alternative) — cosine
+   ranking picks the closest one to the query.
+
 ## 3. Configure and run the sidecar
 
 ```
@@ -111,3 +130,16 @@ Uses Node's built-in test runner with a fake deterministic embedding client
 This sidecar only powers the antibiotic-form dosing lookup. It does not
 replace or modify the existing (currently disabled) Anthropic-based
 `ai-query` / `pathway-check` Supabase edge functions.
+
+## Frontend wiring
+
+The `/request/antibiotik` form calls this sidecar directly (see
+`src/lib/knowledgeClient.ts`, `src/hooks/useDoseSuggestion.ts`,
+`src/lib/doseQuery.ts`). As the doctor ticks the clinical-pathway checklist
+(Pneumonia, AOM, Pharyngitis, Rhinosinusitis, SSTI, UTI) past its clinical
+threshold, the form derives a dose query and, once a match clears
+`MATCH_THRESHOLD`, shows the verbatim note in a suggestion card above the
+dosing field and auto-fills the field if it's still empty. Set
+`VITE_KNOWLEDGE_ENABLED="true"` and `VITE_KNOWLEDGE_URL` in the app's `.env`
+to turn this on — it's independent of `VITE_AI_ENABLED` (the cloud track),
+so it works fully offline in the self-hosted office install.
