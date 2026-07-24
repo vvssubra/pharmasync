@@ -44,9 +44,9 @@ export function AppSidebar() {
   const { role } = useAuth();
   const collapsed = state === "collapsed";
 
-  const visibleItems = role ? items.filter((item) => item.roles.includes(role)) : [];
+  const visibleItems = role ? items.filter((item) => role === "super_admin" || item.roles.includes(role)) : [];
 
-  const canSeeFulfilment = role === "admin" || role === "fms" || role === "pharmacist";
+  const canSeeFulfilment = role === "admin" || role === "fms" || role === "pharmacist" || role === "super_admin";
 
   // Pending ubat kawalan count (for pharmacist fulfilment queue)
   const { data: pendingCount = 0 } = useQuery({
@@ -66,7 +66,7 @@ export function AppSidebar() {
   // Pending specialist approval count (drug requests + antibiotic forms awaiting FMS)
   const { data: specialistBadge = 0 } = useQuery({
     queryKey: ["pending-specialist-badge-count"],
-    enabled: role === "admin" || role === "fms",
+    enabled: role === "admin" || role === "fms" || role === "super_admin",
     refetchInterval: 15000,
     queryFn: async () => {
       const [{ count: drugCount, error: drugError }, { data: abData, error: abError }] =

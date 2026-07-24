@@ -237,17 +237,17 @@ export default function DrugMaster() {
                           >
                             {drug.is_active ? <Ban className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
                           </Button>
-                          {role === "admin" && (
+                          {(role === "admin" || role === "super_admin") && (
                             <Button variant="ghost" size="icon" className="h-7 w-7" title="Set Annual Quota" onClick={() => setQuotaTarget(drug)}>
                               <CalendarRange className="h-3.5 w-3.5" />
                             </Button>
                           )}
-                          {role === "admin" && quotaRow && (
+                          {(role === "admin" || role === "super_admin") && quotaRow && (
                             <Button variant="ghost" size="icon" className="h-7 w-7" title="Replenish Quota" onClick={() => setReplenishTarget(drug)}>
                               <PackagePlus className="h-3.5 w-3.5" />
                             </Button>
                           )}
-                          {role === "admin" && (
+                          {(role === "admin" || role === "super_admin") && (
                             <Button
                               variant="ghost"
                               size="icon"
