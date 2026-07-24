@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import PharmaMatrix from "@/components/ui/pharma-matrix";
 
 export default function Login() {
-  const { user, loading } = useAuth();
+  const { user, loading, authError } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
@@ -76,7 +76,10 @@ export default function Login() {
     setGoogleLoading(true);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${window.location.origin}/` },
+      options: {
+        redirectTo: `${window.location.origin}/`,
+        queryParams: { hd: "moh.gov.my" },
+      },
     });
     if (error) setError(error.message);
     setGoogleLoading(false);
@@ -297,16 +300,16 @@ export default function Login() {
                         className={inputClass}
                       />
                     </div>
-                    {error && (
+                    {(error || authError) && (
                       <p id="login-error" role="alert" aria-live="polite" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
-                        {error}
+                        {error || authError}
                       </p>
                     )}
                     <Button
                       type="submit"
                       className={primaryBtn}
                       disabled={submitting}
-                      aria-describedby={error ? "login-error" : undefined}
+                      aria-describedby={(error || authError) ? "login-error" : undefined}
                     >
                       {submitting ? (<><Loader2 className="h-4 w-4 animate-spin" /> Signing in…</>) : "Sign In"}
                     </Button>
