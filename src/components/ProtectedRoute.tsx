@@ -8,17 +8,17 @@ import { PendingApproval } from "@/components/PendingApproval";
 
 /** Declares which roles can access each route prefix. */
 const ROUTE_PERMISSIONS: Array<{ prefix: string; roles: AppRole[] }> = [
-  { prefix: "/role-management", roles: ["admin"] },
-  { prefix: "/fms",             roles: ["admin", "fms", "pharmacist"] },
-  { prefix: "/mo",              roles: ["admin", "mo", "pharmacist"] },
-  { prefix: "/request",         roles: ["admin", "mo", "pharmacist"] },
-  { prefix: "/specialist",      roles: ["admin", "fms"] },
-  { prefix: "/fulfilment",      roles: ["admin", "fms", "pharmacist"] },
-  { prefix: "/drugs",           roles: ["admin", "fms", "pharmacist"] },
-  { prefix: "/terimaan",        roles: ["admin", "fms", "pharmacist"] },
-  { prefix: "/pesakit",         roles: ["admin", "fms", "pharmacist"] },
-  { prefix: "/laporan",         roles: ["admin", "fms", "pharmacist"] },
-  { prefix: "/",                roles: ["admin", "fms", "mo", "pharmacist"] },
+  { prefix: "/role-management", roles: ["admin", "super_admin"] },
+  { prefix: "/fms",             roles: ["admin", "fms", "pharmacist", "super_admin"] },
+  { prefix: "/mo",              roles: ["admin", "mo", "pharmacist", "super_admin"] },
+  { prefix: "/request",         roles: ["admin", "mo", "pharmacist", "super_admin"] },
+  { prefix: "/specialist",      roles: ["admin", "fms", "super_admin"] },
+  { prefix: "/fulfilment",      roles: ["admin", "fms", "pharmacist", "super_admin"] },
+  { prefix: "/drugs",           roles: ["admin", "fms", "pharmacist", "super_admin"] },
+  { prefix: "/terimaan",        roles: ["admin", "fms", "pharmacist", "super_admin"] },
+  { prefix: "/pesakit",         roles: ["admin", "fms", "pharmacist", "super_admin"] },
+  { prefix: "/laporan",         roles: ["admin", "fms", "pharmacist", "super_admin"] },
+  { prefix: "/",                roles: ["admin", "fms", "mo", "pharmacist", "super_admin"] },
 ];
 
 function getAllowedRoles(pathname: string): AppRole[] {
@@ -27,7 +27,7 @@ function getAllowedRoles(pathname: string): AppRole[] {
       return roles;
     }
   }
-  return ["admin", "pharmacist"];
+  return ["admin", "pharmacist", "super_admin"];
 }
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
