@@ -83,7 +83,17 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  const dataContext = await fetchDataContext(supabase, userId!, role);
+  const { data: callerProfile, error: profileError } = await supabase
+    .from("profiles")
+    .select("clinic_id")
+    .eq("user_id", userId!)
+    .maybeSingle();
+  if (profileError || !callerProfile?.clinic_id) {
+    return new Response(JSON.stringify({ error: "Unauthorized: no clinic assigned" }), { status: 403, headers: { ...cors, "Content-Type": "application/json" } });
+  }
+  const clinicId = callerProfile.clinic_id as string;
+
+  const dataContext = await fetchDataContext(supabase, userId!, role, clinicId);
 
   // ── 7. Build system prompt ────────────────────────────────────────────────
   const systemPrompt = buildSystemPrompt(role, dataContext);
@@ -128,18 +138,23 @@ Deno.serve(async (req) => {
 });
 
 // ── Data fetchers ─────────────────────────────────────────────────────────────
-async function fetchDataContext(supabase: ReturnType<typeof createClient>, userId: string, role: string): Promise<object> {
+async function fetchDataContext(supabase: ReturnType<typeof createClient>, userId: string, role: string, clinicId: string): Promise<object> {
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const since = thirtyDaysAgo.toISOString();
   const currentYear = new Date().getFullYear();
 
+  // drugs is a shared formulary (no clinic_id) — reads stay unscoped by design.
+  // Every other table here is clinic-scoped data; this function uses the
+  // service-role client (RLS bypassed), so clinicId must be applied explicitly
+  // on each query or one clinic's staff can read another clinic's patients.
+
   if (role === "admin" || role === "fms") {
     const [drugsResult, requestsResult, antibioticResult, quotasResult] = await Promise.all([
       supabase.from("drugs").select("drug_name, unit_pengukuran, perlu_kelulusan_pakar, is_active").eq("is_active", true).order("drug_name"),
-      supabase.from("dispensing_requests").select("patient_name, status, created_at, drugs(drug_name)").gte("created_at", since).order("created_at", { ascending: false }),
-      supabase.from("antibiotic_forms").select("patient_name, status, diagnosis, created_at").gte("created_at", since).order("created_at", { ascending: false }),
-      supabase.from("drug_quotas").select("quota_limit, year, drugs(drug_name)").eq("year", currentYear),
+      supabase.from("dispensing_requests").select("patient_name, status, created_at, drugs(drug_name)").eq("clinic_id", clinicId).gte("created_at", since).order("created_at", { ascending: false }),
+      supabase.from("antibiotic_forms").select("patient_name, status, diagnosis, created_at").eq("clinic_id", clinicId).gte("created_at", since).order("created_at", { ascending: false }),
+      supabase.from("drug_quotas").select("quota_limit, year, drugs(drug_name)").eq("clinic_id", clinicId).eq("year", currentYear),
     ]);
     if (drugsResult.error) console.error("Supabase drugs query error:", drugsResult.error.message);
     if (requestsResult.error) console.error("Supabase dispensing_requests query error:", requestsResult.error.message);
@@ -156,7 +171,7 @@ async function fetchDataContext(supabase: ReturnType<typeof createClient>, userI
   if (role === "pharmacist") {
     const [drugsResult, requestsResult] = await Promise.all([
       supabase.from("drugs").select("drug_name, unit_pengukuran, is_active").eq("is_active", true).order("drug_name"),
-      supabase.from("dispensing_requests").select("patient_name, status, created_at, drugs(drug_name)").gte("created_at", since),
+      supabase.from("dispensing_requests").select("patient_name, status, created_at, drugs(drug_name)").eq("clinic_id", clinicId).gte("created_at", since),
     ]);
     if (drugsResult.error) console.error("Supabase drugs query error:", drugsResult.error.message);
     if (requestsResult.error) console.error("Supabase dispensing_requests query error:", requestsResult.error.message);
@@ -169,7 +184,7 @@ async function fetchDataContext(supabase: ReturnType<typeof createClient>, userI
   if (role === "mo") {
     const [myRequestsResult, quotasResult] = await Promise.all([
       supabase.from("dispensing_requests").select("patient_name, status, created_at, drugs(drug_name)").eq("submitted_by", userId).gte("created_at", since),
-      supabase.from("drug_quotas").select("quota_limit, year, drugs(drug_name)").eq("year", currentYear),
+      supabase.from("drug_quotas").select("quota_limit, year, drugs(drug_name)").eq("clinic_id", clinicId).eq("year", currentYear),
     ]);
     if (myRequestsResult.error) console.error("Supabase dispensing_requests query error:", myRequestsResult.error.message);
     if (quotasResult.error) console.error("Supabase drug_quotas query error:", quotasResult.error.message);
