@@ -16,10 +16,17 @@ interface AuthContextValue {
   profile: Profile | null;
   role: AppRole | null;
   loading: boolean;
+  authError: string | null;
   signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+const ALLOWED_EMAIL_DOMAIN = "moh.gov.my";
+
+function isAllowedEmail(email: string | null | undefined) {
+  return !!email && email.toLowerCase().endsWith(`@${ALLOWED_EMAIL_DOMAIN}`);
+}
 
 async function loadProfileAndRole(
   userId: string,
@@ -63,10 +70,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [loading, setLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
   const loadingForUser = useRef<string | null>(null);
 
   useEffect(() => {
     function handleSession(sess: Session | null) {
+      if (sess?.user?.app_metadata?.provider === "google" && !isAllowedEmail(sess.user.email)) {
+        setAuthError(`Only @${ALLOWED_EMAIL_DOMAIN} Google accounts are allowed.`);
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setRole(null);
+        setLoading(false);
+        loadingForUser.current = null;
+        supabase.auth.signOut();
+        return;
+      }
+
+      setAuthError(null);
       setSession(sess);
       setUser(sess?.user ?? null);
       if (!sess?.user) {
@@ -99,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, profile, role, loading, signOut }}>
+    <AuthContext.Provider value={{ user, session, profile, role, loading, authError, signOut }}>
       {children}
     </AuthContext.Provider>
   );
