@@ -17,6 +17,7 @@ import DoctorRequest from "@/pages/DoctorRequest";
 import AntibioticForm from "@/pages/AntibioticForm";
 import SpecialistDashboard from "@/pages/SpecialistDashboard";
 import PharmacistFulfilment from "@/pages/PharmacistFulfilment";
+import AntibioticArchive from "@/pages/AntibioticArchive";
 import PatientRegistry from "@/pages/PatientRegistry";
 import RoleManagement from "@/pages/RoleManagement";
 import ResetPassword from "@/pages/ResetPassword";
@@ -56,6 +57,7 @@ const App = () => (
             <Route path="/drugs/:id/ledger" element={<ProtectedRoute><AppLayout><DrugLedger /></AppLayout></ProtectedRoute>} />
             <Route path="/terimaan" element={<ProtectedRoute><AppLayout><Terimaan /></AppLayout></ProtectedRoute>} />
             <Route path="/fulfilment" element={<ProtectedRoute><AppLayout><PharmacistFulfilment /></AppLayout></ProtectedRoute>} />
+            <Route path="/arkib-antibiotik" element={<ProtectedRoute><AppLayout><AntibioticArchive /></AppLayout></ProtectedRoute>} />
             <Route path="/pesakit" element={<ProtectedRoute><AppLayout><PatientRegistry /></AppLayout></ProtectedRoute>} />
             <Route path="/laporan" element={<ProtectedRoute><AppLayout><Laporan /></AppLayout></ProtectedRoute>} />
             <Route path="/role-management" element={<ProtectedRoute><AppLayout><RoleManagement /></AppLayout></ProtectedRoute>} />
