@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { getErrorMessage } from "@/lib/errors";
 
 const FMS_OPTIONS = ["Dr Amelia", "Dr Muslim"] as const;
 
@@ -188,8 +189,7 @@ export default function AntibioticForm() {
       setSubmitted({ patient_name: patientName, patient_ic: patientIC, diagnosis });
     } catch (error) {
       console.error("Antibiotic form submission failed:", error);
-      const message = error instanceof Error ? error.message : "Failed to submit form";
-      toast.error(message);
+      toast.error(getErrorMessage(error, "Failed to submit form"));
     } finally {
       setSubmitting(false);
     }
