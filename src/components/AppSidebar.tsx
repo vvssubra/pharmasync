@@ -36,7 +36,7 @@ const items: NavItem[] = [
   { title: "Reports",         url: "/laporan",            icon: FileText,      roles: ["admin", "fms", "pharmacist"] },
   { title: "Drug Request",    url: "/request/ubat",       icon: ClipboardList, roles: ["admin", "mo", "pharmacist"] },
   { title: "Antibiotic Form", url: "/request/antibiotik", icon: Pill,          roles: ["admin", "mo", "pharmacist"] },
-  { title: "Role Management", url: "/role-management",    icon: UserCog,       roles: ["admin"] },
+  { title: "Role Management", url: "/role-management",    icon: UserCog,       showBadge: true, roles: ["admin"] },
 ];
 
 export function AppSidebar() {
@@ -85,9 +85,22 @@ export function AppSidebar() {
     },
   });
 
+  // Unassigned user count (admins need to assign a role to new signups)
+  const { data: unassignedCount = 0 } = useQuery({
+    queryKey: ["unassigned-user-count"],
+    enabled: role === "admin",
+    refetchInterval: 15000,
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_unassigned_user_count");
+      if (error) return 0;
+      return data ?? 0;
+    },
+  });
+
   const badgeByUrl: Record<string, number> = {
     "/fulfilment": pendingCount,
     "/specialist": specialistBadge,
+    "/role-management": unassignedCount,
   };
 
   return (
