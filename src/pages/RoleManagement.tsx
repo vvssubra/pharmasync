@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { UserCog, Users, Plus, KeyRound } from "lucide-react";
+import { UserCog, Users, Plus, KeyRound, UserPlus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getErrorMessage } from "@/lib/errors";
 
 const ADMIN_MGMT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-user-mgmt`;
 
@@ -24,6 +25,10 @@ type UserWithRole = {
   clinic_id: string | null;
   clinic_name: string | null;
   role: string | null;
+  // Clinic the user asked for at signup — a request, not a grant. Null for
+  // OAuth signups, which carry no clinic metadata at all.
+  pending_clinic_id: string | null;
+  pending_clinic_name: string | null;
 };
 
 const ROLE_LABELS: Record<string, string> = {
@@ -34,6 +39,14 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 const ASSIGNABLE_ROLES = ["admin", "fms", "mo", "pharmacist"] as const;
+
+// The user_roles.role column is the Postgres `app_role` enum, so a plain string
+// cannot be upserted. Narrow whatever the Select produced back to a real role.
+type AssignableRole = (typeof ASSIGNABLE_ROLES)[number];
+
+function isAssignableRole(value: string): value is AssignableRole {
+  return (ASSIGNABLE_ROLES as readonly string[]).includes(value);
+}
 
 const ROLE_BADGE_CLASSES: Record<string, string> = {
   admin:      "bg-purple-100 text-purple-700 border-purple-300",
@@ -68,6 +81,10 @@ export default function RoleManagement() {
     enabled: isSuperAdmin,
   });
 
+  // Pending approval — role and clinic chosen per user before approving.
+  const [approveRole, setApproveRole] = useState<Record<string, string>>({});
+  const [approveClinic, setApproveClinic] = useState<Record<string, string>>({});
+
   const [resetOpen, setResetOpen] = useState(false);
   const [resetTarget, setResetTarget] = useState<{ id: string; email: string } | null>(null);
   const [resetPassword, setResetPassword] = useState("");
@@ -76,7 +93,10 @@ export default function RoleManagement() {
   const { data: users = [], isLoading } = useQuery<UserWithRole[]>({
     queryKey: ["all-users-with-roles"],
     queryFn: async () => {
-      const { data, error } = await supabase.rpc("get_all_users_with_roles" as any);
+      // Not in the generated types, same as approve_clinic_member below.
+      const rpc = supabase.rpc as unknown as
+        (fn: string) => Promise<{ data: unknown; error: { message: string } | null }>;
+      const { data, error } = await rpc("get_all_users_with_roles");
       if (error) throw error;
       return (data as UserWithRole[]) ?? [];
     },
@@ -88,6 +108,7 @@ export default function RoleManagement() {
         const { error } = await supabase.from("user_roles").delete().eq("user_id", userId);
         if (error) throw error;
       } else {
+        if (!isAssignableRole(role)) throw new Error(`Unknown role: ${role}`);
         const { error } = await supabase
           .from("user_roles")
           .upsert({ user_id: userId, role }, { onConflict: "user_id" });
@@ -161,6 +182,37 @@ export default function RoleManagement() {
     onError: (err: Error) => setResetError(err.message),
   });
 
+  // A user with no clinic cannot read or write anything clinic-scoped —
+  // stamp_clinic_id() raises on every insert — so these are shown apart from
+  // the working membership rather than as rows with a blank clinic.
+  const pendingUsers = users.filter(u => u.clinic_id === null);
+  const activeUsers = users.filter(u => u.clinic_id !== null);
+
+  const approveMember = useMutation({
+    mutationFn: async ({ userId, role, clinicId }: { userId: string; role: string; clinicId: string | null }) => {
+      // approve_clinic_member is newer than the generated types, so the client's
+      // rpc overloads don't know it.
+      const rpc = supabase.rpc as unknown as
+        (fn: string, args: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
+      const { error } = await rpc("approve_clinic_member", {
+        target_user: userId,
+        target_role: role,
+        target_clinic: clinicId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: (_data, { userId }) => {
+      queryClient.invalidateQueries({ queryKey: ["all-users-with-roles"] });
+      queryClient.invalidateQueries({ queryKey: ["unassigned-user-count"] });
+      setApproveRole(prev => { const next = { ...prev }; delete next[userId]; return next; });
+      setApproveClinic(prev => { const next = { ...prev }; delete next[userId]; return next; });
+      toast.success("User approved.");
+    },
+    // The RPC raises with text written for the admin reading it ("Your own
+    // profile has no clinic…"), so pass it straight through.
+    onError: (err: unknown) => toast.error(getErrorMessage(err, "Failed to approve user.")),
+  });
+
   const isSelf = (userId: string) => userId === currentUser?.id;
 
   return (
@@ -175,13 +227,107 @@ export default function RoleManagement() {
         </p>
       </div>
 
-      <Card>
+      {!isLoading && pendingUsers.length > 0 && (
+        <Card data-testid="pending-approval-card" className="border-amber-300">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <UserPlus className="h-4 w-4 text-amber-600" />
+              Pending Approval
+              <Badge variant="secondary" className="ml-1">{pendingUsers.length}</Badge>
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">
+              These users have no clinic yet, so nothing in the app works for them.
+              Approving grants the clinic and the role together.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="divide-y">
+              {pendingUsers.map((u) => {
+                const role = approveRole[u.user_id] ?? "mo";
+                const clinicId = isSuperAdmin ? (approveClinic[u.user_id] ?? "") : "";
+
+                return (
+                  <div key={u.user_id} className="flex items-center justify-between py-3 gap-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{u.full_name || "—"}</p>
+                      <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {u.pending_clinic_name
+                          ? `Requested: ${u.pending_clinic_name}`
+                          : "No clinic requested"}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      {isSuperAdmin && (
+                        <Select
+                          value={clinicId}
+                          onValueChange={(val) =>
+                            setApproveClinic(prev => ({ ...prev, [u.user_id]: val }))
+                          }
+                        >
+                          <SelectTrigger className="w-48 h-8 text-xs" data-testid={`clinic-${u.user_id}`}>
+                            <SelectValue placeholder="Select clinic" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(clinics ?? []).map((c) => (
+                              <SelectItem key={c.id} value={c.id} className="text-xs">
+                                {c.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+
+                      <Select
+                        value={role}
+                        onValueChange={(val) =>
+                          setApproveRole(prev => ({ ...prev, [u.user_id]: val }))
+                        }
+                      >
+                        <SelectTrigger className="w-40 h-8 text-xs" data-testid={`role-${u.user_id}`}>
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ASSIGNABLE_ROLES.map((r) => (
+                            <SelectItem key={r} value={r} className="text-xs">
+                              {ROLE_LABELS[r]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+
+                      <Button
+                        size="sm"
+                        className="h-8 text-xs"
+                        data-testid={`approve-${u.user_id}`}
+                        disabled={approveMember.isPending || (isSuperAdmin && !clinicId)}
+                        onClick={() =>
+                          approveMember.mutate({
+                            userId: u.user_id,
+                            role,
+                            clinicId: clinicId || null,
+                          })
+                        }
+                      >
+                        Approve
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card data-testid="all-users-card">
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-base">
             <Users className="h-4 w-4 text-muted-foreground" />
             All Users
             {!isLoading && (
-              <Badge variant="secondary" className="ml-1">{users.length}</Badge>
+              <Badge variant="secondary" className="ml-1">{activeUsers.length}</Badge>
             )}
           </CardTitle>
           <Button size="sm" className="h-8 text-xs gap-1" onClick={() => setAddUserOpen(true)}>
@@ -194,11 +340,11 @@ export default function RoleManagement() {
             <div className="space-y-3">
               {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-14 w-full rounded-md" />)}
             </div>
-          ) : users.length === 0 ? (
+          ) : activeUsers.length === 0 ? (
             <p className="text-sm text-muted-foreground">No users found.</p>
           ) : (
             <div className="divide-y">
-              {users.map((u) => {
+              {activeUsers.map((u) => {
                 const selectedRole = pendingRole[u.user_id] ?? u.role ?? "unassigned";
                 const hasChange = pendingRole[u.user_id] !== undefined &&
                   pendingRole[u.user_id] !== (u.role ?? "unassigned");
