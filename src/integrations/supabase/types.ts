@@ -81,7 +81,7 @@ export type Database = {
           antibiotic_regimen?: string | null
           assigned_fms?: string | null
           checklist_data?: Json | null
-          clinic_id: string
+          clinic_id?: string
           created_at?: string | null
           diagnosis: string
           drug_allergy?: boolean | null
@@ -185,7 +185,7 @@ export type Database = {
         }
         Insert: {
           borrowed_from_clinic_id?: string | null
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           deferred_date?: string | null
           drug_id: string
@@ -261,7 +261,7 @@ export type Database = {
         }
         Insert: {
           alert_threshold_pct?: number
-          clinic_id: string
+          clinic_id?: string
           created_by?: string | null
           drug_id: string
           id?: string
@@ -362,7 +362,7 @@ export type Database = {
           stock_after: number | null
         }
         Insert: {
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           dispensed_at?: string
           drug_id: string
@@ -416,7 +416,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           id?: string
           no_ic: string
@@ -498,7 +498,7 @@ export type Database = {
         }
         Insert: {
           catatan?: string | null
-          clinic_id: string
+          clinic_id?: string
           created_at?: string
           created_by?: string | null
           drug_id: string
@@ -587,6 +587,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_unassigned_user_count: { Args: never; Returns: number }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
