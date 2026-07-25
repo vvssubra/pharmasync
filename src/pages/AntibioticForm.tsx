@@ -186,8 +186,10 @@ export default function AntibioticForm() {
       } as any);
       if (error) throw error;
       setSubmitted({ patient_name: patientName, patient_ic: patientIC, diagnosis });
-    } catch {
-      toast.error("Failed to submit form");
+    } catch (error) {
+      console.error("Antibiotic form submission failed:", error);
+      const message = error instanceof Error ? error.message : "Failed to submit form";
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
