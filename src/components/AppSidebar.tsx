@@ -86,10 +86,11 @@ export function AppSidebar() {
     },
   });
 
-  // Unassigned user count (admins need to assign a role to new signups)
+  // Unassigned user count (admins need to assign a role to new signups, and
+  // approve the ones with no clinic — super_admin does both too)
   const { data: unassignedCount = 0 } = useQuery({
     queryKey: ["unassigned-user-count"],
-    enabled: role === "admin",
+    enabled: role === "admin" || role === "super_admin",
     refetchInterval: 15000,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_unassigned_user_count");

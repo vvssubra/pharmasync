@@ -1,6 +1,6 @@
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppSidebar } from "./AppSidebar";
@@ -17,12 +17,15 @@ vi.mock("@/integrations/supabase/client", () => ({
         head: true,
       })),
     })),
+    rpc: vi.fn(() => Promise.resolve({ data: 0, error: null })),
     auth: {
       getSession: vi.fn(() => Promise.resolve({ data: { session: null }, error: null })),
       onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
     },
   },
 }));
+
+const { supabase } = await import("@/integrations/supabase/client");
 
 // Mock AuthContext
 vi.mock("@/contexts/AuthContext", () => ({
@@ -51,7 +54,7 @@ function makeQueryClient() {
   });
 }
 
-function renderSidebar(role: "pharmacist" | "doctor" | "specialist" | "fms") {
+function renderSidebar(role: "pharmacist" | "doctor" | "specialist" | "fms" | "admin" | "super_admin") {
   (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
     user: { id: "user-1" },
     role,
@@ -100,5 +103,31 @@ describe("AppSidebar navigation labels", () => {
   it("does not render 'Approvals' nav label for fms", () => {
     renderSidebar("fms");
     expect(screen.queryByText("Approvals")).not.toBeInTheDocument();
+  });
+});
+
+describe("AppSidebar unassigned-user badge", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("counts unassigned users for admin", async () => {
+    renderSidebar("admin");
+    await waitFor(() =>
+      expect(supabase.rpc).toHaveBeenCalledWith("get_unassigned_user_count")
+    );
+  });
+
+  // super_admin reaches Role Management and approves users there, so the badge
+  // has to reach them too.
+  it("counts unassigned users for super_admin", async () => {
+    renderSidebar("super_admin");
+    await waitFor(() =>
+      expect(supabase.rpc).toHaveBeenCalledWith("get_unassigned_user_count")
+    );
+  });
+
+  it("does not count them for a pharmacist", async () => {
+    renderSidebar("pharmacist");
+    await waitFor(() => expect(screen.getByTestId("sidebar")).toBeInTheDocument());
+    expect(supabase.rpc).not.toHaveBeenCalled();
   });
 });
