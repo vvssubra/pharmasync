@@ -109,8 +109,11 @@ describe("PatientRegistry", () => {
     await waitFor(() => expect(screen.getByText("Lee Siew Yoong")).toBeInTheDocument());
 
     const user = userEvent.setup();
-    await user.click(screen.getByRole("combobox"));
-    await user.click(await screen.findByText("Insulin Novomix"));
+    await user.click(screen.getByRole("combobox", { name: "Pilih ubat" }));
+    // Scoped to the option role, not a bare text match — "Insulin Novomix"
+    // also appears as a peer entry in the benchmark card's competitors list
+    // once Levemir (the initial selection) is showing.
+    await user.click(await screen.findByRole("option", { name: "Insulin Novomix" }));
 
     await waitFor(() => expect(screen.getByText("Saringat Salleh")).toBeInTheDocument());
     expect(screen.queryByText("Lee Siew Yoong")).not.toBeInTheDocument();

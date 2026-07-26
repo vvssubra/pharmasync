@@ -12,12 +12,12 @@ import {
 } from "@/components/ui/select";
 
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
-import { QuotaHeaderStrip } from "@/components/QuotaHeaderStrip";
+import { QuotaBenchmarkCard } from "@/components/QuotaBenchmarkCard";
 import { QuotaPatientTable, type QuotaPatientRow } from "@/components/QuotaPatientTable";
 import { PatientHistorySheet } from "@/components/PatientHistorySheet";
 import { RefillWalkinDialog } from "@/components/RefillWalkinDialog";
 
-const CURRENT_YEAR = new Date().getFullYear();
+const THIS_YEAR = new Date().getFullYear();
 
 interface QuotaDrug {
   drug_id: string;
@@ -37,19 +37,20 @@ export default function PatientRegistry() {
   // auto-selecting the first drug.
   const [searchParams] = useSearchParams();
   const [selectedDrugId, setSelectedDrugId] = useState<string>(() => searchParams.get("drug") ?? "");
+  const [year, setYear] = useState(THIS_YEAR);
   const [searchQ, setSearchQ] = useState("");
   const [sheetPatient, setSheetPatient] = useState<SheetPatient | null>(null);
   const [refillOpen, setRefillOpen] = useState(false);
   const [refillInitial, setRefillInitial] = useState<{ id?: string; name: string; ic: string } | null>(null);
 
-  // Drugs that carry an annual quota this year — drives the selector.
+  // Drugs that carry an annual quota in the selected year — drives the selector.
   const { data: quotaDrugs = [], isLoading: drugsLoading } = useQuery({
-    queryKey: ["quota-drugs", CURRENT_YEAR],
+    queryKey: ["quota-drugs", year],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("drug_quotas")
         .select("drug_id, drugs!inner(id, drug_name, unit_pengukuran)")
-        .eq("year", CURRENT_YEAR);
+        .eq("year", year);
       if (error) throw error;
       return (data as unknown as QuotaDrug[]).sort((a, b) => a.drugs.drug_name.localeCompare(b.drugs.drug_name));
     },
@@ -57,20 +58,26 @@ export default function PatientRegistry() {
 
   // Auto-select the first drug once the list loads.
   const effectiveDrugId = selectedDrugId || quotaDrugs[0]?.drug_id || "";
+  const drugNamesById = useMemo(
+    () => new Map(quotaDrugs.map((d) => [d.drug_id, d.drugs.drug_name])),
+    [quotaDrugs]
+  );
 
   // Server-computed usage, shared with every other quota-badge page in the app.
-  const { byDrugId: quotaUsageByDrug, isLoading: usageLoading } = useDrugQuotaUsage(CURRENT_YEAR);
+  const { byDrugId: quotaUsageByDrug, isLoading: usageLoading } = useDrugQuotaUsage(year);
+  const { byDrugId: prevYearUsageByDrug } = useDrugQuotaUsage(year - 1);
   const usage = quotaUsageByDrug.get(effectiveDrugId);
+  const prevUsage = prevYearUsageByDrug.get(effectiveDrugId);
 
   const { data: quotaPatients = [], isLoading: patientsLoading } = useQuery({
-    queryKey: ["quota-patients", effectiveDrugId, CURRENT_YEAR],
+    queryKey: ["quota-patients", effectiveDrugId, year],
     enabled: !!effectiveDrugId,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("drug_quota_patients")
         .select("id, source_bil, tarikh_mula_rawatan, status, dosing, fms_name, catatan, kuota, patient_id, patient_registry!inner(id, patient_name, no_ic, created_at)")
         .eq("drug_id", effectiveDrugId)
-        .eq("year", CURRENT_YEAR)
+        .eq("year", year)
         .order("source_bil", { ascending: true, nullsFirst: false });
       if (error) throw error;
       return data as unknown as (QuotaPatientRow & { patient_registry: SheetPatient })[];
@@ -119,7 +126,7 @@ export default function PatientRegistry() {
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Daftar Pesakit Kuota</h1>
           <p className="text-sm text-muted-foreground">
-            Senarai pesakit mengikut ubat kawalan khusus, tahun {CURRENT_YEAR}
+            Senarai pesakit mengikut ubat kawalan khusus, tahun {year}
           </p>
         </div>
         <Button onClick={openWalkin} style={{ backgroundColor: "#059669" }}>
@@ -130,7 +137,7 @@ export default function PatientRegistry() {
       {!drugsLoading && quotaDrugs.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground space-y-2">
-            <p>Tiada ubat berkuota untuk tahun {CURRENT_YEAR}.</p>
+            <p>Tiada ubat berkuota untuk tahun {year}.</p>
             <Button variant="link" asChild>
               <a href="/drugs">Tetapkan kuota di Senarai Ubat</a>
             </Button>
@@ -140,7 +147,7 @@ export default function PatientRegistry() {
         <>
           <div className="max-w-xs">
             <Select value={effectiveDrugId} onValueChange={setSelectedDrugId}>
-              <SelectTrigger>
+              <SelectTrigger aria-label="Pilih ubat">
                 <SelectValue placeholder="Pilih ubat...">{selectedDrugName}</SelectValue>
               </SelectTrigger>
               <SelectContent>
@@ -151,11 +158,16 @@ export default function PatientRegistry() {
             </Select>
           </div>
 
-          <QuotaHeaderStrip
-            quotaLimit={usage?.quota_limit ?? 0}
-            used={usage?.used ?? 0}
-            remaining={usage?.remaining ?? 0}
-            alertThresholdPct={usage?.alert_threshold_pct ?? 20}
+          <QuotaBenchmarkCard
+            drugId={effectiveDrugId}
+            drugName={selectedDrugName ?? ""}
+            year={year}
+            availableYears={[THIS_YEAR, THIS_YEAR - 1, THIS_YEAR - 2]}
+            onYearChange={setYear}
+            usage={usage}
+            allUsage={quotaUsageByDrug}
+            prevUsage={prevUsage}
+            drugNamesById={drugNamesById}
             isLoading={usageLoading}
           />
 
