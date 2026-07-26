@@ -189,5 +189,14 @@ describe("ProtectedRoute", () => {
       renderWithRouter("/drugs", { user: { id: "1" }, role: null, loading: false, profile: null });
       expect(screen.getByText("Pending Approval")).toBeInTheDocument();
     });
+
+    // super_admin deliberately has no clinic — they span all of them. The gate
+    // must not strand the one role that can fix everyone else.
+    it("never gates a super_admin on clinic", () => {
+      renderWithRouter("/role-management", {
+        user: { id: "1" }, role: "super_admin", loading: false, profile: noClinic,
+      });
+      expect(screen.getByText("Role Management page")).toBeInTheDocument();
+    });
   });
 });

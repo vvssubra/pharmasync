@@ -52,8 +52,9 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   // stamp_clinic_id(). Ask for the clinic if they have not requested one (the
   // Google path never collects it), otherwise wait for an admin. A null profile
   // means the fetch failed rather than that a clinic is missing, so it falls
-  // through to the role check below.
-  if (profile && !profile.clinic_id) {
+  // through to the role check below. super_admin is exempt: it spans all
+  // clinics and legitimately has none of its own.
+  if (profile && !profile.clinic_id && role !== "super_admin") {
     return profile.pending_clinic_id ? <PendingApproval /> : <ClinicRequest />;
   }
 
