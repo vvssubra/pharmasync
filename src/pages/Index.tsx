@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/table";
 import {
   AlertTriangle, TrendingDown, CheckCircle, TrendingUp, X,
-  ExternalLink, Plus,
+  ExternalLink, Plus, HelpCircle,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 
@@ -153,12 +153,13 @@ export default function Dashboard() {
 
   // Counts
   const counts = useMemo(() => {
-    const c = { CRITICAL: 0, LOW: 0, NORMAL: 0, EXCESS: 0 };
+    const c = { CRITICAL: 0, LOW: 0, NORMAL: 0, EXCESS: 0, "NO LEVEL": 0 };
     for (const d of drugStocks) {
       if (d.status === "CRITICAL") c.CRITICAL++;
       else if (d.status === "LOW") c.LOW++;
       else if (d.status === "NORMAL") c.NORMAL++;
       else if (d.status === "EXCESS") c.EXCESS++;
+      else c["NO LEVEL"]++;
     }
     return c;
   }, [drugStocks]);
@@ -170,6 +171,7 @@ export default function Dashboard() {
     { label: "Low", status: "LOW", count: counts.LOW, icon: TrendingDown, color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-100 dark:bg-orange-900/20" },
     { label: "Normal", status: "NORMAL", count: counts.NORMAL, icon: CheckCircle, color: "text-green-600 dark:text-green-400", bg: "bg-green-100 dark:bg-green-900/20" },
     { label: "Excess", status: "EXCESS", count: counts.EXCESS, icon: TrendingUp, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-100 dark:bg-blue-900/20" },
+    { label: "No Level", status: "NO LEVEL", count: counts["NO LEVEL"], icon: HelpCircle, color: "text-muted-foreground", bg: "bg-muted" },
   ];
 
   // Clicking a stat card filters the table below to that status; clicking the
@@ -203,7 +205,7 @@ export default function Dashboard() {
       )}
 
       {/* Section 1 — Stat Cards (click to filter the table below) */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {statCards.map((s) => (
           <Card
             key={s.label}
