@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Search, UserPlus } from "lucide-react";
@@ -31,7 +32,11 @@ interface SheetPatient {
 }
 
 export default function PatientRegistry() {
-  const [selectedDrugId, setSelectedDrugId] = useState<string>("");
+  // Deep-linked from other pages via /pesakit?drug=<drug_id> (e.g. the
+  // dashboard's per-drug "Patient Registry" action) — takes priority over
+  // auto-selecting the first drug.
+  const [searchParams] = useSearchParams();
+  const [selectedDrugId, setSelectedDrugId] = useState<string>(() => searchParams.get("drug") ?? "");
   const [searchQ, setSearchQ] = useState("");
   const [sheetPatient, setSheetPatient] = useState<SheetPatient | null>(null);
   const [refillOpen, setRefillOpen] = useState(false);

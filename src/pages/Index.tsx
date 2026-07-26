@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/table";
 import {
   AlertTriangle, TrendingDown, CheckCircle, TrendingUp, X,
-  ExternalLink, Plus, HelpCircle,
+  HelpCircle, Users,
 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 
@@ -313,14 +313,9 @@ export default function Dashboard() {
                       {d.lastUpdated ? formatDistanceToNow(new Date(d.lastUpdated), { addSuffix: true }) : "—"}
                     </TableCell>
                     <TableCell>
-                      <div className="flex gap-1">
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => navigate(`/drugs/${d.id}/ledger`)}>
-                          <ExternalLink className="h-3 w-3 mr-1" /> Ledger
-                        </Button>
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => navigate(`/terimaan?drug=${d.id}`)}>
-                          <Plus className="h-3 w-3 mr-1" /> Receive
-                        </Button>
-                      </div>
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => navigate(`/pesakit?drug=${d.id}`)}>
+                        <Users className="h-3 w-3 mr-1" /> Patient Registry
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
