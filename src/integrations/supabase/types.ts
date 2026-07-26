@@ -585,14 +585,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_clinic_member: {
+        Args: {
+          target_user: string
+          target_role: Database["public"]["Enums"]["app_role"]
+          target_clinic?: string | null
+        }
+        Returns: undefined
+      }
       get_all_users_with_roles: {
         Args: never
         Returns: {
-          clinic_id: string
-          clinic_name: string
+          clinic_id: string | null
+          clinic_name: string | null
           email: string
           full_name: string
-          role: string
+          pending_clinic_id: string | null
+          pending_clinic_name: string | null
+          role: string | null
           user_id: string
         }[]
       }

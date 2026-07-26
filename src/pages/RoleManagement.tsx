@@ -93,10 +93,7 @@ export default function RoleManagement() {
   const { data: users = [], isLoading, error: usersError } = useQuery<UserWithRole[]>({
     queryKey: ["all-users-with-roles"],
     queryFn: async () => {
-      // Not in the generated types, same as approve_clinic_member below.
-      const rpc = supabase.rpc as unknown as
-        (fn: string) => Promise<{ data: unknown; error: { message: string } | null }>;
-      const { data, error } = await rpc("get_all_users_with_roles");
+      const { data, error } = await supabase.rpc("get_all_users_with_roles");
       if (error) throw error;
       return (data as UserWithRole[]) ?? [];
     },
@@ -190,11 +187,8 @@ export default function RoleManagement() {
 
   const approveMember = useMutation({
     mutationFn: async ({ userId, role, clinicId }: { userId: string; role: string; clinicId: string | null }) => {
-      // approve_clinic_member is newer than the generated types, so the client's
-      // rpc overloads don't know it.
-      const rpc = supabase.rpc as unknown as
-        (fn: string, args: Record<string, unknown>) => Promise<{ error: { message: string } | null }>;
-      const { error } = await rpc("approve_clinic_member", {
+      if (!isAssignableRole(role)) throw new Error(`Unknown role: ${role}`);
+      const { error } = await supabase.rpc("approve_clinic_member", {
         target_user: userId,
         target_role: role,
         target_clinic: clinicId,
