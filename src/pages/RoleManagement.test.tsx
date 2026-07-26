@@ -35,6 +35,13 @@ const ORPHAN: MockUser = {
   pending_clinic_id: null, pending_clinic_name: null,
 };
 
+// super_admin has no clinic by design — it spans all of them.
+const SUPER: MockUser = {
+  user_id: "super-1", email: "psubramaniam@moh.gov.my", full_name: "Subra",
+  clinic_id: null, clinic_name: null, role: "super_admin",
+  pending_clinic_id: null, pending_clinic_name: null,
+};
+
 let mockUsers: MockUser[] = [];
 const rpc = vi.fn();
 
@@ -160,6 +167,15 @@ describe("RoleManagement pending approval", () => {
       ).toBeTruthy()
     );
     expect(screen.queryByText("No users found.")).toBeNull();
+  });
+
+  // A clinic-less super_admin is by design, not awaiting approval — it must
+  // not sit in the pending queue forever.
+  it("keeps super_admin out of the pending card", async () => {
+    mockUsers = [APPROVED, SUPER];
+    renderPage();
+    await waitFor(() => expect(screen.getByText("Subra")).toBeTruthy());
+    expect(screen.queryByTestId("pending-approval-card")).toBeNull();
   });
 
   it("hides the pending card when every user has a clinic", async () => {

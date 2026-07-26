@@ -182,8 +182,9 @@ export default function RoleManagement() {
   // A user with no clinic cannot read or write anything clinic-scoped —
   // stamp_clinic_id() raises on every insert — so these are shown apart from
   // the working membership rather than as rows with a blank clinic.
-  const pendingUsers = users.filter(u => u.clinic_id === null);
-  const activeUsers = users.filter(u => u.clinic_id !== null);
+  // super_admin is the exception: no clinic by design, never pending.
+  const pendingUsers = users.filter(u => u.clinic_id === null && u.role !== "super_admin");
+  const activeUsers = users.filter(u => u.clinic_id !== null || u.role === "super_admin");
 
   const approveMember = useMutation({
     mutationFn: async ({ userId, role, clinicId }: { userId: string; role: string; clinicId: string | null }) => {
