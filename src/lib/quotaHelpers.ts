@@ -53,3 +53,23 @@ export const QUOTA_BADGE_LABEL: Record<QuotaBadgeState, (used: number, limit: nu
   exhausted: (u, l) => `Quota Exhausted: ${u}/${l}`,
   "no-quota": () => "No quota set",
 };
+
+/**
+ * For a controlled drug (perlu_kelulusan_pakar), Critical/Low/Normal must
+ * reflect annual patient quota remaining, not warehouse stock levels — these
+ * drugs (e.g. insulin under the FMS quota register) aren't managed by
+ * min/reorder/max shelf thresholds the way ordinary stock is. Returns null
+ * when the drug isn't controlled or has no quota configured this year, so
+ * callers fall back to their physical-stock-based status in that case.
+ */
+export function quotaDerivedStatus(
+  isControlled: boolean,
+  quotaUsage: { used: number; quota_limit: number; alert_threshold_pct: number } | undefined,
+): "critical" | "low" | "normal" | null {
+  if (!isControlled || !quotaUsage) return null;
+  const state = quotaBadgeState(quotaUsage.used, quotaUsage.quota_limit, quotaUsage.alert_threshold_pct);
+  if (state === "exhausted") return "critical";
+  if (state === "warning") return "low";
+  if (state === "healthy") return "normal";
+  return null;
+}

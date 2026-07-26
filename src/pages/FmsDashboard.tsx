@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { BarChart2, Package, Clock, AlertTriangle, ShieldCheck } from "lucide-react";
-import { quotaStatus, forecastStatus, daysRemaining, projectedExhaustion } from "@/lib/quotaHelpers";
+import { quotaStatus, forecastStatus, daysRemaining, projectedExhaustion, quotaDerivedStatus } from "@/lib/quotaHelpers";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
@@ -320,8 +320,15 @@ export default function FmsDashboard() {
     },
   });
 
-  const criticalCount = drugStock.filter(d => stockStatus(d.current_stock, d.stok_min ?? 0, d.stok_reorder ?? 0) === "critical").length;
-  const lowCount = drugStock.filter(d => stockStatus(d.current_stock, d.stok_min ?? 0, d.stok_reorder ?? 0) === "low").length;
+  // Controlled drugs (insulin under the FMS quota register) aren't tracked by
+  // physical stock thresholds — Critical/Low/Normal must come from remaining
+  // annual quota instead. Non-controlled drugs keep the physical-stock status.
+  const effectiveStatus = (d: typeof drugStock[number]) =>
+    quotaDerivedStatus(d.perlu_kelulusan_pakar, quotaUsageByDrug.get(d.id))
+    ?? stockStatus(d.current_stock, d.stok_min ?? 0, d.stok_reorder ?? 0);
+
+  const criticalCount = drugStock.filter(d => effectiveStatus(d) === "critical").length;
+  const lowCount = drugStock.filter(d => effectiveStatus(d) === "low").length;
 
   return (
     <div className="space-y-6">
@@ -428,9 +435,9 @@ export default function FmsDashboard() {
               </TableHeader>
               <TableBody>
                 {drugStock
-                  .filter(d => !stockFilter || stockStatus(d.current_stock, d.stok_min ?? 0, d.stok_reorder ?? 0) === stockFilter)
+                  .filter(d => !stockFilter || effectiveStatus(d) === stockFilter)
                   .map(d => {
-                  const status = stockStatus(d.current_stock, d.stok_min ?? 0, d.stok_reorder ?? 0);
+                  const status = effectiveStatus(d);
                   return (
                     <TableRow key={d.id}>
                       <TableCell className="font-medium">{d.drug_name}</TableCell>

@@ -3,6 +3,8 @@ import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
+import { quotaDerivedStatus } from "@/lib/quotaHelpers";
 import { Pill, FileCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -57,11 +59,14 @@ export default function Dashboard() {
   const [alertDismissed, setAlertDismissed] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StockStatus | null>(null);
 
+  const currentYear = new Date().getFullYear();
+  const { byDrugId: quotaUsageByDrug } = useDrugQuotaUsage(currentYear);
+
   // Fetch drugs
   const { data: drugs } = useQuery({
     queryKey: ["drugs"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("drugs").select("id, drug_name, unit_pengukuran, stok_min, stok_reorder, stok_max").eq("is_active", true);
+      const { data, error } = await supabase.from("drugs").select("id, drug_name, unit_pengukuran, stok_min, stok_reorder, stok_max, perlu_kelulusan_pakar").eq("is_active", true);
       if (error) throw error;
       return data;
     },
@@ -124,7 +129,14 @@ export default function Dashboard() {
 
     return drugs.map((d) => {
       const entry = bakiMap.get(d.id) || { baki: 0, lastDate: null };
-      const status = getStatus(entry.baki, d.stok_min ?? 0, d.stok_reorder ?? 0, d.stok_max ?? 0);
+      const physicalStatus = getStatus(entry.baki, d.stok_min ?? 0, d.stok_reorder ?? 0, d.stok_max ?? 0);
+      // Controlled drugs (insulin under the FMS quota register) aren't
+      // tracked by physical stock thresholds — Critical/Low/Normal must come
+      // from remaining annual quota instead.
+      const quotaStatus = quotaDerivedStatus(d.perlu_kelulusan_pakar, quotaUsageByDrug.get(d.id));
+      const status: StockStatus = quotaStatus
+        ? ({ critical: "CRITICAL", low: "LOW", normal: "NORMAL" } as const)[quotaStatus]
+        : physicalStatus;
       return {
         id: d.id,
         drug_name: d.drug_name,
@@ -137,7 +149,7 @@ export default function Dashboard() {
         lastUpdated: entry.lastDate,
       };
     }).sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
-  }, [drugs, transactions]);
+  }, [drugs, transactions, quotaUsageByDrug]);
 
   // Activity feed
   const activityFeed = useMemo(() => {
