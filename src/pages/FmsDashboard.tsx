@@ -327,6 +327,14 @@ export default function FmsDashboard() {
     quotaDerivedStatus(d.perlu_kelulusan_pakar, quotaUsageByDrug.get(d.id))
     ?? stockStatus(d.current_stock, d.stok_min ?? 0, d.stok_reorder ?? 0);
 
+  // Drug Stock Quota table shows remaining annual quota for controlled
+  // drugs instead of physical vial count — physical stock isn't the
+  // operative constraint for them.
+  const displayStock = (d: typeof drugStock[number]) => {
+    const quota = quotaUsageByDrug.get(d.id);
+    return d.perlu_kelulusan_pakar && quota ? quota.remaining : d.current_stock;
+  };
+
   const criticalCount = drugStock.filter(d => effectiveStatus(d) === "critical").length;
   const lowCount = drugStock.filter(d => effectiveStatus(d) === "low").length;
 
@@ -427,9 +435,6 @@ export default function FmsDashboard() {
                 <TableRow>
                   <TableHead>Drug Name</TableHead>
                   <TableHead className="text-right">Current Stock</TableHead>
-                  <TableHead className="text-right">Min</TableHead>
-                  <TableHead className="text-right">Reorder</TableHead>
-                  <TableHead className="text-right">Max</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -441,10 +446,7 @@ export default function FmsDashboard() {
                   return (
                     <TableRow key={d.id}>
                       <TableCell className="font-medium">{d.drug_name}</TableCell>
-                      <TableCell className="text-right font-semibold">{d.current_stock} <span className="text-xs text-muted-foreground">{d.unit_pengukuran}</span></TableCell>
-                      <TableCell className="text-right text-xs text-muted-foreground">{d.stok_min ?? 0}</TableCell>
-                      <TableCell className="text-right text-xs text-muted-foreground">{d.stok_reorder ?? 0}</TableCell>
-                      <TableCell className="text-right text-xs text-muted-foreground">{d.stok_max ?? 0}</TableCell>
+                      <TableCell className="text-right font-semibold">{displayStock(d)}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={`text-[10px] capitalize ${STATUS_BADGE[status]}`}>
                           {status}
