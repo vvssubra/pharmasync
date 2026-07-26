@@ -30,6 +30,9 @@ interface DrugStock {
   stok_reorder: number;
   stok_max: number;
   baki: number;
+  balance: number;
+  pctMax: number;
+  isQuotaBased: boolean;
   status: StockStatus;
   lastUpdated: string | null;
 }
@@ -133,10 +136,18 @@ export default function Dashboard() {
       // Controlled drugs (insulin under the FMS quota register) aren't
       // tracked by physical stock thresholds — Critical/Low/Normal must come
       // from remaining annual quota instead.
-      const quotaStatus = quotaDerivedStatus(d.perlu_kelulusan_pakar, quotaUsageByDrug.get(d.id));
+      const quotaUsage = quotaUsageByDrug.get(d.id);
+      const quotaStatus = quotaDerivedStatus(d.perlu_kelulusan_pakar, quotaUsage);
       const status: StockStatus = quotaStatus
         ? ({ critical: "CRITICAL", low: "LOW", normal: "NORMAL" } as const)[quotaStatus]
         : physicalStatus;
+      // Controlled drugs show remaining annual quota as their "balance" —
+      // physical vial count isn't the operative constraint for them.
+      const isQuotaBased = !!quotaStatus && !!quotaUsage;
+      const balance = isQuotaBased ? quotaUsage!.remaining : entry.baki;
+      const pctMax = isQuotaBased
+        ? (quotaUsage!.quota_limit > 0 ? Math.max(0, Math.min(100, Math.round((quotaUsage!.remaining / quotaUsage!.quota_limit) * 100))) : 0)
+        : (d.stok_max > 0 ? Math.min(Math.round((entry.baki / d.stok_max) * 100), 100) : 0);
       return {
         id: d.id,
         drug_name: d.drug_name,
@@ -145,6 +156,9 @@ export default function Dashboard() {
         stok_reorder: d.stok_reorder ?? 0,
         stok_max: d.stok_max ?? 0,
         baki: entry.baki,
+        balance,
+        pctMax,
+        isQuotaBased,
         status,
         lastUpdated: entry.lastDate,
       };
@@ -266,7 +280,6 @@ export default function Dashboard() {
             <TableHeader>
               <TableRow>
                 <TableHead>Drug Name</TableHead>
-                <TableHead>Unit</TableHead>
                 <TableHead className="text-right">Balance</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-[120px]">% Max</TableHead>
@@ -277,7 +290,7 @@ export default function Dashboard() {
             <TableBody>
               {visibleDrugStocks.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
                     {statusFilter
                       ? `No drugs with status ${statusFilter}.`
                       : "No drugs yet. Add drugs in Drug Master to start tracking stock."}
@@ -285,18 +298,16 @@ export default function Dashboard() {
                 </TableRow>
               )}
               {visibleDrugStocks.map((d) => {
-                const pct = d.stok_max > 0 ? Math.min(Math.round((d.baki / d.stok_max) * 100), 100) : 0;
                 const cfg = STATUS_CONFIG[d.status];
                 return (
                   <TableRow key={d.id}>
                     <TableCell className="font-medium max-w-[200px] truncate">{d.drug_name}</TableCell>
-                    <TableCell className="text-muted-foreground capitalize">{d.unit_pengukuran}</TableCell>
-                    <TableCell className="text-right font-bold">{d.baki}</TableCell>
+                    <TableCell className="text-right font-bold">{d.balance}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cfg.badgeClass}>{d.status}</Badge>
                     </TableCell>
                     <TableCell>
-                      <Progress value={pct} className="h-2" />
+                      <Progress value={d.pctMax} className="h-2" />
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
                       {d.lastUpdated ? formatDistanceToNow(new Date(d.lastUpdated), { addSuffix: true }) : "—"}
