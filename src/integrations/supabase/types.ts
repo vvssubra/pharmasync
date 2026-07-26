@@ -606,6 +606,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_fms_list: {
+        Args: never
+        Returns: { full_name: string; user_id: string }[]
+      }
       get_unassigned_user_count: { Args: never; Returns: number }
       has_role: {
         Args: {

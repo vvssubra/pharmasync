@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -24,7 +25,6 @@ import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { getErrorMessage } from "@/lib/errors";
 
-const FMS_OPTIONS = ["Dr Amelia", "Dr Muslim"] as const;
 
 function formatIC(value: string): string {
   const digits = value.replace(/\D/g, "").slice(0, 12);
@@ -82,6 +82,17 @@ export default function AntibioticForm() {
   const [antibioticRegimen, setAntibioticRegimen] = useState("");
   const [fmsCode, setFmsCode] = useState("");
   const [assignedFms, setAssignedFms] = useState("");
+
+  // Whoever holds the fms role in this clinic — replaces the old hardcoded
+  // placeholder names. Stored as the display name; assigned_fms is text.
+  const { data: fmsOptions = [] } = useQuery({
+    queryKey: ["fms-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc("get_fms_list");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
   const [healthEdCompliance, setHealthEdCompliance] = useState(false);
   const [healthEdSideeffect, setHealthEdSideeffect] = useState(false);
   const [healthEdTca, setHealthEdTca] = useState(false);
@@ -277,9 +288,15 @@ export default function AntibioticForm() {
                     <SelectValue placeholder="Select FMS" />
                   </SelectTrigger>
                   <SelectContent>
-                    {FMS_OPTIONS.map(name => (
-                      <SelectItem key={name} value={name}>{name}</SelectItem>
-                    ))}
+                    {fmsOptions.length === 0 ? (
+                      <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                        Tiada FMS berdaftar di klinik ini
+                      </div>
+                    ) : (
+                      fmsOptions.map(f => (
+                        <SelectItem key={f.user_id} value={f.full_name}>{f.full_name}</SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>

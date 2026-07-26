@@ -26,7 +26,7 @@ type NavItem = {
 
 const items: NavItem[] = [
   { title: "Dashboard",       url: "/",                   icon: Home,          roles: ["admin", "pharmacist"] },
-  { title: "FMS Dashboard",   url: "/fms",                icon: BarChart2,     roles: ["admin", "fms", "pharmacist"] },
+  { title: "FMS Dashboard",   url: "/fms",                icon: BarChart2,     showBadge: true, roles: ["admin", "fms", "pharmacist"] },
   { title: "MO Dashboard",    url: "/mo",                 icon: Stethoscope,   roles: ["admin", "mo", "pharmacist"] },
   { title: "New Requests",    url: "/fulfilment",         icon: Bell,          showBadge: true, roles: ["admin", "fms", "pharmacist"] },
   { title: "Approvals",       url: "/specialist",         icon: ShieldCheck,   showBadge: true, roles: ["admin", "fms"] },
@@ -101,6 +101,8 @@ export function AppSidebar() {
 
   const badgeByUrl: Record<string, number> = {
     "/fulfilment": pendingCount,
+    // FMS act on the same queue from both pages, so both carry the count.
+    "/fms": specialistBadge,
     "/specialist": specialistBadge,
     "/role-management": unassignedCount,
   };
