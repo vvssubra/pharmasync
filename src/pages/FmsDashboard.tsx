@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -6,7 +7,7 @@ import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
-import { BarChart2, Package, Clock, AlertTriangle, ShieldCheck } from "lucide-react";
+import { BarChart2, Package, Clock, AlertTriangle, ShieldCheck, Users } from "lucide-react";
 import { quotaStatus, forecastStatus, daysRemaining, projectedExhaustion, quotaDerivedStatus } from "@/lib/quotaHelpers";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -96,6 +97,7 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default function FmsDashboard() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectedDrugId, setSelectedDrugId] = useState<string>("all");
   const [stockFilter, setStockFilter] = useState<"critical" | "low" | null>(null);
@@ -436,6 +438,7 @@ export default function FmsDashboard() {
                   <TableHead>Drug Name</TableHead>
                   <TableHead className="text-right">Current Stock</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -451,6 +454,11 @@ export default function FmsDashboard() {
                         <Badge variant="outline" className={`text-[10px] capitalize ${STATUS_BADGE[status]}`}>
                           {status}
                         </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => navigate(`/pesakit?drug=${d.id}`)}>
+                          <Users className="h-3 w-3 mr-1" /> Patient Registry
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );

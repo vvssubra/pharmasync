@@ -7,7 +7,7 @@ import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
 import { quotaDerivedStatus } from "@/lib/quotaHelpers";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
-import { Stethoscope, ClipboardList, Pill, AlertTriangle } from "lucide-react";
+import { Stethoscope, ClipboardList, Pill, AlertTriangle, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -225,6 +225,7 @@ export default function MoDashboard() {
                   <TableHead>Status</TableHead>
                   <TableHead>Requires Approval</TableHead>
                   <TableHead>Quota Remaining</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -258,6 +259,11 @@ export default function MoDashboard() {
                                    : "bg-green-100 text-green-700 border-green-300";
                         return <Badge variant="outline" className={`text-[10px] ${cls}`}>{remaining} / {quotaRow.quota_limit}</Badge>;
                       })() : <span className="text-xs text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell>
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => navigate(`/pesakit?drug=${d.id}`)}>
+                        <Users className="h-3 w-3 mr-1" /> Patient Registry
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
