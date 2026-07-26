@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
+import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { Stethoscope, ClipboardList, Pill, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,6 +61,7 @@ const REQUEST_STATUS_LABEL: Record<string, string> = {
 export default function MoDashboard() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
+  const [stockFilter, setStockFilter] = useState<"critical" | "available" | null>(null);
 
   // Drug quota
   const { data: drugStock = [], isLoading: stockLoading } = useQuery({
@@ -134,9 +137,14 @@ export default function MoDashboard() {
         </div>
       </div>
 
-      {/* Summary */}
+      {/* Summary — click a card to filter the table below */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
+        <Card
+          role="button" tabIndex={0}
+          onClick={() => setStockFilter(null)}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setStockFilter(null); } }}
+          className={cn("cursor-pointer transition-shadow hover:shadow-md", stockFilter === null && "ring-2 ring-primary")}
+        >
           <CardContent className="flex items-center gap-3 p-4">
             <Pill className="h-6 w-6 text-primary" />
             <div>
@@ -145,7 +153,12 @@ export default function MoDashboard() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-green-50">
+        <Card
+          role="button" tabIndex={0}
+          onClick={() => setStockFilter((f) => (f === "available" ? null : "available"))}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setStockFilter((f) => (f === "available" ? null : "available")); } }}
+          className={cn("bg-green-50 cursor-pointer transition-shadow hover:shadow-md", stockFilter === "available" && "ring-2 ring-primary")}
+        >
           <CardContent className="flex items-center gap-3 p-4">
             <Pill className="h-6 w-6 text-green-600" />
             <div>
@@ -154,7 +167,12 @@ export default function MoDashboard() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-red-50">
+        <Card
+          role="button" tabIndex={0}
+          onClick={() => setStockFilter((f) => (f === "critical" ? null : "critical"))}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setStockFilter((f) => (f === "critical" ? null : "critical")); } }}
+          className={cn("bg-red-50 cursor-pointer transition-shadow hover:shadow-md", stockFilter === "critical" && "ring-2 ring-primary")}
+        >
           <CardContent className="flex items-center gap-3 p-4">
             <AlertTriangle className="h-6 w-6 text-red-600" />
             <div>
@@ -169,11 +187,21 @@ export default function MoDashboard() {
 
       {/* Drug quota table */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             <Pill className="h-4 w-4" />
             Available Drug Quota
+            {stockFilter && (
+              <span className="ml-2 font-normal text-sm text-muted-foreground">
+                — filtered to {stockFilter === "available" ? "available" : "critical"}
+              </span>
+            )}
           </CardTitle>
+          {stockFilter && (
+            <Button variant="ghost" size="sm" className="text-xs" onClick={() => setStockFilter(null)}>
+              Clear filter
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           {stockLoading ? (
@@ -191,7 +219,9 @@ export default function MoDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {drugStock.map(d => (
+                {drugStock
+                  .filter(d => !stockFilter || (stockFilter === "critical" ? d.status === "critical" : d.status !== "critical"))
+                  .map(d => (
                   <TableRow key={d.id}>
                     <TableCell className="font-medium text-sm">{d.drug_name}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{d.unit_pengukuran}</TableCell>

@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,6 +55,7 @@ const STATUS_ORDER: Record<StockStatus, number> = {
 export default function Dashboard() {
   const navigate = useNavigate();
   const [alertDismissed, setAlertDismissed] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StockStatus | null>(null);
 
   // Fetch drugs
   const { data: drugs } = useQuery({
@@ -163,12 +165,20 @@ export default function Dashboard() {
 
   const today = format(new Date(), "d MMMM yyyy");
 
-  const statCards = [
-    { label: "Critical", count: counts.CRITICAL, icon: AlertTriangle, color: "text-destructive", bg: "bg-destructive/10" },
-    { label: "Low", count: counts.LOW, icon: TrendingDown, color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-100 dark:bg-orange-900/20" },
-    { label: "Normal", count: counts.NORMAL, icon: CheckCircle, color: "text-green-600 dark:text-green-400", bg: "bg-green-100 dark:bg-green-900/20" },
-    { label: "Excess", count: counts.EXCESS, icon: TrendingUp, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-100 dark:bg-blue-900/20" },
+  const statCards: { label: string; status: StockStatus; count: number; icon: typeof AlertTriangle; color: string; bg: string }[] = [
+    { label: "Critical", status: "CRITICAL", count: counts.CRITICAL, icon: AlertTriangle, color: "text-destructive", bg: "bg-destructive/10" },
+    { label: "Low", status: "LOW", count: counts.LOW, icon: TrendingDown, color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-100 dark:bg-orange-900/20" },
+    { label: "Normal", status: "NORMAL", count: counts.NORMAL, icon: CheckCircle, color: "text-green-600 dark:text-green-400", bg: "bg-green-100 dark:bg-green-900/20" },
+    { label: "Excess", status: "EXCESS", count: counts.EXCESS, icon: TrendingUp, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-100 dark:bg-blue-900/20" },
   ];
+
+  // Clicking a stat card filters the table below to that status; clicking the
+  // active card again (or Clear filter) shows every drug.
+  const toggleStatusFilter = (status: StockStatus) => {
+    setStatusFilter((current) => (current === status ? null : status));
+  };
+
+  const visibleDrugStocks = statusFilter ? drugStocks.filter((d) => d.status === statusFilter) : drugStocks;
 
   return (
     <div className="space-y-6">
@@ -192,10 +202,21 @@ export default function Dashboard() {
         </Alert>
       )}
 
-      {/* Section 1 — Stat Cards */}
+      {/* Section 1 — Stat Cards (click to filter the table below) */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {statCards.map((s) => (
-          <Card key={s.label}>
+          <Card
+            key={s.label}
+            role="button"
+            tabIndex={0}
+            aria-pressed={statusFilter === s.status}
+            onClick={() => toggleStatusFilter(s.status)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleStatusFilter(s.status); } }}
+            className={cn(
+              "cursor-pointer transition-shadow hover:shadow-md",
+              statusFilter === s.status && "ring-2 ring-primary"
+            )}
+          >
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">{s.label}</CardTitle>
               <div className={`rounded-md p-2 ${s.bg}`}>
@@ -215,8 +236,16 @@ export default function Dashboard() {
 
       {/* Section 3 — Drug Stock Table */}
       <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-semibold">Drug Stock Status</CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base font-semibold">
+            Drug Stock Status
+            {statusFilter && <span className="ml-2 font-normal text-sm text-muted-foreground">— filtered to {statusFilter}</span>}
+          </CardTitle>
+          {statusFilter && (
+            <Button variant="ghost" size="sm" className="text-xs" onClick={() => setStatusFilter(null)}>
+              Clear filter
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -232,14 +261,16 @@ export default function Dashboard() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {drugStocks.length === 0 && (
+              {visibleDrugStocks.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
-                    No drugs yet. Add drugs in Drug Master to start tracking stock.
+                    {statusFilter
+                      ? `No drugs with status ${statusFilter}.`
+                      : "No drugs yet. Add drugs in Drug Master to start tracking stock."}
                   </TableCell>
                 </TableRow>
               )}
-              {drugStocks.map((d) => {
+              {visibleDrugStocks.map((d) => {
                 const pct = d.stok_max > 0 ? Math.min(Math.round((d.baki / d.stok_max) * 100), 100) : 0;
                 const cfg = STATUS_CONFIG[d.status];
                 return (

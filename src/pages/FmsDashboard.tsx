@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { BarChart2, Package, Clock, AlertTriangle, ShieldCheck } from "lucide-react";
@@ -97,6 +98,8 @@ export default function FmsDashboard() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedDrugId, setSelectedDrugId] = useState<string>("all");
+  const [stockFilter, setStockFilter] = useState<"critical" | "low" | null>(null);
+  const pendingApprovalsRef = useRef<HTMLDivElement>(null);
   const [approveTarget, setApproveTarget] = useState<FmsPendingRequest | null>(null);
   const [rejectTarget, setRejectTarget] = useState<any>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -332,9 +335,16 @@ export default function FmsDashboard() {
         </p>
       </div>
 
-      {/* Summary cards */}
+      {/* Summary cards — click Critical/Low to filter the table below; click
+          Active Drugs to clear the filter; click Pending Approvals to jump
+          to that section. */}
       <div className="grid gap-4 sm:grid-cols-4">
-        <Card>
+        <Card
+          role="button" tabIndex={0}
+          onClick={() => setStockFilter(null)}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setStockFilter(null); } }}
+          className={cn("cursor-pointer transition-shadow hover:shadow-md", stockFilter === null && "ring-2 ring-primary")}
+        >
           <CardContent className="flex items-center gap-3 p-4">
             <Package className="h-6 w-6 text-emerald-600" />
             <div>
@@ -343,7 +353,12 @@ export default function FmsDashboard() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-red-50">
+        <Card
+          role="button" tabIndex={0}
+          onClick={() => setStockFilter((f) => (f === "critical" ? null : "critical"))}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setStockFilter((f) => (f === "critical" ? null : "critical")); } }}
+          className={cn("bg-red-50 cursor-pointer transition-shadow hover:shadow-md", stockFilter === "critical" && "ring-2 ring-primary")}
+        >
           <CardContent className="flex items-center gap-3 p-4">
             <AlertTriangle className="h-6 w-6 text-red-600" />
             <div>
@@ -352,7 +367,12 @@ export default function FmsDashboard() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-amber-50">
+        <Card
+          role="button" tabIndex={0}
+          onClick={() => setStockFilter((f) => (f === "low" ? null : "low"))}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setStockFilter((f) => (f === "low" ? null : "low")); } }}
+          className={cn("bg-amber-50 cursor-pointer transition-shadow hover:shadow-md", stockFilter === "low" && "ring-2 ring-primary")}
+        >
           <CardContent className="flex items-center gap-3 p-4">
             <AlertTriangle className="h-6 w-6 text-amber-600" />
             <div>
@@ -361,7 +381,12 @@ export default function FmsDashboard() {
             </div>
           </CardContent>
         </Card>
-        <Card className="bg-yellow-50">
+        <Card
+          role="button" tabIndex={0}
+          onClick={() => pendingApprovalsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pendingApprovalsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); } }}
+          className="bg-yellow-50 cursor-pointer transition-shadow hover:shadow-md"
+        >
           <CardContent className="flex items-center gap-3 p-4">
             <Clock className="h-6 w-6 text-yellow-600" />
             <div>
@@ -374,11 +399,17 @@ export default function FmsDashboard() {
 
       {/* Drug stock table */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             <Package className="h-4 w-4" />
             Drug Stock Quota
+            {stockFilter && <span className="ml-2 font-normal text-sm text-muted-foreground">— filtered to {stockFilter}</span>}
           </CardTitle>
+          {stockFilter && (
+            <Button variant="ghost" size="sm" className="text-xs" onClick={() => setStockFilter(null)}>
+              Clear filter
+            </Button>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           {stockLoading ? (
@@ -396,7 +427,9 @@ export default function FmsDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {drugStock.map(d => {
+                {drugStock
+                  .filter(d => !stockFilter || stockStatus(d.current_stock, d.stok_min ?? 0, d.stok_reorder ?? 0) === stockFilter)
+                  .map(d => {
                   const status = stockStatus(d.current_stock, d.stok_min ?? 0, d.stok_reorder ?? 0);
                   return (
                     <TableRow key={d.id}>
@@ -420,6 +453,7 @@ export default function FmsDashboard() {
       </Card>
 
       {/* Pending approvals */}
+      <div ref={pendingApprovalsRef}>
       <Tabs defaultValue="controlled">
         <TabsList>
           <TabsTrigger value="controlled">
@@ -546,6 +580,7 @@ export default function FmsDashboard() {
           </Card>
         </TabsContent>
       </Tabs>
+      </div>
 
       {/* Usage graph */}
       <Card>
