@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { BarChart2, Package, Clock, AlertTriangle, ShieldCheck } from "lucide-react";
@@ -253,40 +254,12 @@ export default function FmsDashboard() {
 
   const currentYear = new Date().getFullYear();
 
-  const { data: drugQuotas = [] } = useQuery({
-    queryKey: ["fms-drug-quotas", currentYear],
-    queryFn: async () => {
-      const { data } = await supabase.from("drug_quotas").select("drug_id, quota_limit").eq("year", currentYear);
-      return (data ?? []) as { drug_id: string; quota_limit: number }[];
-    },
-  });
+  // Server-computed usage — dedupes by IC and includes enrolments, so it
+  // agrees with DoctorRequest/MoDashboard/SpecialistDashboard/DrugMaster.
+  const { byDrugId: quotaUsageByDrug } = useDrugQuotaUsage(currentYear);
 
-  const { data: ytdCounts = {} } = useQuery({
-    queryKey: ["fms-ytd-counts", currentYear],
-    refetchInterval: 30000,
-    queryFn: async () => {
-      const yearStart = `${currentYear}-01-01`;
-      const yearEnd = `${currentYear + 1}-01-01`;
-      const { data } = await supabase
-        .from("dispensing_requests")
-        .select("drug_id, no_ic")
-        .in("status", ["pending_pharmacy", "fulfilled"])
-        .eq("is_pesara", false)
-        .gte("created_at", yearStart)
-        .lt("created_at", yearEnd);
-      const uniqueICs: Record<string, Set<string>> = {};
-      for (const r of data ?? []) {
-        if (!uniqueICs[r.drug_id]) uniqueICs[r.drug_id] = new Set();
-        uniqueICs[r.drug_id].add(r.no_ic);
-      }
-      const counts: Record<string, number> = {};
-      for (const [drugId, s] of Object.entries(uniqueICs)) {
-        counts[drugId] = s.size;
-      }
-      return counts;
-    },
-  });
-
+  // Pesara patients are exempt from quota entirely — kept as its own query,
+  // not part of drug_quota_used()/get_drug_quota_usage().
   const { data: pesaraCounts = {} } = useQuery({
     queryKey: ["fms-pesara-counts", currentYear],
     refetchInterval: 30000,
@@ -637,10 +610,10 @@ export default function FmsDashboard() {
                 {drugStock.filter(d => (d as any).perlu_kelulusan_pakar).length === 0 ? (
                   <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">No controlled drugs found</TableCell></TableRow>
                 ) : drugStock.filter(d => (d as any).perlu_kelulusan_pakar).map(d => {
-                  const quotaRow = drugQuotas.find(q => q.drug_id === d.id);
+                  const quotaRow = quotaUsageByDrug.get(d.id);
                   const quota = quotaRow ? quotaRow.quota_limit : null;
-                  const served = (ytdCounts as Record<string,number>)[d.id] ?? 0;
-                  const remaining = quota !== null ? quota - served : null;
+                  const served = quotaRow?.used ?? 0;
+                  const remaining = quotaRow ? quotaRow.remaining : null;
                   const monthsElapsed = new Date().getMonth() + 1;
                   const avgPerMonth = monthsElapsed > 0 ? served / monthsElapsed : 0;
                   const status = quotaStatus(remaining, quota);

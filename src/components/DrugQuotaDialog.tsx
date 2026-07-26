@@ -18,20 +18,24 @@ interface Props {
 
 export default function DrugQuotaDialog({ open, onOpenChange, drugId, drugName }: Props) {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const currentYear = new Date().getFullYear();
   const [quotaInput, setQuotaInput] = useState<string>("");
   const [alertPctInput, setAlertPctInput] = useState<string>("20");
 
   const { data: existing } = useQuery({
-    queryKey: ["drug-quota", drugId, currentYear],
+    queryKey: ["drug-quota", drugId, currentYear, profile?.clinic_id],
     enabled: open,
     queryFn: async () => {
+      // drug_quotas is now clinic-scoped (a drug can hold a different quota
+      // per clinic) — without this filter a super_admin, who can see every
+      // clinic's row, would get more than one row and maybeSingle() throws.
       const { data } = await supabase
         .from("drug_quotas")
         .select("quota_limit, alert_threshold_pct")
         .eq("drug_id", drugId)
         .eq("year", currentYear)
+        .eq("clinic_id", profile?.clinic_id ?? "")
         .maybeSingle();
       return data as { quota_limit: number; alert_threshold_pct: number } | null;
     },
@@ -52,7 +56,7 @@ export default function DrugQuotaDialog({ open, onOpenChange, drugId, drugName }
         .from("drug_quotas")
         .upsert(
           { drug_id: drugId, year: currentYear, quota_limit: limit, alert_threshold_pct: alertPct },
-          { onConflict: "drug_id,year" },
+          { onConflict: "clinic_id,drug_id,year" },
         );
       if (error) throw error;
 
@@ -79,10 +83,7 @@ export default function DrugQuotaDialog({ open, onOpenChange, drugId, drugName }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["drug-quota"] });
-      queryClient.invalidateQueries({ queryKey: ["fms-drug-quotas"] });
-      queryClient.invalidateQueries({ queryKey: ["mo-drug-quotas"] });
-      queryClient.invalidateQueries({ queryKey: ["drug-master-quotas"] });
-      queryClient.invalidateQueries({ queryKey: ["mo-drug-quota"] });
+      queryClient.invalidateQueries({ queryKey: ["drug-quota-usage"] });
       queryClient.invalidateQueries({ queryKey: ["fms-drug-stock"] });
       queryClient.invalidateQueries({ queryKey: ["transactions-baki-awal"] });
       toast.success("Quota saved.");

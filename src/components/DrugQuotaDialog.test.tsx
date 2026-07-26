@@ -7,9 +7,13 @@ vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: vi.fn(() => ({
       select: vi.fn(() => ({
+        // drug_quotas is clinic-scoped now, so the read chains a third .eq
+        // for clinic_id: .eq("drug_id").eq("year").eq("clinic_id").
         eq: vi.fn(() => ({
           eq: vi.fn(() => ({
-            maybeSingle: vi.fn(() => Promise.resolve({ data: { quota_limit: 60 }, error: null })),
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn(() => Promise.resolve({ data: { quota_limit: 60, alert_threshold_pct: 20 }, error: null })),
+            })),
           })),
         })),
       })),
@@ -21,7 +25,7 @@ vi.mock("@/integrations/supabase/client", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: vi.fn(() => ({ user: { id: "user-1" } })),
+  useAuth: vi.fn(() => ({ user: { id: "user-1" }, profile: { clinic_id: "clinic-1" } })),
 }));
 
 function makeQC() {

@@ -65,6 +65,11 @@ vi.mock("@/integrations/supabase/client", () => ({
         eq: vi.fn(() => Promise.resolve({ error: null })),
       })),
     })),
+    // Quota usage now comes from the get_drug_quota_usage RPC (see
+    // src/hooks/useDrugQuotaUsage.ts), not a hand-rolled drug_quotas query.
+    // Individual tests below override `.from` via mockImplementation but
+    // leave this in place, so it stays the quota source for all of them.
+    rpc: vi.fn(() => Promise.resolve({ data: [], error: null })),
   },
 }));
 

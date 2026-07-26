@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
 import { toast } from "sonner";
 import { formatDistanceToNow, startOfDay } from "date-fns";
 import { Clock, CheckCircle, XCircle, ChevronDown } from "lucide-react";
@@ -91,54 +92,28 @@ export default function SpecialistDashboard() {
 
   const currentYear = new Date().getFullYear();
 
-  const { data: drugQuotas = [] } = useQuery({
-    queryKey: ["specialist-drug-quotas", currentYear],
-    queryFn: async () => {
-      const { data } = await supabase.from("drug_quotas").select("drug_id, quota_limit, alert_threshold_pct").eq("year", currentYear);
-      return (data ?? []) as { drug_id: string; quota_limit: number; alert_threshold_pct: number }[];
-    },
-  });
+  // Server-computed usage — dedupes by IC and includes enrolments, so it
+  // agrees with DoctorRequest/MoDashboard/FmsDashboard/DrugMaster.
+  const { byDrugId: quotaUsageByDrug } = useDrugQuotaUsage(currentYear);
 
-  const { data: quotaCounts = { regular: {}, pesara: {} } } = useQuery({
-    queryKey: ["specialist-quota-counts", currentYear],
+  // Pesara patients are exempt from quota entirely — kept as its own query,
+  // not part of drug_quota_used()/get_drug_quota_usage().
+  const { data: pesaraCounts = {} } = useQuery({
+    queryKey: ["specialist-pesara-counts", currentYear],
     refetchInterval: 30000,
     queryFn: async () => {
       const yearStart = `${currentYear}-01-01`;
       const yearEnd = `${currentYear + 1}-01-01`;
-
-      const [{ data: regular }, { data: pesara }] = await Promise.all([
-        supabase
-          .from("dispensing_requests")
-          .select("drug_id, no_ic")
-          .in("status", ["pending_pharmacy", "fulfilled"])
-          .eq("is_pesara", false)
-          .gte("created_at", yearStart)
-          .lt("created_at", yearEnd),
-        supabase
-          .from("dispensing_requests")
-          .select("drug_id, no_ic")
-          .eq("status", "fulfilled")
-          .eq("is_pesara", true)
-          .gte("created_at", yearStart)
-          .lt("created_at", yearEnd),
-      ]);
-
-      const regularCounts: Record<string, number> = {};
-      const uniqueICs: Record<string, Set<string>> = {};
-      for (const r of regular ?? []) {
-        if (!uniqueICs[r.drug_id]) uniqueICs[r.drug_id] = new Set();
-        uniqueICs[r.drug_id].add(r.no_ic);
-      }
-      for (const [drugId, s] of Object.entries(uniqueICs)) {
-        regularCounts[drugId] = s.size;
-      }
-
-      const pesaraCounts: Record<string, number> = {};
-      for (const r of pesara ?? []) {
-        pesaraCounts[r.drug_id] = (pesaraCounts[r.drug_id] ?? 0) + 1;
-      }
-
-      return { regular: regularCounts, pesara: pesaraCounts };
+      const { data } = await supabase
+        .from("dispensing_requests")
+        .select("drug_id")
+        .eq("status", "fulfilled")
+        .eq("is_pesara", true)
+        .gte("created_at", yearStart)
+        .lt("created_at", yearEnd);
+      const counts: Record<string, number> = {};
+      for (const r of data ?? []) counts[r.drug_id] = (counts[r.drug_id] ?? 0) + 1;
+      return counts;
     },
   });
 
@@ -198,9 +173,9 @@ export default function SpecialistDashboard() {
   const abHistory = useMemo(() => abForms.filter((f: any) => f.specialist_action_at).slice(0, 20), [abForms]);
 
   // Approve dialog quota computations
-  const approveQuotaRow = approveTarget ? drugQuotas.find(q => q.drug_id === approveTarget.drug_id) : null;
+  const approveQuotaRow = approveTarget ? quotaUsageByDrug.get(approveTarget.drug_id) : null;
   const approveQuotaLimit = approveQuotaRow ? approveQuotaRow.quota_limit : null;
-  const approveUsedCount = approveTarget ? (quotaCounts.regular[approveTarget.drug_id] ?? 0) : 0;
+  const approveUsedCount = approveQuotaRow?.used ?? 0;
   const isApproveTargetPesara = approveTarget ? !!(approveTarget as any).is_pesara : false;
   const isQuotaExhausted = !isApproveTargetPesara && approveQuotaLimit !== null && approveUsedCount >= approveQuotaLimit;
 
@@ -225,8 +200,8 @@ export default function SpecialistDashboard() {
       setNotes("");
       setBorrowClinicId("");
       queryClient.invalidateQueries({ queryKey: ["specialist-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["specialist-quota-counts"] });
-      queryClient.invalidateQueries({ queryKey: ["specialist-drug-quotas"] });
+      queryClient.invalidateQueries({ queryKey: ["specialist-pesara-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["drug-quota-usage"] });
     },
     onError: () => toast.error("Approval failed. Please try again."),
   });
@@ -354,9 +329,9 @@ export default function SpecialistDashboard() {
                           </TableCell>
                         </TableRow>
                       ) : regularPending.map(r => {
-                        const quotaRow = drugQuotas.find(q => q.drug_id === r.drug_id);
+                        const quotaRow = quotaUsageByDrug.get(r.drug_id);
                         const quotaLimit = quotaRow ? quotaRow.quota_limit : null;
-                        const usedCount = quotaCounts.regular[r.drug_id] ?? 0;
+                        const usedCount = quotaRow?.used ?? 0;
                         const badgeState = quotaBadgeState(usedCount, quotaLimit, quotaRow?.alert_threshold_pct ?? 20);
                         return (
                           <TableRow key={r.id}>

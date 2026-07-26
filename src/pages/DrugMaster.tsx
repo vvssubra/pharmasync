@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { FileText, Plus, Search, Pencil, Ban, RotateCcw, BookOpen, CalendarRange, Lock, Unlock, PackagePlus } from "lucide-react";
@@ -29,11 +30,6 @@ type Drug = {
   perlu_kelulusan_pakar: boolean;
 };
 
-type DrugQuota = {
-  drug_id: string;
-  quota_limit: number;
-};
-
 export default function DrugMaster() {
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
@@ -58,35 +54,9 @@ export default function DrugMaster() {
     },
   });
 
-  const { data: drugQuotas = [] } = useQuery({
-    queryKey: ["drug-master-quotas", currentYear],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("drug_quotas")
-        .select("drug_id, quota_limit")
-        .eq("year", currentYear);
-      if (error) throw error;
-      return data as DrugQuota[];
-    },
-  });
-
-  const { data: ytdCounts = {} } = useQuery({
-    queryKey: ["drug-master-ytd-counts", currentYear],
-    queryFn: async () => {
-      const yearStart = `${currentYear}-01-01`;
-      const yearEnd = `${currentYear + 1}-01-01`;
-      const { data, error } = await supabase
-        .from("dispensing_requests")
-        .select("drug_id")
-        .neq("status", "rejected")
-        .gte("created_at", yearStart)
-        .lt("created_at", yearEnd);
-      if (error) throw error;
-      const counts: Record<string, number> = {};
-      for (const r of data ?? []) counts[r.drug_id] = (counts[r.drug_id] ?? 0) + 1;
-      return counts;
-    },
-  });
+  // Server-computed usage — also fixes this page's previous omission of the
+  // is_pesara filter, which made it disagree with DoctorRequest's number.
+  const { byDrugId: quotaUsageByDrug } = useDrugQuotaUsage(currentYear);
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
@@ -180,7 +150,7 @@ export default function DrugMaster() {
                 </TableRow>
               ) : (
                 filtered.map((drug) => {
-                  const quotaRow = drugQuotas.find((q) => q.drug_id === drug.id);
+                  const quotaRow = quotaUsageByDrug.get(drug.id);
                   return (
                     <TableRow key={drug.id} className={drug.is_active ? "" : "opacity-50"}>
                       <TableCell className="font-medium">
@@ -196,7 +166,7 @@ export default function DrugMaster() {
                         {!quotaRow ? (
                           <Badge variant="outline" className="text-xs text-muted-foreground">No quota set</Badge>
                         ) : (() => {
-                          const remaining = quotaRow.quota_limit - (ytdCounts[drug.id] ?? 0);
+                          const remaining = quotaRow.remaining;
                           const pct = quotaRow.quota_limit > 0 ? remaining / quotaRow.quota_limit : 0;
                           const cls = pct <= 0.1
                             ? "bg-red-100 text-red-700 border-red-300 dark:bg-red-950 dark:text-red-400"
@@ -283,7 +253,7 @@ export default function DrugMaster() {
         onOpenChange={open => { if (!open) setReplenishTarget(null); }}
         drugId={replenishTarget?.id ?? ""}
         drugName={replenishTarget?.drug_name ?? ""}
-        currentQuotaLimit={replenishTarget ? drugQuotas.find(q => q.drug_id === replenishTarget.id)?.quota_limit ?? 0 : 0}
+        currentQuotaLimit={replenishTarget ? quotaUsageByDrug.get(replenishTarget.id)?.quota_limit ?? 0 : 0}
       />
 
       <AlertDialog open={!!deactivateTarget} onOpenChange={(o) => !o && setDeactivateTarget(null)}>

@@ -37,7 +37,7 @@ export default function ReplenishQuotaDialog({ open, onOpenChange, drugId, drugN
         .from("drug_quotas")
         .upsert(
           { drug_id: drugId, year: currentYear, quota_limit: newLimit },
-          { onConflict: "drug_id,year" },
+          { onConflict: "clinic_id,drug_id,year" },
         );
       if (quotaError) throw quotaError;
 
@@ -54,10 +54,7 @@ export default function ReplenishQuotaDialog({ open, onOpenChange, drugId, drugN
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["drugs"] });
       queryClient.invalidateQueries({ queryKey: ["drug-quota"] });
-      queryClient.invalidateQueries({ queryKey: ["drug-master-quotas"] });
-      queryClient.invalidateQueries({ queryKey: ["fms-drug-quotas"] });
-      queryClient.invalidateQueries({ queryKey: ["mo-drug-quotas"] });
-      queryClient.invalidateQueries({ queryKey: ["mo-drug-quota"] });
+      queryClient.invalidateQueries({ queryKey: ["drug-quota-usage"] });
       queryClient.invalidateQueries({ queryKey: ["fms-drug-stock"] });
       queryClient.invalidateQueries({ queryKey: ["transactions-baki-awal"] });
       queryClient.invalidateQueries({ queryKey: ["drug-stock"] });

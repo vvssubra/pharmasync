@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
 import { formatDistanceToNow } from "date-fns";
 import { Stethoscope, ClipboardList, Pill, AlertTriangle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +12,15 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+
+interface MyRequestRow {
+  id: string;
+  created_at: string;
+  patient_name: string;
+  quantity: number;
+  status: string;
+  drugs: { drug_name: string; unit_pengukuran: string } | null;
+}
 
 function computeStock(drugId: string, txns: { drug_id: string; jenis: string; kuantiti: number }[]) {
   let stock = 0;
@@ -77,26 +87,11 @@ export default function MoDashboard() {
 
   const currentYear = new Date().getFullYear();
 
-  const { data: drugQuotas = [] } = useQuery({
-    queryKey: ["mo-drug-quotas", currentYear],
-    queryFn: async () => {
-      const { data } = await supabase.from("drug_quotas").select("drug_id, quota_limit").eq("year", currentYear);
-      return (data ?? []) as { drug_id: string; quota_limit: number }[];
-    },
-  });
-
-  const { data: ytdCounts = {} } = useQuery({
-    queryKey: ["mo-ytd-counts", currentYear],
-    refetchInterval: 30000,
-    queryFn: async () => {
-      const yearStart = `${currentYear}-01-01`;
-      const yearEnd = `${currentYear + 1}-01-01`;
-      const { data } = await supabase.from("dispensing_requests").select("drug_id").eq("status", "fulfilled").gte("created_at", yearStart).lt("created_at", yearEnd);
-      const counts: Record<string, number> = {};
-      for (const r of data ?? []) counts[r.drug_id] = (counts[r.drug_id] ?? 0) + 1;
-      return counts;
-    },
-  });
+  // Server-computed usage — also fixes this page's previous status='fulfilled'
+  // filter, which under-counted quota use versus every other dashboard
+  // (usage is meant to be deducted the moment a request is submitted, not
+  // only once the pharmacist fulfils it).
+  const { byDrugId: quotaUsageByDrug } = useDrugQuotaUsage(currentYear);
 
   // My recent requests
   const { data: myRequests = [], isLoading: reqLoading } = useQuery({
@@ -109,7 +104,7 @@ export default function MoDashboard() {
         .eq("submitted_by", user!.id)
         .order("created_at", { ascending: false })
         .limit(10);
-      return data ?? [];
+      return (data ?? []) as MyRequestRow[];
     },
   });
 
@@ -215,9 +210,9 @@ export default function MoDashboard() {
                     </TableCell>
                     <TableCell>
                       {d.perlu_kelulusan_pakar ? (() => {
-                        const quotaRow = drugQuotas.find(q => q.drug_id === d.id);
+                        const quotaRow = quotaUsageByDrug.get(d.id);
                         if (!quotaRow) return <Badge variant="outline" className="text-[10px] text-muted-foreground">No quota set</Badge>;
-                        const remaining = quotaRow.quota_limit - ((ytdCounts as Record<string,number>)[d.id] ?? 0);
+                        const remaining = quotaRow.remaining;
                         const pct = quotaRow.quota_limit > 0 ? remaining / quotaRow.quota_limit : 0;
                         const cls = pct <= 0.1 ? "bg-red-100 text-red-700 border-red-300"
                                    : pct <= 0.25 ? "bg-amber-100 text-amber-700 border-amber-300"
@@ -266,8 +261,8 @@ export default function MoDashboard() {
                   <TableRow key={r.id}>
                     <TableCell className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(r.created_at), { addSuffix: true })}</TableCell>
                     <TableCell className="font-medium text-sm">{r.patient_name}</TableCell>
-                    <TableCell className="text-sm">{(r.drugs as any)?.drug_name}</TableCell>
-                    <TableCell className="text-right text-sm">{r.quantity} {(r.drugs as any)?.unit_pengukuran}</TableCell>
+                    <TableCell className="text-sm">{r.drugs?.drug_name}</TableCell>
+                    <TableCell className="text-right text-sm">{r.quantity} {r.drugs?.unit_pengukuran}</TableCell>
                     <TableCell>
                       <Badge variant="outline" className={`text-[10px] ${REQUEST_STATUS_BADGE[r.status] ?? ""}`}>
                         {REQUEST_STATUS_LABEL[r.status] ?? r.status}

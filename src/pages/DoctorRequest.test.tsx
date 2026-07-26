@@ -17,6 +17,9 @@ vi.mock("@/integrations/supabase/client", () => ({
       })),
       insert: vi.fn(() => Promise.resolve({ data: null, error: null })),
     })),
+    // Quota usage now comes from the get_drug_quota_usage RPC (see
+    // src/hooks/useDrugQuotaUsage.ts), not a hand-rolled drug_quotas query.
+    rpc: vi.fn(() => Promise.resolve({ data: [], error: null })),
     auth: {
       getSession: vi.fn(() => Promise.resolve({ data: { session: null }, error: null })),
       onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
@@ -123,7 +126,11 @@ describe("DoctorRequest Pesara checkbox", () => {
 
   it("includes is_pesara: false in insert payload by default", async () => {
     const { supabase } = await import("@/integrations/supabase/client");
-    const insertMock = vi.fn(() => Promise.resolve({ data: null, error: null }));
+    // insert() is called with the row payload, so the mock must declare that
+    // parameter for mock.calls[0][0] to be typed.
+    const insertMock = vi.fn((_payload: Record<string, unknown>) =>
+      Promise.resolve({ data: null, error: null })
+    );
     (supabase.from as ReturnType<typeof vi.fn>).mockImplementation((table: string) => {
       if (table === "dispensing_requests") {
         return { insert: insertMock };

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Check, ChevronsUpDown, CheckCircle, AlertCircle, Info } from "lucide-react";
@@ -66,39 +67,9 @@ export default function DoctorRequest() {
 
   const currentYear = new Date().getFullYear();
 
-  // Annual quotas per drug (controlled drugs only)
-  const { data: drugQuotas = [] } = useQuery({
-    queryKey: ["mo-drug-quotas", currentYear],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("drug_quotas")
-        .select("drug_id, quota_limit, alert_threshold_pct")
-        .eq("year", currentYear);
-      return (data ?? []) as { drug_id: string; quota_limit: number; alert_threshold_pct: number }[];
-    },
-  });
-
-  // Requests already counted against quota this year, per drug (non-pesara).
-  // Deducted the moment a request is submitted; only "rejected" gives the quota back.
-  const { data: quotaUsage = {} } = useQuery({
-    queryKey: ["mo-quota-usage", currentYear],
-    refetchInterval: 30000,
-    queryFn: async () => {
-      const yearStart = `${currentYear}-01-01`;
-      const yearEnd = `${currentYear + 1}-01-01`;
-      const { data, error } = await supabase
-        .from("dispensing_requests")
-        .select("drug_id")
-        .neq("status", "rejected")
-        .eq("is_pesara", false)
-        .gte("created_at", yearStart)
-        .lt("created_at", yearEnd);
-      if (error) throw error;
-      const counts: Record<string, number> = {};
-      for (const r of data ?? []) counts[r.drug_id] = (counts[r.drug_id] ?? 0) + 1;
-      return counts;
-    },
-  });
+  // Annual quota usage per drug — server-computed (enrolments + dispensing
+  // requests, deduped by IC) so it agrees with every other dashboard.
+  const { byDrugId: quotaUsageByDrug } = useDrugQuotaUsage(currentYear);
 
   // Compute current stock for selected drug
   const form = useForm<FormValues>({
@@ -121,26 +92,24 @@ export default function DoctorRequest() {
   // Quota state for the selected drug (pesara patients are exempt from quota entirely)
   const quotaInfo = useMemo(() => {
     if (!watchDrugId || watchIsPesara) return null;
-    const quotaRow = drugQuotas.find(q => q.drug_id === watchDrugId);
+    const quotaRow = quotaUsageByDrug.get(watchDrugId);
     if (!quotaRow) return null;
-    const used = quotaUsage[watchDrugId] ?? 0;
-    const remaining = quotaRow.quota_limit - used;
+    const { used, quota_limit: limit, remaining, alert_threshold_pct } = quotaRow;
     const exhausted = remaining <= 0;
-    const lowQuota = !exhausted && remaining <= quotaRow.quota_limit * (quotaRow.alert_threshold_pct / 100);
-    return { limit: quotaRow.quota_limit, used, remaining, exhausted, lowQuota };
-  }, [watchDrugId, watchIsPesara, drugQuotas, quotaUsage]);
+    const lowQuota = !exhausted && remaining <= limit * (alert_threshold_pct / 100);
+    return { limit, used, remaining, exhausted, lowQuota };
+  }, [watchDrugId, watchIsPesara, quotaUsageByDrug]);
 
   const adminBlocked = !!selectedDrug?.is_blocked;
   const quotaBlocked = !!quotaInfo?.exhausted || adminBlocked;
 
   const exhaustedDrugIds = useMemo(() => {
     const ids = new Set<string>();
-    for (const q of drugQuotas) {
-      const used = quotaUsage[q.drug_id] ?? 0;
-      if (used >= q.quota_limit) ids.add(q.drug_id);
+    for (const q of quotaUsageByDrug.values()) {
+      if (q.used >= q.quota_limit) ids.add(q.drug_id);
     }
     return ids;
-  }, [drugQuotas, quotaUsage]);
+  }, [quotaUsageByDrug]);
 
   const blockedDrugIds = useMemo(() => new Set(drugs.filter(d => d.is_blocked).map(d => d.id)), [drugs]);
 
@@ -182,8 +151,7 @@ export default function DoctorRequest() {
     onSuccess: (result, values) => {
       setSubmitted({ ...values, ...result });
       queryClient.invalidateQueries({ queryKey: ["drug-stock"] });
-      queryClient.invalidateQueries({ queryKey: ["mo-quota-usage"] });
-      queryClient.invalidateQueries({ queryKey: ["drug-master-ytd-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["drug-quota-usage"] });
     },
     onError: () => toast.error("Failed to submit request"),
   });

@@ -294,6 +294,79 @@ export type Database = {
           },
         ]
       }
+      drug_quota_patients: {
+        Row: {
+          catatan: string | null
+          clinic_id: string
+          created_at: string
+          created_by: string | null
+          dosing: string | null
+          drug_id: string
+          fms_name: string | null
+          id: string
+          kuota: number
+          patient_id: string
+          source_bil: number | null
+          status: string
+          tarikh_mula_rawatan: string | null
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          catatan?: string | null
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          dosing?: string | null
+          drug_id: string
+          fms_name?: string | null
+          id?: string
+          kuota?: number
+          patient_id: string
+          source_bil?: number | null
+          status?: string
+          tarikh_mula_rawatan?: string | null
+          updated_at?: string
+          year?: number
+        }
+        Update: {
+          catatan?: string | null
+          clinic_id?: string
+          created_at?: string
+          created_by?: string | null
+          dosing?: string | null
+          drug_id?: string
+          fms_name?: string | null
+          id?: string
+          kuota?: number
+          patient_id?: string
+          source_bil?: number | null
+          status?: string
+          tarikh_mula_rawatan?: string | null
+          updated_at?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drug_quota_patients_clinic_id_fkey"
+            columns: ["clinic_id"]
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "drug_quota_patients_drug_id_fkey"
+            columns: ["drug_id"]
+            referencedRelation: "drugs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "drug_quota_patients_patient_id_fkey"
+            columns: ["patient_id"]
+            referencedRelation: "patient_registry"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       drugs: {
         Row: {
           created_at: string
@@ -593,6 +666,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      drug_quota_used: {
+        Args: { p_clinic_id: string; p_drug_id: string; p_year: number }
+        Returns: number
+      }
       get_all_users_with_roles: {
         Args: never
         Returns: {
@@ -604,6 +681,18 @@ export type Database = {
           pending_clinic_name: string | null
           role: string | null
           user_id: string
+        }[]
+      }
+      get_drug_quota_usage: {
+        Args: { p_year?: number | null }
+        Returns: {
+          alert_threshold_pct: number
+          clinic_id: string
+          drug_id: string
+          quota_limit: number
+          remaining: number
+          used: number
+          year: number
         }[]
       }
       get_fms_list: {
