@@ -28,6 +28,9 @@ type Drug = {
   is_active: boolean;
   is_blocked: boolean;
   perlu_kelulusan_pakar: boolean;
+  stok_min: number | null;
+  stok_reorder: number | null;
+  stok_max: number | null;
 };
 
 export default function DrugMaster() {

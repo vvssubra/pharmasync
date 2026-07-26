@@ -20,7 +20,16 @@ import { Button } from "@/components/ui/button";
 const drugSchema = z.object({
   drug_name: z.string().trim().min(1, "Drug name is required").max(200),
   quota_limit: z.coerce.number().int().min(0).optional().default(0),
-});
+  stok_min: z.coerce.number().int().min(0).optional().default(0),
+  stok_reorder: z.coerce.number().int().min(0).optional().default(0),
+  stok_max: z.coerce.number().int().min(0).optional().default(0),
+}).refine(
+  (v) => v.stok_min <= v.stok_reorder,
+  { message: "Min must not exceed Reorder level", path: ["stok_min"] },
+).refine(
+  (v) => v.stok_reorder <= v.stok_max || v.stok_max === 0,
+  { message: "Reorder must not exceed Max", path: ["stok_reorder"] },
+);
 
 type DrugFormValues = z.infer<typeof drugSchema>;
 
@@ -28,6 +37,9 @@ interface Drug {
   id: string;
   drug_name: string;
   is_active: boolean;
+  stok_min?: number | null;
+  stok_reorder?: number | null;
+  stok_max?: number | null;
 }
 
 interface DrugFormDialogProps {
@@ -61,6 +73,9 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
     defaultValues: {
       drug_name: "",
       quota_limit: 0,
+      stok_min: 0,
+      stok_reorder: 0,
+      stok_max: 0,
     },
   });
 
@@ -70,6 +85,9 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
         form.reset({
           drug_name: drug.drug_name,
           quota_limit: existingQuota?.quota_limit ?? 0,
+          stok_min: drug.stok_min ?? 0,
+          stok_reorder: drug.stok_reorder ?? 0,
+          stok_max: drug.stok_max ?? 0,
         });
       } else {
         form.reset();
@@ -94,14 +112,24 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
       if (isEdit && drug) {
         const { error } = await supabase
           .from("drugs")
-          .update({ drug_name: values.drug_name })
+          .update({
+            drug_name: values.drug_name,
+            stok_min: values.stok_min,
+            stok_reorder: values.stok_reorder,
+            stok_max: values.stok_max,
+          })
           .eq("id", drug.id);
         if (error) throw error;
         drugId = drug.id;
       } else {
         const { data: inserted, error } = await supabase
           .from("drugs")
-          .insert([{ drug_name: values.drug_name }])
+          .insert([{
+            drug_name: values.drug_name,
+            stok_min: values.stok_min,
+            stok_reorder: values.stok_reorder,
+            stok_max: values.stok_max,
+          }])
           .select("id")
           .single();
         if (error) throw error;
@@ -143,6 +171,7 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
       queryClient.invalidateQueries({ queryKey: ["drug-quota"] });
       queryClient.invalidateQueries({ queryKey: ["drug-quota-usage"] });
       queryClient.invalidateQueries({ queryKey: ["fms-drug-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["mo-drug-quota"] });
       queryClient.invalidateQueries({ queryKey: ["transactions-baki-awal"] });
       queryClient.invalidateQueries({ queryKey: ["drug-stock"] });
       toast.success(isEdit ? "Drug updated" : "Drug added");
@@ -182,6 +211,36 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
                 <FormMessage />
               </FormItem>
             )} />
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Stock Levels</p>
+              <p className="text-xs text-muted-foreground">
+                Drives the Critical/Low/Normal/Excess status shown on the dashboards. Leave all at 0 if you're not tracking physical stock levels for this drug.
+              </p>
+              <div className="grid grid-cols-3 gap-3">
+                <FormField control={form.control} name="stok_min" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Min</FormLabel>
+                    <FormControl><Input type="number" min={0} {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="stok_reorder" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Reorder</FormLabel>
+                    <FormControl><Input type="number" min={0} {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="stok_max" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Max</FormLabel>
+                    <FormControl><Input type="number" min={0} {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+            </div>
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
