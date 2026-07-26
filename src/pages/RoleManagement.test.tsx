@@ -142,6 +142,26 @@ describe("RoleManagement pending approval", () => {
     );
   });
 
+  // A failing RPC used to render as "No users found", which reads as an empty
+  // database and hides the real cause (schema cache, permissions, guard).
+  it("shows the failure when the user list cannot be loaded", async () => {
+    rpc.mockImplementation(() =>
+      Promise.resolve({
+        data: null,
+        error: { message: "Could not find the function public.get_all_users_with_roles" },
+      })
+    );
+
+    renderPage();
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/Could not find the function public.get_all_users_with_roles/)
+      ).toBeTruthy()
+    );
+    expect(screen.queryByText("No users found.")).toBeNull();
+  });
+
   it("hides the pending card when every user has a clinic", async () => {
     mockUsers = [APPROVED];
     renderPage();

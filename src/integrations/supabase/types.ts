@@ -446,6 +446,7 @@ export type Database = {
           created_at: string
           full_name: string
           id: string
+          pending_clinic_id: string | null
           updated_at: string
           user_id: string
         }
@@ -454,6 +455,7 @@ export type Database = {
           created_at?: string
           full_name?: string
           id?: string
+          pending_clinic_id?: string | null
           updated_at?: string
           user_id: string
         }
@@ -462,6 +464,7 @@ export type Database = {
           created_at?: string
           full_name?: string
           id?: string
+          pending_clinic_id?: string | null
           updated_at?: string
           user_id?: string
         }
@@ -469,6 +472,12 @@ export type Database = {
           {
             foreignKeyName: "profiles_clinic_id_fkey"
             columns: ["clinic_id"]
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_pending_clinic_id_fkey"
+            columns: ["pending_clinic_id"]
             referencedRelation: "clinics"
             referencedColumns: ["id"]
           },

@@ -14,12 +14,27 @@ vi.mock("@/components/PageSkeleton", () => ({
 vi.mock("@/components/PendingApproval", () => ({
   PendingApproval: () => <div>Pending Approval</div>,
 }));
+vi.mock("@/components/ClinicRequest", () => ({
+  ClinicRequest: () => <div>Clinic Request</div>,
+}));
 
 const { useAuth } = await import("@/contexts/AuthContext");
 
+type MockProfile = {
+  full_name: string;
+  clinic_id: string | null;
+  clinic_name: string;
+  pending_clinic_id: string | null;
+};
+
 function renderWithRouter(
   path: string,
-  auth: { user: object | null; role: AppRole | null; loading: boolean }
+  auth: {
+    user: object | null;
+    role: AppRole | null;
+    loading: boolean;
+    profile?: MockProfile | null;
+  }
 ) {
   (useAuth as ReturnType<typeof vi.fn>).mockReturnValue(auth);
   return render(
@@ -130,6 +145,49 @@ describe("ProtectedRoute", () => {
     it("shows skeleton while loading", () => {
       renderWithRouter("/drugs", { user: null, role: null, loading: true });
       expect(screen.getByText("Loading skeleton")).toBeInTheDocument();
+    });
+  });
+
+  // A Google signup lands with no clinic and no request: handle_new_user() reads
+  // the clinic from signup metadata, which OAuth never carries. Without a clinic
+  // every clinic-scoped write raises, so these users are stopped before the app.
+  describe("user with no clinic", () => {
+    const noClinic: MockProfile = {
+      full_name: "Dr Oauth", clinic_id: null, clinic_name: "", pending_clinic_id: null,
+    };
+    const requested: MockProfile = {
+      full_name: "Dr Oauth", clinic_id: null, clinic_name: "", pending_clinic_id: "clinic-1",
+    };
+
+    it("asks for a clinic when none has been requested", () => {
+      renderWithRouter("/drugs", { user: { id: "1" }, role: null, loading: false, profile: noClinic });
+      expect(screen.getByText("Clinic Request")).toBeInTheDocument();
+    });
+
+    it("waits for approval once a clinic has been requested", () => {
+      renderWithRouter("/drugs", { user: { id: "1" }, role: null, loading: false, profile: requested });
+      expect(screen.getByText("Pending Approval")).toBeInTheDocument();
+    });
+
+    // A role without a clinic is still unusable, so the gate runs first.
+    it("asks for a clinic even if a role was already assigned", () => {
+      renderWithRouter("/drugs", { user: { id: "1" }, role: "pharmacist", loading: false, profile: noClinic });
+      expect(screen.getByText("Clinic Request")).toBeInTheDocument();
+    });
+
+    it("lets an approved user through", () => {
+      renderWithRouter("/drugs", {
+        user: { id: "1" }, role: "pharmacist", loading: false,
+        profile: { full_name: "Dr Ada", clinic_id: "clinic-1", clinic_name: "KK Kempas", pending_clinic_id: null },
+      });
+      expect(screen.getByText("Drugs page")).toBeInTheDocument();
+    });
+
+    // A missing profile row means the fetch failed or has not landed — that is
+    // not evidence of a missing clinic, so behaviour stays as it was.
+    it("falls through to the old behaviour when there is no profile at all", () => {
+      renderWithRouter("/drugs", { user: { id: "1" }, role: null, loading: false, profile: null });
+      expect(screen.getByText("Pending Approval")).toBeInTheDocument();
     });
   });
 });

@@ -8,6 +8,9 @@ interface Profile {
   full_name: string;
   clinic_id: string | null;
   clinic_name: string;
+  // The clinic the user asked for. A request, not a grant — an admin promotes
+  // it to clinic_id. Null for OAuth signups, which carry no clinic metadata.
+  pending_clinic_id: string | null;
 }
 
 interface AuthContextValue {
@@ -18,6 +21,7 @@ interface AuthContextValue {
   loading: boolean;
   authError: string | null;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -35,17 +39,23 @@ async function loadProfileAndRole(
   setLoading: (v: boolean) => void
 ) {
   try {
-    const { data: profileData } = await supabase
+    // The embed names its foreign key explicitly: profiles has two FKs to
+    // clinics (clinic_id and pending_clinic_id), and PostgREST refuses an
+    // ambiguous embed rather than picking one.
+    const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select("full_name, clinic_id, clinics(name)")
+      .select("full_name, clinic_id, pending_clinic_id, clinics!profiles_clinic_id_fkey(name)")
       .eq("user_id", userId)
       .maybeSingle();
+
+    if (profileError) console.error("[Auth] profile query error:", profileError);
 
     if (profileData) {
       setProfile({
         full_name: profileData.full_name,
         clinic_id: profileData.clinic_id,
         clinic_name: profileData.clinics?.name ?? "",
+        pending_clinic_id: profileData.pending_clinic_id ?? null,
       });
     }
 
@@ -119,8 +129,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await supabase.auth.signOut();
   };
 
+  // Re-reads profile and role for the signed-in user. Needed after the user
+  // changes their own profile — requesting a clinic — so the gate in
+  // ProtectedRoute re-evaluates without a page reload.
+  const refreshProfile = async () => {
+    if (!user) return;
+    await loadProfileAndRole(user.id, setProfile, setRole, setLoading);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, session, profile, role, loading, authError, signOut }}>
+    <AuthContext.Provider value={{ user, session, profile, role, loading, authError, signOut, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

@@ -5,6 +5,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { NoPermission } from "@/components/NoPermission";
 import { PageSkeleton } from "@/components/PageSkeleton";
 import { PendingApproval } from "@/components/PendingApproval";
+import { ClinicRequest } from "@/components/ClinicRequest";
 
 /** Declares which roles can access each route prefix. */
 const ROUTE_PERMISSIONS: Array<{ prefix: string; roles: AppRole[] }> = [
@@ -32,7 +33,7 @@ function getAllowedRoles(pathname: string): AppRole[] {
 }
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, role, loading } = useAuth();
+  const { user, role, loading, profile } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -45,6 +46,15 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  // No clinic → nothing in the app works: every clinic-scoped insert raises in
+  // stamp_clinic_id(). Ask for the clinic if they have not requested one (the
+  // Google path never collects it), otherwise wait for an admin. A null profile
+  // means the fetch failed rather than that a clinic is missing, so it falls
+  // through to the role check below.
+  if (profile && !profile.clinic_id) {
+    return profile.pending_clinic_id ? <PendingApproval /> : <ClinicRequest />;
   }
 
   // authenticated but no role → pending approval (outside AppLayout)

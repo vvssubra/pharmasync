@@ -90,7 +90,7 @@ export default function RoleManagement() {
   const [resetPassword, setResetPassword] = useState("");
   const [resetError, setResetError] = useState<string | null>(null);
 
-  const { data: users = [], isLoading } = useQuery<UserWithRole[]>({
+  const { data: users = [], isLoading, error: usersError } = useQuery<UserWithRole[]>({
     queryKey: ["all-users-with-roles"],
     queryFn: async () => {
       // Not in the generated types, same as approve_clinic_member below.
@@ -339,6 +339,15 @@ export default function RoleManagement() {
           {isLoading ? (
             <div className="space-y-3">
               {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-14 w-full rounded-md" />)}
+            </div>
+          ) : usersError ? (
+            // Without this the page renders "No users found" when the query
+            // fails, which reads as an empty database and hides the cause.
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-destructive">Could not load users.</p>
+              <p className="text-xs text-muted-foreground">
+                {getErrorMessage(usersError, "Unknown error.")}
+              </p>
             </div>
           ) : activeUsers.length === 0 ? (
             <p className="text-sm text-muted-foreground">No users found.</p>
