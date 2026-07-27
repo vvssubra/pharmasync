@@ -130,6 +130,7 @@ export async function writeAuditLog(entry: {
   functionName: string;
   statusCode: number;
   tokensUsed?: number;
+  durationMs?: number;
   errorMessage?: string;
 }): Promise<void> {
   const supabase = _supabaseAdmin();
@@ -139,6 +140,7 @@ export async function writeAuditLog(entry: {
     function_name: entry.functionName,
     status_code:   entry.statusCode,
     tokens_used:   entry.tokensUsed ?? null,
+    duration_ms:   entry.durationMs ?? null,
     error_message: entry.errorMessage ?? null,
   });
   if (error) throw new Error(`Audit log write failed: ${error.message}`);
