@@ -10,6 +10,9 @@ export function quotaStatus(
   return "healthy";
 }
 
+// <<<shared-quotahelpers
+// Mirrored verbatim into supabase/functions/_shared/quotaHelpers.ts (parity-tested)
+// because the edge bundle cannot import outside supabase/functions/.
 export function forecastStatus(days: number | null): "critical" | "warning" | "healthy" | "no-data" {
   if (days === null) return "no-data";
   if (days < 7) return "critical";
@@ -39,6 +42,7 @@ export function quotaBadgeState(used: number, limit: number | null, alertThresho
   if (used >= limit * (1 - alertThresholdPct / 100)) return "warning";
   return "healthy";
 }
+// shared-quotahelpers>>>
 
 export const QUOTA_BADGE_CLASS: Record<QuotaBadgeState, string> = {
   healthy: "bg-green-100 text-green-700 border-green-300",

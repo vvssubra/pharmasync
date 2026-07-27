@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { computeStock } from "@/lib/stock";
 import { Check, ChevronsUpDown, CheckCircle, AlertCircle, Info } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -119,15 +120,10 @@ export default function DoctorRequest() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("transactions")
-        .select("jenis, kuantiti")
+        .select("drug_id, jenis, kuantiti, tarikh, created_at")
         .eq("drug_id", watchDrugId);
       if (error) throw error;
-      let baki = 0;
-      for (const tx of data || []) {
-        if (tx.jenis === "terimaan" || tx.jenis === "baki_awal") baki += tx.kuantiti;
-        else if (tx.jenis === "keluaran") baki -= tx.kuantiti;
-      }
-      return baki;
+      return computeStock(watchDrugId, data || []);
     },
   });
 

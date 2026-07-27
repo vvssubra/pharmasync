@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { Check, ChevronsUpDown, AlertCircle, CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatIC, formatICInput } from "@/lib/ic";
+import { computeStockByDrug } from "@/lib/stock";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -70,21 +71,13 @@ export function RefillWalkinDialog({ open, onOpenChange, patients, initialPatien
     queryFn: async () => {
       const { data, error } = await supabase
         .from("transactions")
-        .select("drug_id, jenis, kuantiti");
+        .select("drug_id, jenis, kuantiti, tarikh, created_at");
       if (error) throw error;
       return data;
     },
   });
 
-  const stockMap = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const tx of allTx) {
-      const curr = map.get(tx.drug_id) ?? 0;
-      if (tx.jenis === "terimaan" || tx.jenis === "baki_awal") map.set(tx.drug_id, curr + tx.kuantiti);
-      else if (tx.jenis === "keluaran") map.set(tx.drug_id, curr - tx.kuantiti);
-    }
-    return map;
-  }, [allTx]);
+  const stockMap = useMemo(() => computeStockByDrug(allTx), [allTx]);
 
   const selectedDrug = drugs.find(d => d.id === refillDrugId);
   const currentStock = refillDrugId ? (stockMap.get(refillDrugId) ?? 0) : 0;

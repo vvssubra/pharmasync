@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { computeStock } from "@/lib/stock";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -138,15 +139,10 @@ export default function Terimaan() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("transactions")
-        .select("jenis, kuantiti")
+        .select("drug_id, jenis, kuantiti, tarikh, created_at")
         .eq("drug_id", watchDrugId);
       if (error) throw error;
-      let baki = 0;
-      for (const tx of data || []) {
-        if (tx.jenis === "terimaan" || tx.jenis === "baki_awal") baki += tx.kuantiti;
-        else if (tx.jenis === "keluaran") baki -= tx.kuantiti;
-      }
-      return baki;
+      return computeStock(watchDrugId, data || []);
     },
   });
 

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { BarChart2, Package, Clock, AlertTriangle, ShieldCheck, Users } from "lucide-react";
 import { quotaStatus, forecastStatus, daysRemaining, projectedExhaustion, quotaDerivedStatus } from "@/lib/quotaHelpers";
+import { computeStock, stockStatus } from "@/lib/stock";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts";
@@ -64,22 +65,6 @@ function ageFromIC(ic: string): string {
   if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) age -= 1;
   if (age < 0 || age > 130) return "—";
   return String(age);
-}
-
-function computeStock(drugId: string, txns: { drug_id: string; jenis: string; kuantiti: number }[]) {
-  let stock = 0;
-  for (const t of txns.filter(t => t.drug_id === drugId)) {
-    if (t.jenis === "baki_awal") stock = t.kuantiti;
-    else if (t.jenis === "terimaan") stock += t.kuantiti;
-    else if (t.jenis === "keluaran") stock -= t.kuantiti;
-  }
-  return stock;
-}
-
-function stockStatus(stock: number, min: number, reorder: number) {
-  if (stock <= min) return "critical";
-  if (stock <= reorder) return "low";
-  return "normal";
 }
 
 const FORECAST_STATUS_BADGE: Record<string, string> = {
@@ -192,7 +177,7 @@ export default function FmsDashboard() {
           .order("drug_name"),
         supabase
           .from("transactions")
-          .select("drug_id, jenis, kuantiti"),
+          .select("drug_id, jenis, kuantiti, tarikh, created_at"),
       ]);
       return (drugs ?? []).map(d => ({
         ...d,

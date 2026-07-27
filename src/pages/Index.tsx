@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
 import { quotaDerivedStatus } from "@/lib/quotaHelpers";
+import { computeStockByDrug } from "@/lib/stock";
 import { Pill, FileCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -79,7 +80,7 @@ export default function Dashboard() {
   const { data: transactions } = useQuery({
     queryKey: ["transactions-all"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("transactions").select("drug_id, jenis, kuantiti, created_at");
+      const { data, error } = await supabase.from("transactions").select("drug_id, jenis, kuantiti, tarikh, created_at");
       if (error) throw error;
       return data;
     },
@@ -118,20 +119,15 @@ export default function Dashboard() {
   const drugStocks: DrugStock[] = useMemo(() => {
     if (!drugs || drugs.length === 0 || !transactions) return [];
 
-    const bakiMap = new Map<string, { baki: number; lastDate: string | null }>();
+    const bakiByDrug = computeStockByDrug(transactions);
+    const lastDateByDrug = new Map<string, string | null>();
     for (const tx of transactions) {
-      const entry = bakiMap.get(tx.drug_id) || { baki: 0, lastDate: null };
-      if (tx.jenis === "terimaan" || tx.jenis === "baki_awal") {
-        entry.baki += tx.kuantiti;
-      } else if (tx.jenis === "keluaran") {
-        entry.baki -= tx.kuantiti;
-      }
-      if (!entry.lastDate || tx.created_at > entry.lastDate) entry.lastDate = tx.created_at;
-      bakiMap.set(tx.drug_id, entry);
+      const lastDate = lastDateByDrug.get(tx.drug_id) ?? null;
+      if (!lastDate || tx.created_at > lastDate) lastDateByDrug.set(tx.drug_id, tx.created_at);
     }
 
     return drugs.map((d) => {
-      const entry = bakiMap.get(d.id) || { baki: 0, lastDate: null };
+      const entry = { baki: bakiByDrug.get(d.id) ?? 0, lastDate: lastDateByDrug.get(d.id) ?? null };
       const physicalStatus = getStatus(entry.baki, d.stok_min ?? 0, d.stok_reorder ?? 0, d.stok_max ?? 0);
       // Controlled drugs (insulin under the FMS quota register) aren't
       // tracked by physical stock thresholds — Critical/Low/Normal must come

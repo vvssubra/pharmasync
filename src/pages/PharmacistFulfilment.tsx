@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { formatDistanceToNow, startOfDay, format } from "date-fns";
 import { AlertTriangle, Check } from "lucide-react";
+import { computeStockByDrug } from "@/lib/stock";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -56,21 +57,13 @@ export default function PharmacistFulfilment() {
   const { data: allTx = [] } = useQuery({
     queryKey: ["all-transactions-for-stock"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("transactions").select("drug_id, jenis, kuantiti");
+      const { data, error } = await supabase.from("transactions").select("drug_id, jenis, kuantiti, tarikh, created_at");
       if (error) throw error;
       return data;
     },
   });
 
-  const stockMap = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const tx of allTx) {
-      const curr = map.get(tx.drug_id) ?? 0;
-      if (tx.jenis === "terimaan" || tx.jenis === "baki_awal") map.set(tx.drug_id, curr + tx.kuantiti);
-      else if (tx.jenis === "keluaran") map.set(tx.drug_id, curr - tx.kuantiti);
-    }
-    return map;
-  }, [allTx]);
+  const stockMap = useMemo(() => computeStockByDrug(allTx), [allTx]);
 
   const todayStart = startOfDay(new Date()).toISOString();
   const pending = useMemo(() => requests.filter(r => r.status === "pending_pharmacy"), [requests]);

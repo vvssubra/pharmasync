@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
 import { quotaDerivedStatus } from "@/lib/quotaHelpers";
+import { computeStock } from "@/lib/stock";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { Stethoscope, ClipboardList, Pill, AlertTriangle, Users } from "lucide-react";
@@ -23,16 +24,6 @@ interface MyRequestRow {
   quantity: number;
   status: string;
   drugs: { drug_name: string; unit_pengukuran: string } | null;
-}
-
-function computeStock(drugId: string, txns: { drug_id: string; jenis: string; kuantiti: number }[]) {
-  let stock = 0;
-  for (const t of txns.filter(t => t.drug_id === drugId)) {
-    if (t.jenis === "baki_awal") stock = t.kuantiti;
-    else if (t.jenis === "terimaan") stock += t.kuantiti;
-    else if (t.jenis === "keluaran") stock -= t.kuantiti;
-  }
-  return stock;
 }
 
 const STATUS_BADGE: Record<string, string> = {
@@ -77,7 +68,7 @@ export default function MoDashboard() {
           .order("drug_name"),
         supabase
           .from("transactions")
-          .select("drug_id, jenis, kuantiti"),
+          .select("drug_id, jenis, kuantiti, tarikh, created_at"),
       ]);
       return (drugs ?? []).map(d => {
         const stock = computeStock(d.id, txns ?? []);

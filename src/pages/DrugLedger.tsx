@@ -22,6 +22,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { computeStock } from "@/lib/stock";
 
 type LedgerRow = {
   id: string;
@@ -168,14 +169,14 @@ export default function DrugLedger() {
     return rows;
   }, [allRowsWithBaki, typeFilter, startDate, endDate, search]);
 
+  // Uses the same SET-semantics helper as every other page's "current balance"
+  // figure (not allRowsWithBaki's ADD-folded running trail above, which is a
+  // deliberately different per-row ledger narrative) so this page's headline
+  // number can never silently disagree with Index/FMS/MO/Terimaan.
   const currentBaki = useMemo(() => {
-    let qty = 0;
-    for (const row of allRowsWithBaki) {
-      if (row.jenis === "baki_awal" || row.jenis === "terimaan") qty += row.kuantiti;
-      else qty -= row.kuantiti;
-    }
-    return qty;
-  }, [allRowsWithBaki]);
+    if (!id) return 0;
+    return computeStock(id, transactions ?? []);
+  }, [transactions, id]);
 
   const hasAnyRows = allRowsWithBaki.length > 0;
 
