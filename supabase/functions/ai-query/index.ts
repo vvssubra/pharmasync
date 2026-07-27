@@ -9,7 +9,7 @@ import {
   writeAuditLog,
   callerScopedClient,
 } from "../_shared/security.ts";
-import { generate, llmHealth, LlmTimeoutError } from "../_shared/llm.ts";
+import { generate, generateStream, llmHealth, LlmTimeoutError } from "../_shared/llm.ts";
 import {
   retrieveFaq,
   classifyIntent,
@@ -20,6 +20,7 @@ import {
 
 const RequestSchema = z.object({
   question: z.string().min(1).max(500),
+  stream: z.boolean().optional(),
 });
 
 const RATE_LIMIT = 20; // per user per hour
@@ -145,6 +146,47 @@ Deno.serve(async (req) => {
   let factsText: string;
   if (faq.tier === "llm") {
     factsText = faq.top.map((entry, i) => `FAQ_${i + 1}: ${entry.answer}`).join("\n");
+
+    // Streaming only ever applies to this FAQ-rephrase path: the numeric
+    // guard rail (step 8 below) needs the complete text before it can be
+    // trusted, so it can't run against a token-by-token stream. FAQ answers
+    // rarely carry figures worth guarding, unlike quota/stock/request
+    // FACTS — those always go through the non-streaming path with the
+    // guard rail intact, regardless of what the client requests.
+    if (parsed.data.stream === true) {
+      const streamSystemPrompt = buildSystemPrompt(role, factsText);
+      try {
+        const stream = await generateStream({
+          messages: [
+            { role: "system", content: streamSystemPrompt },
+            { role: "user", content: question },
+          ],
+          numPredict: NUM_PREDICT,
+        });
+        try {
+          await writeAuditLog({ userId: userId!, role, functionName: FUNCTION_NAME, statusCode: 200, durationMs: Date.now() - startedAt });
+        } catch {
+          // Audit log failure must not abort the primary response
+        }
+        return new Response(stream, {
+          status: 200,
+          headers: { ...cors, "Content-Type": "text/event-stream", "Cache-Control": "no-cache", "Connection": "keep-alive" },
+        });
+      } catch (err) {
+        if (err instanceof LlmTimeoutError) {
+          try {
+            await writeAuditLog({ userId: userId!, role, functionName: FUNCTION_NAME, statusCode: 504, errorMessage: "llm_timeout" });
+          } catch { /* non-fatal */ }
+          return jsonResponse({ error: "AI assistant took too long to respond. Please try again." }, 504, cors);
+        }
+        const errMsg = err instanceof Error ? err.message : String(err);
+        console.error("LLM stream error:", errMsg);
+        try {
+          await writeAuditLog({ userId: userId!, role, functionName: FUNCTION_NAME, statusCode: 500, errorMessage: `llm_stream_error: ${errMsg.slice(0, 200)}` });
+        } catch { /* non-fatal */ }
+        return jsonResponse({ error: "AI service temporarily unavailable" }, 500, cors);
+      }
+    }
   } else {
     // No FAQ match — route by data intent.
     const intent = classifyIntent(question);

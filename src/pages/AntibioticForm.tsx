@@ -9,7 +9,7 @@ import { ArrowLeft, ShieldCheck, CheckCircle, Sparkles, AlertTriangle } from "lu
 import { usePathwayCheck } from "@/hooks/usePathwayCheck";
 import { useDoseSuggestion } from "@/hooks/useDoseSuggestion";
 import PathwayCheckBanner from "@/components/PathwayCheckBanner";
-import { AI_ENABLED, KNOWLEDGE_ENABLED } from "@/lib/featureFlags";
+import { AI_ENABLED, PATHWAY_CHECK_ENABLED, KNOWLEDGE_ENABLED } from "@/lib/featureFlags";
 import { deriveDoseQuery, type ChecklistState } from "@/lib/doseQuery";
 import { exampleDoseFor } from "@/lib/knowledgeClient";
 
@@ -112,7 +112,7 @@ export default function AntibioticForm() {
     checklist: checklist as Record<string, unknown>,
     allergy_status: drugAllergy ? drugAllergyDetail : undefined,
     patient_age: age ?? undefined,
-  }, { enabled: AI_ENABLED });
+  }, { enabled: PATHWAY_CHECK_ENABLED });
   const centorTotal = checklist.pharyngitis.temp + checklist.pharyngitis.no_cough + checklist.pharyngitis.adenopathy + checklist.pharyngitis.exudate + checklist.pharyngitis.age_score;
 
   const doseQuery = deriveDoseQuery(checklist, diagnosis, age);
@@ -615,7 +615,7 @@ export default function AntibioticForm() {
 
       {/* SUBMIT */}
       <div className="space-y-3">
-        {AI_ENABLED && (
+        {PATHWAY_CHECK_ENABLED && (
           <PathwayCheckBanner
             status={pathwayStatus}
             verdict={pathwayVerdict}
