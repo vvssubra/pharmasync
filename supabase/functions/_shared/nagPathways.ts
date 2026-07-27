@@ -127,6 +127,23 @@ export const NAG_PATHWAYS: NagPathway[] = [
   },
 ];
 
+const ALL_KNOWN_DRUGS: string[] = Array.from(
+  new Set(NAG_PATHWAYS.flatMap((p) => p.allowedDrugs)),
+).sort((a, b) => b.length - a.length);
+
+/**
+ * Identifies which known NAG drug (if any) is named in free text, preferring
+ * the longest match. A plain substring check alone would misidentify a
+ * compound name — "Amoxicillin-Clavulanate" contains "Amoxicillin" — as its
+ * shorter, differently-indicated constituent, so callers must always
+ * resolve identity through this function rather than testing one
+ * `allowedDrugs` entry against the text on its own.
+ */
+export function identifyDrug(text: string): string | null {
+  const norm = text.toLowerCase();
+  return ALL_KNOWN_DRUGS.find((d) => norm.includes(d.toLowerCase())) ?? null;
+}
+
 function matchesAlias(text: string, pathway: NagPathway): boolean {
   const norm = text.trim().toLowerCase();
   if (!norm) return false;

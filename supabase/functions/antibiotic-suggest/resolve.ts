@@ -5,18 +5,23 @@
 // the drug, dose, or duration itself.
 
 import { derivePathwayIndication, type ChecklistState } from "../_shared/doseQuery.ts";
-import { matchPathway, patientGroupFromAge, isStatedAllergy, type NagPathway } from "../_shared/nagPathways.ts";
+import { matchPathway, patientGroupFromAge, isStatedAllergy, identifyDrug, type NagPathway } from "../_shared/nagPathways.ts";
 
 /**
  * The resolved regimen already names an allowed drug (it's built from
  * pathway.firstLine / pathway.alternatives), so this only needs to catch
- * the model straying off of it — not run a full drug-name NER pass. If the
- * phrased suggestion doesn't mention any of the pathway's allowed drugs at
- * all, treat that as a violation and fall back to the verbatim regimen.
+ * the model straying off of it — not run a full drug-name NER pass. Identity
+ * is resolved through identifyDrug() against the full known-drug vocabulary
+ * (not a plain substring test against allowedDrugs) so a compound name like
+ * "Amoxicillin-Clavulanate" is never counted as the shorter, differently
+ * -indicated "Amoxicillin" just because it contains it. No recognized drug
+ * at all, or a recognized drug outside this pathway's allowedDrugs, is a
+ * violation — fall back to the verbatim regimen either way.
  */
 export function violatesDrugAllowlist(suggestion: string, allowedDrugs: string[]): boolean {
-  const norm = suggestion.toLowerCase();
-  return !allowedDrugs.some((d) => norm.includes(d.toLowerCase()));
+  const identified = identifyDrug(suggestion);
+  if (!identified) return true;
+  return !allowedDrugs.some((d) => d.toLowerCase() === identified.toLowerCase());
 }
 
 export interface ResolveInput {

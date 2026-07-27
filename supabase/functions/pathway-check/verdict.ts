@@ -5,7 +5,7 @@
 // chance of hallucinating an out-of-range verdict.
 
 import { derivePathwayIndication, type ChecklistState } from "../_shared/doseQuery.ts";
-import { matchPathway, patientGroupFromAge, isStatedAllergy, type NagPathway } from "../_shared/nagPathways.ts";
+import { matchPathway, patientGroupFromAge, isStatedAllergy, identifyDrug, type NagPathway } from "../_shared/nagPathways.ts";
 
 export type Verdict = "supported" | "review" | "not_supported" | "refer_specialist";
 
@@ -58,8 +58,14 @@ export function checkPathway(input: PathwayCheckInput): PathwayVerdict {
     };
   }
 
-  const antibioticNorm = antibiotic.toLowerCase();
-  const matchedDrug = pathway.allowedDrugs.find((d) => antibioticNorm.includes(d.toLowerCase()));
+  // Identify the drug against the full known-drug vocabulary first (not just
+  // this pathway's allowedDrugs) so a compound name like
+  // "Amoxicillin-Clavulanate" is never misread as its shorter, differently
+  // -indicated constituent "Amoxicillin" just because it contains it.
+  const identifiedDrug = identifyDrug(antibiotic);
+  const matchedDrug = identifiedDrug && pathway.allowedDrugs.some((d) => d.toLowerCase() === identifiedDrug.toLowerCase())
+    ? identifiedDrug
+    : null;
   if (!matchedDrug) {
     return {
       verdict: "not_supported",

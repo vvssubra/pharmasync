@@ -70,8 +70,10 @@ $$;
 
 revoke all on function public.ai_rate_limit_hit(uuid, text, integer, integer) from public, anon, authenticated;
 
-create policy "Admins read ai_audit_logs" on public.ai_audit_logs
-  for select to authenticated
-  using (public.is_admin() or public.is_super_admin());
+-- No admin-readable policy on ai_audit_logs: it has no clinic_id column, so
+-- `is_admin() or is_super_admin()` (unlike every other admin policy in this
+-- schema, which additionally ANDs clinic_id = user_clinic_id()) would let a
+-- single clinic's admin read every clinic's audit trail. Stays service-role
+-- -only, same as before this migration.
 
 notify pgrst, 'reload schema';

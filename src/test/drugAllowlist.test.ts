@@ -20,4 +20,17 @@ describe("violatesDrugAllowlist", () => {
     expect(violatesDrugAllowlist("Refer to specialist", ALLOWED)).toBe(true);
     expect(violatesDrugAllowlist("", ALLOWED)).toBe(true);
   });
+
+  it("violates when the suggestion names a compound drug whose shorter constituent is allowed elsewhere", () => {
+    // "Amoxicillin-Clavulanate" contains "Amoxicillin" as a substring, but it
+    // is NAG's ABRS first-line, not a CAP/AOM drug — a plain substring check
+    // would wrongly pass this as a match against a CAP-style allowlist.
+    const cap = ["Amoxicillin", "Doxycycline"];
+    expect(violatesDrugAllowlist("Amoxicillin-Clavulanate 625mg PO TDS x 7 days", cap)).toBe(true);
+  });
+
+  it("does not violate when the compound drug is itself on the allowlist", () => {
+    const abrs = ["Amoxicillin-Clavulanate", "Doxycycline"];
+    expect(violatesDrugAllowlist("Amoxicillin-Clavulanate 625mg PO TDS x 7 days", abrs)).toBe(false);
+  });
 });

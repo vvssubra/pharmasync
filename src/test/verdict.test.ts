@@ -52,4 +52,17 @@ describe("checkPathway", () => {
   it("malformed checklist does not throw — falls through to diagnosis matching", () => {
     expect(() => checkPathway({ checklist: { not: "a real checklist" }, diagnosis: "pharyngitis" })).not.toThrow();
   });
+
+  it("a compound drug is not mistaken for its shorter constituent -> not_supported", () => {
+    // CAP's allowedDrugs is ["Amoxicillin", "Doxycycline"]; Amoxicillin-Clavulanate
+    // is NAG's ABRS first-line, a different pathway entirely, and must not
+    // be accepted here just because it contains the substring "Amoxicillin".
+    const r = checkPathway({ diagnosis: "pneumonia", antibiotic: "Amoxicillin-Clavulanate 625mg PO TDS x 7 days" });
+    expect(r.verdict).toBe("not_supported");
+  });
+
+  it("the compound drug is supported on the pathway it actually belongs to", () => {
+    const r = checkPathway({ diagnosis: "rhinosinusitis", antibiotic: "Amoxicillin-Clavulanate 625mg PO TDS x 7 days", duration_days: 7 });
+    expect(r.verdict).toBe("supported");
+  });
 });
