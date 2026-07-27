@@ -5,7 +5,7 @@
 // chance of hallucinating an out-of-range verdict.
 
 import { derivePathwayIndication, type ChecklistState } from "../_shared/doseQuery.ts";
-import { matchPathway, type NagPathway } from "../_shared/nagPathways.ts";
+import { matchPathway, patientGroupFromAge, isStatedAllergy, type NagPathway } from "../_shared/nagPathways.ts";
 
 export type Verdict = "supported" | "review" | "not_supported" | "refer_specialist";
 
@@ -22,18 +22,6 @@ export interface PathwayCheckInput {
 export interface PathwayVerdict {
   verdict: Verdict;
   explanation: string;
-}
-
-function patientGroupFromAge(age: number | undefined): "Adult" | "Paediatric" | "Any" {
-  if (age == null) return "Any";
-  return age < 12 ? "Paediatric" : "Adult";
-}
-
-function isStatedAllergy(allergyStatus: string | undefined): boolean {
-  if (!allergyStatus) return false;
-  const norm = allergyStatus.trim().toLowerCase();
-  if (!norm) return false;
-  return !/^(none|no|nkda|nil)\b/.test(norm);
 }
 
 function resolvePathway(input: PathwayCheckInput): NagPathway | null {

@@ -203,10 +203,10 @@ export interface GenerateJsonResult<T> {
  * fallback. Never throws on bad model output — only on a transport failure
  * (which callers should let bubble up as a 500/504).
  */
-export async function generateJson<T>(
-  schema: z.ZodType<T>,
+export async function generateJson<S extends z.ZodTypeAny>(
+  schema: S,
   opts: GenerateJsonOpts,
-): Promise<GenerateJsonResult<T>> {
+): Promise<GenerateJsonResult<z.infer<S>>> {
   const attempt = async (temperature: number, useSchema: boolean) => {
     const result = await chat({
       messages: opts.messages,
@@ -226,7 +226,7 @@ export async function generateJson<T>(
 
   if (!attemptResult.parsed.success) {
     return {
-      data: opts.fallback as T,
+      data: opts.fallback as z.infer<S>,
       source: "fallback",
       usage: attemptResult.usage,
       durationMs: attemptResult.durationMs,

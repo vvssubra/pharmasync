@@ -60,6 +60,7 @@ interface AiSuggestion {
   suggestion: string;
   rationale: string;
   warning: string | null;
+  source: "rules" | "llm";
 }
 
 export default function AntibioticForm() {
@@ -371,7 +372,11 @@ export default function AntibioticForm() {
                         Use
                       </Button>
                     </div>
-                    <p className="text-xs text-muted-foreground">AI suggestion based on NAG 2024. Verify before prescribing.</p>
+                    <p className="text-xs text-muted-foreground">
+                      {aiSuggestion.source === "llm"
+                        ? "AI-phrased from NAG 2024 — verify before prescribing."
+                        : "NAG 2024 pathway match — verify before prescribing."}
+                    </p>
                   </div>
                 )}
                 {KNOWLEDGE_ENABLED && doseMatches.length > 0 && (

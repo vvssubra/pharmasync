@@ -8,6 +8,13 @@
 
 import type { PatientGroup } from "./doseQuery.ts";
 
+export interface NagWeightDosing {
+  drug: string;
+  mgPerKgPerDayRange: [number, number];
+  frequency: string;
+  durationDaysRange: [number, number];
+}
+
 export interface NagPathway {
   id: string;
   indication: string;
@@ -22,6 +29,10 @@ export interface NagPathway {
   allowedDrugs: string[];
   cautions: string[];
   source: string;
+  /** Only set when the first-line regimen is genuinely weight-based
+   *  (mg/kg/day math), as opposed to a fixed dose with a weight threshold
+   *  (e.g. pharyngitis's "250mg BD child <27kg" is NOT weight-based). */
+  weightBased?: NagWeightDosing;
 }
 
 export const NAG_PATHWAYS: NagPathway[] = [
@@ -66,6 +77,7 @@ export const NAG_PATHWAYS: NagPathway[] = [
     allowedDrugs: ["Amoxicillin", "Azithromycin"],
     cautions: ["Paediatric weight-based dosing — confirm current weight."],
     source: "NAG 2024 — Acute Otitis Media",
+    weightBased: { drug: "Amoxicillin", mgPerKgPerDayRange: [80, 90], frequency: "divided BD", durationDaysRange: [5, 7] },
   },
   {
     id: "abrs",
@@ -143,4 +155,18 @@ export function matchPathway(
 
   if (pool.length === 0) return null;
   return pool.find((p) => p.patientGroup === "Any" || p.patientGroup === patientGroup) ?? pool[0];
+}
+
+/** Shared by pathway-check and antibiotic-suggest. */
+export function patientGroupFromAge(age: number | undefined | null): PatientGroup {
+  if (age == null) return "Any";
+  return age < 12 ? "Paediatric" : "Adult";
+}
+
+/** Shared by pathway-check and antibiotic-suggest. */
+export function isStatedAllergy(allergyStatus: string | undefined | null): boolean {
+  if (!allergyStatus) return false;
+  const norm = allergyStatus.trim().toLowerCase();
+  if (!norm) return false;
+  return !/^(none|no|nkda|nil)\b/.test(norm);
 }
