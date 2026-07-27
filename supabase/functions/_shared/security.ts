@@ -63,78 +63,31 @@ export async function getUserRole(userId: string): Promise<string | null> {
   return data?.role ?? null;
 }
 
-// ── Rate limiting (Upstash Redis sliding window) ────────────────────────────
+// ── Rate limiting (Postgres fixed window, via ai_rate_limit_hit RPC) ───────
+// Lives in the same database the function already needs for getUserRole and
+// writeAuditLog, so unlike the old Upstash-backed limiter this FAILS CLOSED:
+// if Postgres is unreachable the request can't succeed anyway.
 export async function checkRateLimit(
   userId: string,
   functionName: string,
   limitPerHour: number,
 ): Promise<{ allowed: boolean; retryAfterSeconds: number }> {
-  const url = Deno.env.get("UPSTASH_REDIS_REST_URL")!;
-  const token = Deno.env.get("UPSTASH_REDIS_REST_TOKEN")!;
+  const supabase = _supabaseAdmin();
+  const { data, error } = await supabase
+    .rpc("ai_rate_limit_hit", {
+      p_user_id: userId,
+      p_function: functionName,
+      p_limit: limitPerHour,
+      p_window_seconds: 3600,
+    })
+    .single();
 
-  const key = `rate:${functionName}:${userId}`;
-  const now = Date.now();
-  const windowMs = 60 * 60 * 1000; // 1 hour
-  const windowStart = now - windowMs;
-
-  // Step 1: Clean old entries + check current count + get oldest entry (all in one pipeline)
-  const checkPipeline = [
-    ["zremrangebyscore", key, "-inf", String(windowStart)],
-    ["zcard", key],
-    ["zrange", key, "0", "0", "WITHSCORES"],
-  ];
-
-  const checkResp = await fetch(`${url}/pipeline`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(checkPipeline),
-  });
-
-  if (!checkResp.ok) {
-    // Redis unavailable — fail open (allow request)
-    return { allowed: true, retryAfterSeconds: 0 };
+  if (error || !data) {
+    throw new Error(`Rate limit check failed: ${error?.message ?? "no data returned"}`);
   }
 
-  const checkResults = await checkResp.json();
-  const count = checkResults[1]?.result ?? 0;
-
-  if (count >= limitPerHour) {
-    // Over limit — compute retry-after from oldest entry
-    const oldestData = checkResults[2]?.result;
-    const oldestTimestamp =
-      Array.isArray(oldestData) && oldestData[1]
-        ? parseInt(oldestData[1])
-        : now;
-    const retryAfterSeconds = Math.ceil(
-      (oldestTimestamp + windowMs - now) / 1000,
-    );
-    return { allowed: false, retryAfterSeconds: Math.max(1, retryAfterSeconds) };
-  }
-
-  // Under limit — now add this request
-  const addPipeline = [
-    ["zadd", key, String(now), String(now)],
-    ["pexpire", key, String(windowMs)],
-  ];
-
-  const addResp = await fetch(`${url}/pipeline`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(addPipeline),
-  });
-
-  if (!addResp.ok) {
-    // Redis write failed — allow request anyway (fail open)
-    return { allowed: true, retryAfterSeconds: 0 };
-  }
-
-  return { allowed: true, retryAfterSeconds: 0 };
+  const row = data as { allowed: boolean; retry_after_seconds: number };
+  return { allowed: row.allowed, retryAfterSeconds: row.retry_after_seconds };
 }
 
 // ── Prompt injection sanitization ──────────────────────────────────────────

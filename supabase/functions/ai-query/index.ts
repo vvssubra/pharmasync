@@ -48,7 +48,14 @@ Deno.serve(async (req) => {
   }
 
   // ── 3. Rate limit ─────────────────────────────────────────────────────────
-  const { allowed, retryAfterSeconds } = await checkRateLimit(userId!, FUNCTION_NAME, RATE_LIMIT);
+  let allowed: boolean, retryAfterSeconds: number;
+  try {
+    ({ allowed, retryAfterSeconds } = await checkRateLimit(userId!, FUNCTION_NAME, RATE_LIMIT));
+  } catch {
+    // Fail closed — the limiter lives in the same Postgres this function
+    // already needs, so if it's unreachable nothing else here would work.
+    return new Response(JSON.stringify({ error: "Service temporarily unavailable" }), { status: 503, headers: { ...cors, "Content-Type": "application/json" } });
+  }
   if (!allowed) {
     try {
       await writeAuditLog({ userId: userId!, role, functionName: FUNCTION_NAME, statusCode: 429, errorMessage: "rate_limit_exceeded" });
