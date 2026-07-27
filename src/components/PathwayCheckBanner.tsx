@@ -62,6 +62,9 @@ export default function PathwayCheckBanner({ status, verdict, explanation }: Pro
       <div>
         <span className="font-medium">{config.label}</span>
         {explanation && <p className="text-xs mt-0.5 opacity-90">{explanation}</p>}
+        <p className="text-xs mt-0.5 opacity-70">
+          Rule-based check against NAG 2024. Not a substitute for clinical judgement.
+        </p>
       </div>
     </div>
   );

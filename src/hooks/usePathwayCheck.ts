@@ -26,7 +26,9 @@ interface PathwayCheckResult {
   status: PathwayStatus;
 }
 
-const DEBOUNCE_MS = 1500;
+// pathway-check is now a rule-based lookup (no LLM call), so a short debounce
+// is enough to coalesce rapid keystrokes without the form feeling laggy.
+const DEBOUNCE_MS = 400;
 
 function hasContent(fields: FormFields): boolean {
   return !!(fields.diagnosis || fields.antibiotic || fields.indication);
