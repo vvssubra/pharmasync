@@ -389,7 +389,7 @@ export default function AntibioticForm() {
                               </div>
                               <p className="text-xs text-sky-800 whitespace-pre-line">{match.body}</p>
                               <p className="text-[11px] text-sky-600">Source: {match.source} · Local knowledge base · shown verbatim</p>
-                              <p className="text-[11px] text-sky-600">Butang Guna masukkan regimen pilihan sahaja — banding pilihan di atas dan edit medan jika perlu.</p>
+                              <p className="text-[11px] text-sky-600">The Use button fills in the regimen field only — compare the options above and edit the field if needed.</p>
                             </div>
                             <Button
                               type="button"
