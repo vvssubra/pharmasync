@@ -7,6 +7,18 @@
 import { derivePathwayIndication, type ChecklistState } from "../_shared/doseQuery.ts";
 import { matchPathway, patientGroupFromAge, isStatedAllergy, type NagPathway } from "../_shared/nagPathways.ts";
 
+/**
+ * The resolved regimen already names an allowed drug (it's built from
+ * pathway.firstLine / pathway.alternatives), so this only needs to catch
+ * the model straying off of it — not run a full drug-name NER pass. If the
+ * phrased suggestion doesn't mention any of the pathway's allowed drugs at
+ * all, treat that as a violation and fall back to the verbatim regimen.
+ */
+export function violatesDrugAllowlist(suggestion: string, allowedDrugs: string[]): boolean {
+  const norm = suggestion.toLowerCase();
+  return !allowedDrugs.some((d) => norm.includes(d.toLowerCase()));
+}
+
 export interface ResolveInput {
   diagnosis: string;
   checklist?: unknown;

@@ -9,7 +9,7 @@ import {
   writeAuditLog,
 } from "../_shared/security.ts";
 import { generateJson, LlmTimeoutError } from "../_shared/llm.ts";
-import { resolveCase } from "./resolve.ts";
+import { resolveCase, violatesDrugAllowlist } from "./resolve.ts";
 
 const RequestSchema = z.object({
   diagnosis:         z.string().min(1).max(500),
@@ -38,18 +38,6 @@ const SUGGESTION_JSON_SCHEMA = {
   },
   required: ["suggestion", "rationale", "warning"],
 };
-
-/**
- * The resolved regimen already names an allowed drug (it's built from
- * pathway.firstLine / pathway.alternatives), so this only needs to catch
- * the model straying off of it — not run a full drug-name NER pass. If the
- * phrased suggestion doesn't mention any of the pathway's allowed drugs at
- * all, treat that as a violation and fall back to the verbatim regimen.
- */
-function violatesDrugAllowlist(suggestion: string, allowedDrugs: string[]): boolean {
-  const norm = suggestion.toLowerCase();
-  return !allowedDrugs.some((d) => norm.includes(d.toLowerCase()));
-}
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
