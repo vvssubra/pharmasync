@@ -1,18 +1,24 @@
 // supabase/functions/_shared/security.ts
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.46.0";
 
-// Lazy-initialized singleton clients — constructed once per Deno isolate on first use
-let _anonClient: ReturnType<typeof createClient> | null = null;
+// Lazy-initialized singleton client — constructed once per Deno isolate on first use
 let _adminClient: ReturnType<typeof createClient> | null = null;
 
-function _supabaseAnon() {
-  if (!_anonClient) {
-    _anonClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-    );
-  }
-  return _anonClient;
+/**
+ * A client scoped to the caller's own JWT (anon key + their Authorization
+ * header), so RLS and user_clinic_id() apply exactly as they would for that
+ * user's own requests through PostgREST. Use this for any data read —
+ * reserve _supabaseAdmin() for writes that must bypass RLS (audit logs,
+ * rate limiting). A plain anon-key client with no per-request Authorization
+ * header is NOT a substitute: it runs as the `anon` role, not the caller,
+ * and RLS-scoped reads return nothing.
+ */
+export function callerScopedClient(authHeader: string) {
+  return createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_ANON_KEY")!,
+    { global: { headers: { Authorization: authHeader } } },
+  );
 }
 
 function _supabaseAdmin() {
@@ -39,11 +45,7 @@ export async function verifyJWT(authHeader: string | null): Promise<{
 
   try {
     // Use Supabase's own getUser() — reliable JWT validation without manual base64 decoding
-    const client = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
+    const client = callerScopedClient(authHeader);
     const { data: { user }, error } = await client.auth.getUser();
     if (error || !user) return { error: "Invalid or expired token" };
     return { userId: user.id };

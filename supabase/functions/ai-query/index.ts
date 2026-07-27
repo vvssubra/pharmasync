@@ -1,5 +1,7 @@
 // supabase/functions/ai-query/index.ts
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.46.0";
+// TODO(phase 6): this Anthropic import and the fetchDataContext/buildSystemPrompt
+// functions below are replaced wholesale by ai-query/context.ts + _shared/llm.ts.
 import Anthropic from "https://esm.sh/@anthropic-ai/sdk@0.52.0";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import {
@@ -10,6 +12,7 @@ import {
   corsHeaders,
   writeAuditLog,
 } from "../_shared/security.ts";
+import { llmHealth } from "../_shared/llm.ts";
 
 const RequestSchema = z.object({
   question: z.string().min(1).max(500),
@@ -36,6 +39,17 @@ Deno.serve(async (req) => {
   const role = await getUserRole(userId!);
   if (!role) {
     return new Response(JSON.stringify({ error: "Unauthorized: no role assigned" }), { status: 403, headers: { ...cors, "Content-Type": "application/json" } });
+  }
+
+  // GET /ai-query — Ollama health check, admin/super_admin only. Authoritative
+  // proof the edge runtime can reach Ollama; a bare `curl` to Ollama can't
+  // confirm the container-to-container network path actually works.
+  if (req.method === "GET") {
+    if (role !== "admin" && role !== "super_admin") {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 403, headers: { ...cors, "Content-Type": "application/json" } });
+    }
+    const health = await llmHealth();
+    return new Response(JSON.stringify(health), { status: 200, headers: { ...cors, "Content-Type": "application/json" } });
   }
 
   // Explicit allowlist — reject any unrecognized roles before rate limit

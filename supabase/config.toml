@@ -4,3 +4,9 @@ project_id = "aeclqhwpqvbmhepkayuy"
 
 [functions.ai-query]
 verify_jwt = false
+
+[functions.antibiotic-suggest]
+verify_jwt = false
+
+[functions.pathway-check]
+verify_jwt = false
