@@ -96,9 +96,9 @@ Tables (types at `src/integrations/supabase/types.ts`):
 
 ### UI Conventions
 
-- UI language: **Malay** (Bahasa Malaysia) — field labels, status values, toasts
+- UI language: **English**, with domain nouns kept in Malay (Terimaan, Keluaran, Baki Awal, Pesara, Kuota, Arkib Antibiotik)
 - Color scheme: dark blue sidebar (`--sidebar-background: 216 62% 27%`), off-white canvas, semantic status colors (green=success, amber=warning, red=critical)
-- Status badges: `kritikal` (red), `rendah` (amber), `normal` (green), `lebihan` (blue)
+- Status badges: `CRITICAL` (red), `LOW` (amber), `NORMAL` (green), `EXCESS` (blue)
 - React Query refetch: 15–30s on pages with pending counts
 - Dialogs for create/edit forms (`DrugFormDialog`, `OpeningBalanceDialog`)
 - `NoPermission` shown (not redirect) when role doesn't match route

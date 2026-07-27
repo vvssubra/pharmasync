@@ -1,18 +1,24 @@
 // supabase/functions/_shared/security.ts
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.46.0";
 
-// Lazy-initialized singleton clients — constructed once per Deno isolate on first use
-let _anonClient: ReturnType<typeof createClient> | null = null;
+// Lazy-initialized singleton client — constructed once per Deno isolate on first use
 let _adminClient: ReturnType<typeof createClient> | null = null;
 
-function _supabaseAnon() {
-  if (!_anonClient) {
-    _anonClient = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-    );
-  }
-  return _anonClient;
+/**
+ * A client scoped to the caller's own JWT (anon key + their Authorization
+ * header), so RLS and user_clinic_id() apply exactly as they would for that
+ * user's own requests through PostgREST. Use this for any data read —
+ * reserve _supabaseAdmin() for writes that must bypass RLS (audit logs,
+ * rate limiting). A plain anon-key client with no per-request Authorization
+ * header is NOT a substitute: it runs as the `anon` role, not the caller,
+ * and RLS-scoped reads return nothing.
+ */
+export function callerScopedClient(authHeader: string) {
+  return createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_ANON_KEY")!,
+    { global: { headers: { Authorization: authHeader } } },
+  );
 }
 
 function _supabaseAdmin() {
@@ -39,11 +45,7 @@ export async function verifyJWT(authHeader: string | null): Promise<{
 
   try {
     // Use Supabase's own getUser() — reliable JWT validation without manual base64 decoding
-    const client = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_ANON_KEY")!,
-      { global: { headers: { Authorization: authHeader } } },
-    );
+    const client = callerScopedClient(authHeader);
     const { data: { user }, error } = await client.auth.getUser();
     if (error || !user) return { error: "Invalid or expired token" };
     return { userId: user.id };
@@ -63,78 +65,31 @@ export async function getUserRole(userId: string): Promise<string | null> {
   return data?.role ?? null;
 }
 
-// ── Rate limiting (Upstash Redis sliding window) ────────────────────────────
+// ── Rate limiting (Postgres fixed window, via ai_rate_limit_hit RPC) ───────
+// Lives in the same database the function already needs for getUserRole and
+// writeAuditLog, so unlike the old Upstash-backed limiter this FAILS CLOSED:
+// if Postgres is unreachable the request can't succeed anyway.
 export async function checkRateLimit(
   userId: string,
   functionName: string,
   limitPerHour: number,
 ): Promise<{ allowed: boolean; retryAfterSeconds: number }> {
-  const url = Deno.env.get("UPSTASH_REDIS_REST_URL")!;
-  const token = Deno.env.get("UPSTASH_REDIS_REST_TOKEN")!;
+  const supabase = _supabaseAdmin();
+  const { data, error } = await supabase
+    .rpc("ai_rate_limit_hit", {
+      p_user_id: userId,
+      p_function: functionName,
+      p_limit: limitPerHour,
+      p_window_seconds: 3600,
+    })
+    .single();
 
-  const key = `rate:${functionName}:${userId}`;
-  const now = Date.now();
-  const windowMs = 60 * 60 * 1000; // 1 hour
-  const windowStart = now - windowMs;
-
-  // Step 1: Clean old entries + check current count + get oldest entry (all in one pipeline)
-  const checkPipeline = [
-    ["zremrangebyscore", key, "-inf", String(windowStart)],
-    ["zcard", key],
-    ["zrange", key, "0", "0", "WITHSCORES"],
-  ];
-
-  const checkResp = await fetch(`${url}/pipeline`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(checkPipeline),
-  });
-
-  if (!checkResp.ok) {
-    // Redis unavailable — fail open (allow request)
-    return { allowed: true, retryAfterSeconds: 0 };
+  if (error || !data) {
+    throw new Error(`Rate limit check failed: ${error?.message ?? "no data returned"}`);
   }
 
-  const checkResults = await checkResp.json();
-  const count = checkResults[1]?.result ?? 0;
-
-  if (count >= limitPerHour) {
-    // Over limit — compute retry-after from oldest entry
-    const oldestData = checkResults[2]?.result;
-    const oldestTimestamp =
-      Array.isArray(oldestData) && oldestData[1]
-        ? parseInt(oldestData[1])
-        : now;
-    const retryAfterSeconds = Math.ceil(
-      (oldestTimestamp + windowMs - now) / 1000,
-    );
-    return { allowed: false, retryAfterSeconds: Math.max(1, retryAfterSeconds) };
-  }
-
-  // Under limit — now add this request
-  const addPipeline = [
-    ["zadd", key, String(now), String(now)],
-    ["pexpire", key, String(windowMs)],
-  ];
-
-  const addResp = await fetch(`${url}/pipeline`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(addPipeline),
-  });
-
-  if (!addResp.ok) {
-    // Redis write failed — allow request anyway (fail open)
-    return { allowed: true, retryAfterSeconds: 0 };
-  }
-
-  return { allowed: true, retryAfterSeconds: 0 };
+  const row = data as { allowed: boolean; retry_after_seconds: number };
+  return { allowed: row.allowed, retryAfterSeconds: row.retry_after_seconds };
 }
 
 // ── Prompt injection sanitization ──────────────────────────────────────────
@@ -175,6 +130,7 @@ export async function writeAuditLog(entry: {
   functionName: string;
   statusCode: number;
   tokensUsed?: number;
+  durationMs?: number;
   errorMessage?: string;
 }): Promise<void> {
   const supabase = _supabaseAdmin();
@@ -184,6 +140,7 @@ export async function writeAuditLog(entry: {
     function_name: entry.functionName,
     status_code:   entry.statusCode,
     tokens_used:   entry.tokensUsed ?? null,
+    duration_ms:   entry.durationMs ?? null,
     error_message: entry.errorMessage ?? null,
   });
   if (error) throw new Error(`Audit log write failed: ${error.message}`);

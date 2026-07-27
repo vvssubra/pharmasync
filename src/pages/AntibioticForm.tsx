@@ -9,7 +9,7 @@ import { ArrowLeft, ShieldCheck, CheckCircle, Sparkles, AlertTriangle } from "lu
 import { usePathwayCheck } from "@/hooks/usePathwayCheck";
 import { useDoseSuggestion } from "@/hooks/useDoseSuggestion";
 import PathwayCheckBanner from "@/components/PathwayCheckBanner";
-import { AI_ENABLED, KNOWLEDGE_ENABLED } from "@/lib/featureFlags";
+import { AI_ENABLED, PATHWAY_CHECK_ENABLED, KNOWLEDGE_ENABLED } from "@/lib/featureFlags";
 import { deriveDoseQuery, type ChecklistState } from "@/lib/doseQuery";
 import { exampleDoseFor } from "@/lib/knowledgeClient";
 
@@ -60,6 +60,7 @@ interface AiSuggestion {
   suggestion: string;
   rationale: string;
   warning: string | null;
+  source: "rules" | "llm";
 }
 
 export default function AntibioticForm() {
@@ -111,7 +112,7 @@ export default function AntibioticForm() {
     checklist: checklist as Record<string, unknown>,
     allergy_status: drugAllergy ? drugAllergyDetail : undefined,
     patient_age: age ?? undefined,
-  }, { enabled: AI_ENABLED });
+  }, { enabled: PATHWAY_CHECK_ENABLED });
   const centorTotal = checklist.pharyngitis.temp + checklist.pharyngitis.no_cough + checklist.pharyngitis.adenopathy + checklist.pharyngitis.exudate + checklist.pharyngitis.age_score;
 
   const doseQuery = deriveDoseQuery(checklist, diagnosis, age);
@@ -371,7 +372,11 @@ export default function AntibioticForm() {
                         Use
                       </Button>
                     </div>
-                    <p className="text-xs text-muted-foreground">AI suggestion based on NAG 2024. Verify before prescribing.</p>
+                    <p className="text-xs text-muted-foreground">
+                      {aiSuggestion.source === "llm"
+                        ? "AI-phrased from NAG 2024 — verify before prescribing."
+                        : "NAG 2024 pathway match — verify before prescribing."}
+                    </p>
                   </div>
                 )}
                 {KNOWLEDGE_ENABLED && doseMatches.length > 0 && (
@@ -389,7 +394,7 @@ export default function AntibioticForm() {
                               </div>
                               <p className="text-xs text-sky-800 whitespace-pre-line">{match.body}</p>
                               <p className="text-[11px] text-sky-600">Source: {match.source} · Local knowledge base · shown verbatim</p>
-                              <p className="text-[11px] text-sky-600">Butang Guna masukkan regimen pilihan sahaja — banding pilihan di atas dan edit medan jika perlu.</p>
+                              <p className="text-[11px] text-sky-600">The Use button fills in the regimen field only — compare the options above and edit the field if needed.</p>
                             </div>
                             <Button
                               type="button"
@@ -610,7 +615,7 @@ export default function AntibioticForm() {
 
       {/* SUBMIT */}
       <div className="space-y-3">
-        {AI_ENABLED && (
+        {PATHWAY_CHECK_ENABLED && (
           <PathwayCheckBanner
             status={pathwayStatus}
             verdict={pathwayVerdict}

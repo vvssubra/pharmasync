@@ -30,7 +30,13 @@ vi.mock("@/hooks/usePathwayCheck", () => ({
 vi.mock("@/hooks/useDoseSuggestion", () => ({
   useDoseSuggestion: () => ({ matches: [], status: "idle", message: null }),
 }));
-vi.mock("@/lib/featureFlags", () => ({ AI_ENABLED: false, KNOWLEDGE_ENABLED: false }));
+vi.mock("@/lib/featureFlags", () => ({
+  AI_ENABLED: false,
+  PATHWAY_CHECK_ENABLED: false,
+  AI_STREAMING: false,
+  AI_TIMEOUT_MS: 90000,
+  KNOWLEDGE_ENABLED: false,
+}));
 
 function renderForm() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
