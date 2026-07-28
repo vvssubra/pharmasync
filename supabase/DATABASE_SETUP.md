@@ -47,15 +47,16 @@ Copy-paste each file’s contents into a new query and run it.
 
 ## Configure env
 
+Backend is self-hosted Supabase via Coolify on the Hostinger VPS (Malaysia) —
+data residency requirement. Not Supabase cloud.
+
 After the database is created, point the app at this project:
 
-1. In [Supabase Dashboard](https://supabase.com/dashboard/project/aeclqhwpqvbmhepkayuy) go to **Settings → API**.
-2. Copy **Project URL** and **anon public** key.
+1. In Coolify, open the Supabase service and find its Kong/API container's env vars.
+2. Copy the Kong URL and **anon public** key.
 3. Copy `.env.example` to `.env` and set:
-   - `VITE_SUPABASE_URL` = Project URL (e.g. `https://aeclqhwpqvbmhepkayuy.supabase.co`)
+   - `VITE_SUPABASE_URL` = Kong URL
    - `VITE_SUPABASE_PUBLISHABLE_KEY` = anon public key
-
-Optional: set `VITE_SUPABASE_PROJECT_ID=aeclqhwpqvbmhepkayuy` if your app uses it.
 
 ## Schema overview (after migrations)
 

@@ -92,6 +92,31 @@ Deno.serve(async (req) => {
     }
     const { user_id, password } = parsed.data;
     const supabase = adminClient();
+
+    // Being an admin is not sufficient authorisation: user_id arrives in the
+    // request body, so without this an admin of clinic A could reset the
+    // password of anyone in clinic B — or of a super_admin — and then sign in
+    // as them. get_all_users_with_roles() is clinic-scoped, but that only
+    // limits what the UI offers, not what this endpoint accepts.
+    // super_admin resets anyone by design.
+    if (callerRole !== "super_admin") {
+      const [{ data: caller }, { data: target }, { data: targetRole }] = await Promise.all([
+        supabase.from("profiles").select("clinic_id").eq("user_id", userId!).single(),
+        supabase.from("profiles").select("clinic_id").eq("user_id", user_id).single(),
+        supabase.from("user_roles").select("role").eq("user_id", user_id).maybeSingle(),
+      ]);
+
+      const sameClinic =
+        !!caller?.clinic_id && !!target?.clinic_id && caller.clinic_id === target.clinic_id;
+
+      if (!sameClinic || targetRole?.role === "super_admin") {
+        return new Response(
+          JSON.stringify({ error: "Forbidden" }),
+          { status: 403, headers: { ...cors, "Content-Type": "application/json" } },
+        );
+      }
+    }
+
     const { error } = await supabase.auth.admin.updateUserById(user_id, { password });
     if (error) {
       return new Response(

@@ -7,7 +7,7 @@
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.46.0";
 import { computeStockByDrug, stockStatus, avgDailyOut } from "../_shared/stock.ts";
-import { daysRemaining, forecastStatus, projectedExhaustion, quotaBadgeState } from "../_shared/quotaHelpers.ts";
+import { daysRemaining, projectedExhaustion, quotaBadgeState, quotaDerivedStatus } from "../_shared/quotaHelpers.ts";
 import { retrieveFaq, type FaqEntry } from "../_shared/faq.ts";
 
 export type Intent = "quota" | "stock" | "requests" | "unknown";
@@ -131,6 +131,7 @@ interface DrugRow {
   unit_pengukuran: string;
   stok_min: number | null;
   stok_reorder: number | null;
+  perlu_kelulusan_pakar: boolean | null;
 }
 
 async function buildStockSection(supabase: SupabaseClient, question: string): Promise<string | null> {
@@ -138,22 +139,59 @@ async function buildStockSection(supabase: SupabaseClient, question: string): Pr
   // can't miss an older baki_awal — avgDailyOut internally windows itself
   // to the trailing 90 days off the same array, so one query covers both
   // "balance needs full history" and "rate needs a recent window".
-  const [{ data: drugs }, { data: txns }] = await Promise.all([
-    supabase.from("drugs").select("id, drug_name, unit_pengukuran, stok_min, stok_reorder").eq("is_active", true),
+  //
+  // Quota usage is fetched alongside because controlled drugs are reported on
+  // quota, not shelf stock — see the basis note below.
+  const year = new Date().getFullYear();
+  const [{ data: drugs }, { data: txns }, { data: quotaRows }] = await Promise.all([
+    supabase.from("drugs").select("id, drug_name, unit_pengukuran, stok_min, stok_reorder, perlu_kelulusan_pakar").eq("is_active", true),
     supabase.from("transactions").select("drug_id, jenis, kuantiti, tarikh, created_at"),
+    supabase.rpc("get_drug_quota_usage", { p_year: year }),
   ]);
   const drugRows = (drugs ?? []) as DrugRow[];
   if (drugRows.length === 0) return null;
 
+  const quotaByDrug = new Map<string, QuotaRow>();
+  for (const q of (quotaRows ?? []) as QuotaRow[]) quotaByDrug.set(q.drug_id, q);
+
   const balances = computeStockByDrug(txns ?? []);
   const computed = drugRows.map((d) => {
+    const quota = quotaByDrug.get(d.id);
+    // Mirrors Index.tsx / FmsDashboard.tsx: for a controlled drug with a quota
+    // configured, the operative constraint is remaining annual patient quota,
+    // not vials on the shelf. Reporting shelf stock for these drugs made the
+    // assistant contradict the dashboard the user was looking at — with an
+    // empty ledger it called every controlled drug 0/critical while the
+    // dashboard showed quota remaining.
+    const quotaStatus = quotaDerivedStatus(d.perlu_kelulusan_pakar ?? false, quota);
+    if (quotaStatus && quota) {
+      return {
+        drug: d.drug_name,
+        unit: d.unit_pengukuran,
+        basis: "quota" as const,
+        balance: quota.remaining,
+        min: 0,
+        reorder: 0,
+        status: quotaStatus,
+        rate: 0,
+        days: null as number | null,
+      };
+    }
     const balance = balances.get(d.id) ?? 0;
     const min = d.stok_min ?? 0;
     const reorder = d.stok_reorder ?? 0;
-    const status = stockStatus(balance, min, reorder);
     const rate = avgDailyOut(txns ?? [], d.id, 90);
-    const days = daysRemaining(balance, rate);
-    return { drug: d.drug_name, unit: d.unit_pengukuran, balance, min, reorder, status, rate, days, forecast: forecastStatus(days) };
+    return {
+      drug: d.drug_name,
+      unit: d.unit_pengukuran,
+      basis: "stock" as const,
+      balance,
+      min,
+      reorder,
+      status: stockStatus(balance, min, reorder),
+      rate,
+      days: daysRemaining(balance, rate),
+    };
   });
 
   const { shown, omitted } = selectRows(
@@ -164,11 +202,20 @@ async function buildStockSection(supabase: SupabaseClient, question: string): Pr
     MAX_ROWS_PER_SECTION,
   );
 
+  // An empty ledger is not the same as "everything is at zero". Say so rather
+  // than letting the model assert a balance nobody recorded.
+  const ledgerEmpty = (txns ?? []).length === 0;
+  const stockBasedShown = shown.filter((r) => r.basis === "stock");
+
   const lines = [
     `STOCK · as of ${todayISO()} (showing ${shown.length} of ${computed.length} drugs: all non-normal + drugs named in the question)`,
-    "drug|unit|balance|min|reorder|status|out_per_day_90d|days_cover",
-    ...shown.map((r) => `${r.drug}|${r.unit}|${r.balance}|${r.min}|${r.reorder}|${r.status}|${r.rate.toFixed(1)}|${r.days ?? "—"}`),
+    "basis=quota means the figure is REMAINING ANNUAL PATIENT QUOTA for a controlled drug, not vials in the store.",
+    "drug|unit|basis|balance|min|reorder|status|out_per_day_90d|days_cover",
+    ...shown.map((r) => `${r.drug}|${r.unit}|${r.basis}|${r.balance}|${r.min}|${r.reorder}|${r.status}|${r.rate.toFixed(1)}|${r.days ?? "—"}`),
   ];
+  if (ledgerEmpty && stockBasedShown.length > 0) {
+    lines.push("NOTE: no Terimaan/Keluaran transactions have been recorded yet, so every basis=stock balance above is 0 because nothing has been entered — not because the drug ran out.");
+  }
   if (omitted > 0) lines.push(`... ${omitted} other drugs are at normal stock.`);
   return lines.join("\n");
 }

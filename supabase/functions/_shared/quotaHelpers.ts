@@ -33,4 +33,30 @@ export function quotaBadgeState(used: number, limit: number | null, alertThresho
   if (used >= limit * (1 - alertThresholdPct / 100)) return "warning";
   return "healthy";
 }
+
+/**
+ * For a controlled drug (perlu_kelulusan_pakar), Critical/Low/Normal must
+ * reflect annual patient quota remaining, not warehouse stock levels — these
+ * drugs (e.g. insulin under the FMS quota register) aren't managed by
+ * min/reorder/max shelf thresholds the way ordinary stock is. Returns null
+ * when the drug isn't controlled or has no quota configured this year, so
+ * callers fall back to their physical-stock-based status in that case.
+ *
+ * Inside the mirrored block because ai-query's FACTS block must apply the same
+ * rule as the dashboards. It previously did not, so with an empty transactions
+ * ledger the assistant reported every controlled drug as 0/critical while the
+ * dashboard showed quota remaining — contradicting the screen the user was
+ * looking at.
+ */
+export function quotaDerivedStatus(
+  isControlled: boolean,
+  quotaUsage: { used: number; quota_limit: number; alert_threshold_pct: number } | undefined,
+): "critical" | "low" | "normal" | null {
+  if (!isControlled || !quotaUsage) return null;
+  const state = quotaBadgeState(quotaUsage.used, quotaUsage.quota_limit, quotaUsage.alert_threshold_pct);
+  if (state === "exhausted") return "critical";
+  if (state === "warning") return "low";
+  if (state === "healthy") return "normal";
+  return null;
+}
 // shared-quotahelpers>>>

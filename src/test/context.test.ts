@@ -178,4 +178,89 @@ describe("buildDataFacts", () => {
     const prompt = buildSystemPrompt("super_admin", "FACTS");
     expect(prompt).toContain("across the clinic");
   });
+
+  it("reports a controlled drug on quota remaining, not shelf stock, when the ledger is empty", async () => {
+    // The live clinic had zero transactions and two controlled insulins. The
+    // dashboards show remaining annual quota for controlled drugs, but the
+    // FACTS builder computed shelf stock — so the assistant called both drugs
+    // 0/critical while the dashboard showed 29 (NORMAL) and 5 (LOW).
+    const currentYear = new Date().getFullYear();
+    const supabase = mockSupabase(
+      {
+        clinics: [{ name: "Klinik Kesihatan Kempas" }],
+        drugs: [
+          { id: "d1", drug_name: "Insulin Aspart NOVOMIX", unit_pengukuran: "Pen", stok_min: 0, stok_reorder: 0, perlu_kelulusan_pakar: true },
+        ],
+        transactions: [],
+        dispensing_requests: [],
+        antibiotic_forms: [],
+      },
+      {
+        get_drug_quota_usage: [
+          { clinic_id: "c1", drug_id: "d1", year: currentYear, quota_limit: 100, alert_threshold_pct: 20, used: 71, remaining: 29 },
+        ],
+      },
+    );
+    // Named in the question, so it survives selectRows even though it's normal.
+    const result = await buildDataFacts(supabase, "admin", "u1", "what is the status of Insulin Aspart?", "Klinik Kesihatan Kempas");
+    const stockLine = result.factsText
+      .split("\n")
+      .find((l) => l.startsWith("Insulin Aspart NOVOMIX") && l.includes("|quota|"));
+
+    expect(stockLine, "controlled drug should appear on a quota basis row").toBeDefined();
+    // 29 remaining of 100 with a 20% threshold is healthy -> normal, NOT critical.
+    expect(stockLine).toContain("|29|");
+    expect(stockLine).toContain("normal");
+    expect(stockLine).not.toContain("critical");
+    expect(result.factsText).toContain("REMAINING ANNUAL PATIENT QUOTA");
+  });
+
+  it("does not list a healthy controlled drug when asked which drugs are low", async () => {
+    // The exact live regression: an empty ledger made every controlled drug
+    // read as 0/critical, so "which drugs are low on stock?" returned both
+    // insulins when only one was actually low on quota.
+    const currentYear = new Date().getFullYear();
+    const supabase = mockSupabase(
+      {
+        clinics: [{ name: "KK Kempas" }],
+        drugs: [
+          { id: "d1", drug_name: "Insulin Aspart NOVOMIX", unit_pengukuran: "Pen", stok_min: 0, stok_reorder: 0, perlu_kelulusan_pakar: true },
+          { id: "d2", drug_name: "Insulin Detemir LEVEMIR", unit_pengukuran: "Pen", stok_min: 0, stok_reorder: 0, perlu_kelulusan_pakar: true },
+        ],
+        transactions: [],
+        dispensing_requests: [],
+        antibiotic_forms: [],
+      },
+      {
+        get_drug_quota_usage: [
+          { clinic_id: "c1", drug_id: "d1", year: currentYear, quota_limit: 100, alert_threshold_pct: 20, used: 71, remaining: 29 },
+          { clinic_id: "c1", drug_id: "d2", year: currentYear, quota_limit: 40, alert_threshold_pct: 20, used: 35, remaining: 5 },
+        ],
+      },
+    );
+    const result = await buildDataFacts(supabase, "admin", "u1", "which drugs are low on stock?", "KK Kempas");
+    const stockRows = result.factsText
+      .split("\n")
+      .filter((l) => l.includes("|quota|"));
+
+    expect(stockRows.some((l) => l.startsWith("Insulin Detemir LEVEMIR"))).toBe(true);
+    expect(stockRows.some((l) => l.startsWith("Insulin Aspart NOVOMIX"))).toBe(false);
+  });
+
+  it("says an empty ledger is unrecorded rather than letting 0 read as depleted", async () => {
+    const supabase = mockSupabase(
+      {
+        clinics: [{ name: "KK" }],
+        drugs: [
+          { id: "d9", drug_name: "Paracetamol 500mg", unit_pengukuran: "Tablet", stok_min: 100, stok_reorder: 200, perlu_kelulusan_pakar: false },
+        ],
+        transactions: [],
+        dispensing_requests: [],
+        antibiotic_forms: [],
+      },
+      { get_drug_quota_usage: [] },
+    );
+    const result = await buildDataFacts(supabase, "admin", "u1", "which drugs are low on stock?", "KK");
+    expect(result.factsText).toContain("no Terimaan/Keluaran transactions have been recorded yet");
+  });
 });
