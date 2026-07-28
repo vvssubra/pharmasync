@@ -123,7 +123,16 @@ docker restart supabase-edge-functions-l8dsa2iokodt3yafiwcmfkvi
 ```
 
 **Re-run this after every merge to `main` that touches `supabase/functions/`** —
-nothing does it automatically.
+nothing does it automatically. The frontend *does* auto-build on push (Coolify
+webhook), which makes the asymmetry easy to miss: a role or logic change that
+spans both sides will go live on the client while the server still runs the old
+code, producing silent 403s until this is run.
+
+Verify what actually landed, rather than assuming:
+```bash
+docker exec supabase-edge-functions-l8dsa2iokodt3yafiwcmfkvi \
+  grep -h "ALLOWED_ROLES = \[" /home/deno/functions/antibiotic-suggest/index.ts
+```
 
 ---
 
@@ -201,10 +210,33 @@ Real numbers from this VPS, not estimates:
 per container restart, not per query. The rule-based paths are the common ones by
 design — the model only phrases answers, it never decides a number or a drug.
 
-If the LLM paths feel too slow, switch `OLLAMA_MODEL` to
-`qwen2.5:3b-instruct-q4_K_M` (pull it first, then restart the Supabase service).
-Answers get less fluent; accuracy is unaffected, since numbers come from the
-FACTS block and drug choices from `NAG_PATHWAYS`, both enforced in TypeScript.
+### Do not "fix" slowness by switching to the 3B
+
+`qwen2.5:3b-instruct-q4_K_M` is pulled and available, and an earlier draft of
+this runbook recommended it. **Benchmarked side by side on this VPS, it is not
+worth it:**
+
+| | 7B | 3B |
+|---|---|---|
+| Prompt eval | 11.1s (15 tok/s) | 2.3s (66 tok/s) |
+| Generation | 7.6s (4.8 tok/s) | 11.0s (4.5 tok/s) |
+| **Total (warm)** | **18.9s** | **14.0s** |
+
+Only ~26% faster, because generation is memory-bandwidth bound, not compute
+bound — the smaller model barely helps the part that dominates.
+
+And it costs accuracy. Same FACTS block, same question:
+
+- **7B:** "Novomix 30 FlexPen is near its quota limit, with only 16 units remaining as of day 209 in 2026." ✅
+- **3B:** "…and Levemir FlexPen has 28 out of 50 used. **Both have a warning status.**" ❌ — Levemir's status in FACTS is `healthy`.
+
+Every *number* the 3B used was correct, so the numeric guard rail passed it. The
+guard rail validates digits, not assertions — it cannot catch "both have a
+warning status". In a pharmacy context that is the wrong trade for 5 seconds.
+
+If latency becomes a real complaint, better levers: raise `OLLAMA_NUM_THREAD`
+(currently 3 of 4 cores — 4 risks starving Postgres), trim the FACTS row cap
+below 15, or lower `num_predict`. All keep the 7B's reliability.
 
 ---
 
