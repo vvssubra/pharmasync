@@ -193,13 +193,25 @@ Deno.serve(async (req) => {
     if (intent === "unknown") {
       return respond("I don't have that information.", "none");
     }
+    // super_admin has clinic_id NULL by design, but every clinic-scoped RLS
+    // policy reads `is_super_admin() or clinic_id = user_clinic_id()`, so the
+    // caller-scoped client already returns their data. Refusing outright would
+    // make the assistant look broken for the one account most likely to be
+    // demoing it. Only the genuinely ambiguous multi-clinic case is refused —
+    // there, one FACTS table would silently blend figures from several clinics.
+    let scopeLabel = clinicName;
     if (role === "super_admin") {
-      return respond(
-        "super_admin isn't scoped to a single clinic, so I can't compute clinic-specific quota/stock/request figures. Open a clinic-scoped view to check that data.",
-        "none",
-      );
+      const { data: clinicRows } = await supabase.from("clinics").select("name");
+      const names = (clinicRows ?? []).map((c) => (c as { name: string }).name);
+      if (names.length !== 1) {
+        return respond(
+          `super_admin oversees ${names.length} clinics, so a single set of quota/stock figures would mix them together. Open a clinic-scoped view, or ask from an account assigned to one clinic.`,
+          "none",
+        );
+      }
+      scopeLabel = names[0];
     }
-    const data = await buildDataFacts(supabase, role, userId!, question, clinicName);
+    const data = await buildDataFacts(supabase, role, userId!, question, scopeLabel);
     if (!data.hasFacts) {
       return respond("I don't have that information.", "none");
     }

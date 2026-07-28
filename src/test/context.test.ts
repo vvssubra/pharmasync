@@ -146,4 +146,36 @@ describe("buildDataFacts", () => {
 
     expect(quotaLine).toContain(expectedProjection);
   });
+
+  it("builds facts for super_admin — the role is not gated out of data", async () => {
+    // super_admin has clinic_id NULL by design, but every clinic-scoped RLS
+    // policy is `is_super_admin() or clinic_id = user_clinic_id()`, so their
+    // caller-scoped client does return rows. ai-query used to refuse these
+    // questions outright, which made the assistant look broken for the one
+    // account most likely to be demoing it.
+    const currentYear = new Date().getFullYear();
+    const supabase = mockSupabase(
+      {
+        clinics: [{ name: "Klinik Kesihatan Kempas" }],
+        drugs: [{ id: "d1", drug_name: "Novomix 30 FlexPen", unit_pengukuran: "Pen", stok_min: 0, stok_reorder: 0 }],
+        transactions: [],
+        dispensing_requests: [],
+        antibiotic_forms: [],
+      },
+      {
+        get_drug_quota_usage: [
+          { clinic_id: "c1", drug_id: "d1", year: currentYear, quota_limit: 100, alert_threshold_pct: 20, used: 84, remaining: 16 },
+        ],
+      },
+    );
+    const result = await buildDataFacts(supabase, "super_admin", "u1", "quota status", "Klinik Kesihatan Kempas");
+    expect(result.hasFacts).toBe(true);
+    expect(result.factsText).toContain("Novomix 30 FlexPen");
+    expect(result.factsText).toContain("16");
+  });
+
+  it("gives super_admin a role capability line rather than the generic fallback", () => {
+    const prompt = buildSystemPrompt("super_admin", "FACTS");
+    expect(prompt).toContain("across the clinic");
+  });
 });

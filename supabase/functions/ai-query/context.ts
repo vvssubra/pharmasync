@@ -251,6 +251,7 @@ const ROLE_CAPABILITY: Record<string, string> = {
   pharmacist: "You can help with the fulfilment queue, drug stock levels, and request status.",
   admin: "You can help with drug stock, quotas, and request status across the clinic.",
   fms: "You can help with quota status, drug stock, and pending approvals.",
+  super_admin: "You can help with drug stock, quotas, and request status across the clinic.",
 };
 
 export function buildSystemPrompt(role: string, factsText: string): string {
