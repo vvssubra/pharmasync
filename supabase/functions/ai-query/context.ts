@@ -167,7 +167,11 @@ async function buildStockSection(supabase: SupabaseClient, question: string): Pr
     if (quotaStatus && quota) {
       return {
         drug: d.drug_name,
-        unit: d.unit_pengukuran,
+        // NOT d.unit_pengukuran: the figure is remaining annual patient quota,
+        // so the unit is patients, not Pen/vial/Tablet. Carrying the dispensing
+        // unit here made the model answer "29 vials" for what is 29 patients'
+        // worth of remaining quota.
+        unit: "patients",
         basis: "quota" as const,
         balance: quota.remaining,
         min: 0,
@@ -209,7 +213,7 @@ async function buildStockSection(supabase: SupabaseClient, question: string): Pr
 
   const lines = [
     `STOCK · as of ${todayISO()} (showing ${shown.length} of ${computed.length} drugs: all non-normal + drugs named in the question)`,
-    "basis=quota means the figure is REMAINING ANNUAL PATIENT QUOTA for a controlled drug, not vials in the store.",
+    "basis=quota means balance is REMAINING ANNUAL PATIENT QUOTA (how many more patients may be enrolled this year) and its unit is patients — never call it vials, pens or tablets. basis=stock means physical units in the store.",
     "drug|unit|basis|balance|min|reorder|status|out_per_day_90d|days_cover",
     ...shown.map((r) => `${r.drug}|${r.unit}|${r.basis}|${r.balance}|${r.min}|${r.reorder}|${r.status}|${r.rate.toFixed(1)}|${r.days ?? "—"}`),
   ];

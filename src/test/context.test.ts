@@ -213,6 +213,10 @@ describe("buildDataFacts", () => {
     expect(stockLine).toContain("normal");
     expect(stockLine).not.toContain("critical");
     expect(result.factsText).toContain("REMAINING ANNUAL PATIENT QUOTA");
+    // The unit must be patients, not the drug's dispensing unit — quota counts
+    // enrolled patients, and labelling it "Pen" led to the answer "29 vials".
+    expect(stockLine).toContain("|patients|");
+    expect(stockLine).not.toContain("|Pen|");
   });
 
   it("does not list a healthy controlled drug when asked which drugs are low", async () => {
