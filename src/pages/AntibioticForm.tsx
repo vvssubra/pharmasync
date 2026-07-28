@@ -60,7 +60,10 @@ interface AiSuggestion {
   suggestion: string;
   rationale: string;
   warning: string | null;
-  source: "rules" | "llm";
+  /** "refer" means no regimen was produced — no pathway matched, or the only
+   *  match was written for a different patient group. It is not a suggestion,
+   *  so it must not be labelled as a NAG match nor be insertable via "Use". */
+  source: "rules" | "llm" | "refer";
 }
 
 export default function AntibioticForm() {
@@ -355,11 +358,11 @@ export default function AntibioticForm() {
                   )}
                 </div>
                 {AI_ENABLED && aiSuggestion && (
-                  <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3 space-y-2 text-sm">
+                  <div className={`rounded-md border p-3 space-y-2 text-sm ${aiSuggestion.source === "refer" ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="space-y-1 flex-1">
-                        <p className="font-semibold text-emerald-900">{aiSuggestion.suggestion}</p>
-                        <p className="text-xs text-emerald-700">{aiSuggestion.rationale}</p>
+                        <p className={aiSuggestion.source === "refer" ? "font-semibold text-amber-900" : "font-semibold text-emerald-900"}>{aiSuggestion.suggestion}</p>
+                        <p className={aiSuggestion.source === "refer" ? "text-xs text-amber-800" : "text-xs text-emerald-700"}>{aiSuggestion.rationale}</p>
                         {aiSuggestion.warning && (
                           <div className="flex items-start gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
                             <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
@@ -367,19 +370,25 @@ export default function AntibioticForm() {
                           </div>
                         )}
                       </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="h-7 text-xs shrink-0"
-                        onClick={() => { setAntibioticRegimen(aiSuggestion.suggestion); setAiSuggestion(null); }}
-                      >
-                        Use
-                      </Button>
+                      {/* A "refer" result is a refusal, not a regimen — there is
+                          nothing to insert into the prescription field. */}
+                      {aiSuggestion.source !== "refer" && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="h-7 text-xs shrink-0"
+                          onClick={() => { setAntibioticRegimen(aiSuggestion.suggestion); setAiSuggestion(null); }}
+                        >
+                          Use
+                        </Button>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       {aiSuggestion.source === "llm"
                         ? "AI-phrased from NAG 2024 — verify before prescribing."
-                        : "NAG 2024 pathway match — verify before prescribing."}
+                        : aiSuggestion.source === "refer"
+                          ? "No NAG 2024 regimen available for this case — prescribe from the guideline directly."
+                          : "NAG 2024 pathway match — verify before prescribing."}
                     </p>
                   </div>
                 )}

@@ -101,7 +101,11 @@ Deno.serve(async (req) => {
   // No pathway match, or a fully-determined case (no allergy, no weight
   // math needed) — return the verbatim NAG text, no LLM call at all.
   if (!resolved.needsLlmPhrasing || !resolved.pathway) {
-    const result = { suggestion: resolved.regimenText, rationale: resolved.rationale, warning: resolved.warning, source: "rules" as const };
+    // A null pathway means we are declining (no match, or a patient-group
+    // mismatch), not matching. Labelling that "NAG 2024 pathway match" in the
+    // UI contradicts the very text being shown, so it gets its own source.
+    const source = resolved.pathway ? ("rules" as const) : ("refer" as const);
+    const result = { suggestion: resolved.regimenText, rationale: resolved.rationale, warning: resolved.warning, source };
     try {
       await writeAuditLog({ userId: userId!, role, functionName: FUNCTION_NAME, statusCode: 200, durationMs: Date.now() - startedAt });
     } catch { /* non-fatal */ }
