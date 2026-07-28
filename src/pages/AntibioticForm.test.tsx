@@ -32,6 +32,7 @@ vi.mock("@/hooks/useDoseSuggestion", () => ({
 }));
 vi.mock("@/lib/featureFlags", () => ({
   AI_ENABLED: false,
+  AI_SUGGEST_ROLES: ["mo", "admin", "pharmacist", "super_admin"],
   PATHWAY_CHECK_ENABLED: false,
   AI_STREAMING: false,
   AI_TIMEOUT_MS: 90000,

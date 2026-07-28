@@ -1,10 +1,17 @@
 // Local deployment feature flags.
 // AI features (chat widget, antibiotic suggest, pathway check) call Supabase
-// Edge Functions that need a paid Anthropic API key + internet. For the office
-// self-hosted install those functions are not deployed, so the UI is hidden by
-// leaving VITE_AI_ENABLED unset (or "false") in .env.
-// Set VITE_AI_ENABLED="true" to re-enable (e.g. local dev against the cloud project).
+// Edge Functions backed by a self-hosted Ollama container on the same VPS —
+// no external API, no recurring cost, and patient data never leaves the box.
+// Set VITE_AI_ENABLED="false" to hide the AI UI entirely (see the rollback
+// section of docs/AI_DEPLOYMENT_RUNBOOK.md).
 export const AI_ENABLED = import.meta.env.VITE_AI_ENABLED === "true";
+
+// Roles permitted to call antibiotic-suggest / pathway-check. MUST stay in
+// step with ALLOWED_ROLES in both of those edge functions — showing the
+// Suggest button to a role the endpoint rejects yields a silent 403 on click,
+// which is exactly what happened when this list was "mo" only on the server
+// while the /request route admitted admin/pharmacist/super_admin too.
+export const AI_SUGGEST_ROLES = ["mo", "admin", "pharmacist", "super_admin"];
 
 // pathway-check is a rule-based NAG 2024 lookup (Phase 4), not an LLM call —
 // zero marginal cost, so it defaults on independently of AI_ENABLED (which

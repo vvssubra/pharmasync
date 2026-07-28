@@ -24,7 +24,10 @@ const RequestSchema = z.object({
   patient_age:    z.number().int().min(0).max(150).optional(),
 });
 
-const ALLOWED_ROLES = ["mo"];
+// Kept in step with antibiotic-suggest and the /request route — the pathway
+// banner renders on the same form, so a narrower list here would leave
+// admin/pharmacist/super_admin looking at a permanently "unavailable" banner.
+const ALLOWED_ROLES = ["mo", "admin", "pharmacist", "super_admin"];
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");

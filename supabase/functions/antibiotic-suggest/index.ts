@@ -21,7 +21,11 @@ const RequestSchema = z.object({
 
 const RATE_LIMIT    = 10; // per user per hour
 const FUNCTION_NAME = "antibiotic-suggest";
-const ALLOWED_ROLES = ["mo"];
+// Must stay in step with the /request route in src/components/ProtectedRoute.tsx
+// and with AI_SUGGEST_ROLES in src/pages/AntibioticForm.tsx. Previously "mo"
+// only, while the route and the Suggest button were open to admin/pharmacist/
+// super_admin — so those roles saw the button and got a silent 403 on click.
+const ALLOWED_ROLES = ["mo", "admin", "pharmacist", "super_admin"];
 
 const SuggestionSchema = z.object({
   suggestion: z.string().min(1).max(300),
