@@ -153,16 +153,40 @@ function matchesAlias(text: string, pathway: NagPathway): boolean {
   });
 }
 
+/** A pathway written for one patient group must never be handed to another. */
+function groupCompatible(pathway: NagPathway, patientGroup: PatientGroup): boolean {
+  // "Any" on either side means the pathway carries dosing for both, or the
+  // caller gave no age. Age-unknown deliberately stays permissive so an adult
+  // without an IC on file still gets a suggestion.
+  return pathway.patientGroup === "Any" || patientGroup === "Any" || pathway.patientGroup === patientGroup;
+}
+
+export interface PathwayMatch {
+  /** Null when nothing matched, or when the only matches are for another patient group. */
+  pathway: NagPathway | null;
+  /** True when a pathway matched the diagnosis but is written for a different group. */
+  groupMismatch: boolean;
+  /** The indication that matched, even when rejected for group — for messaging. */
+  mismatchedIndication: string | null;
+}
+
 /**
  * Finds the NAG pathway matching a derivePathwayIndication() result first,
- * falling back to free-text diagnosis wording. Prefers a pathway whose
- * patientGroup matches the caller's (or is "Any") when multiple match.
+ * falling back to free-text diagnosis wording.
+ *
+ * SAFETY: this used to end in `?? pool[0]`, which handed back a pathway even
+ * when its patientGroup conflicted with the patient's. A 6-year-old with
+ * pneumonia therefore received the adult CAP regimen — "Amoxicillin 500mg-1g
+ * PO TDS", roughly 150 mg/kg/day for a 20kg child — labelled as a confident
+ * NAG match. Only AOM carries weightBased dosing, so every other paediatric
+ * case fell through to the adult first-line. A group mismatch now yields no
+ * pathway, and callers refer to a specialist instead of substituting a dose.
  */
-export function matchPathway(
+export function matchPathwayDetailed(
   indication: string | null,
   diagnosis: string | null,
   patientGroup: PatientGroup,
-): NagPathway | null {
+): PathwayMatch {
   const byIndication = indication ? NAG_PATHWAYS.filter((p) => matchesAlias(indication, p)) : [];
   const pool = byIndication.length > 0
     ? byIndication
@@ -170,8 +194,21 @@ export function matchPathway(
       ? NAG_PATHWAYS.filter((p) => matchesAlias(diagnosis, p))
       : [];
 
-  if (pool.length === 0) return null;
-  return pool.find((p) => p.patientGroup === "Any" || p.patientGroup === patientGroup) ?? pool[0];
+  if (pool.length === 0) return { pathway: null, groupMismatch: false, mismatchedIndication: null };
+
+  const compatible = pool.find((p) => groupCompatible(p, patientGroup));
+  if (compatible) return { pathway: compatible, groupMismatch: false, mismatchedIndication: null };
+
+  return { pathway: null, groupMismatch: true, mismatchedIndication: pool[0].indication };
+}
+
+/** Back-compat wrapper: the pathway only, or null. */
+export function matchPathway(
+  indication: string | null,
+  diagnosis: string | null,
+  patientGroup: PatientGroup,
+): NagPathway | null {
+  return matchPathwayDetailed(indication, diagnosis, patientGroup).pathway;
 }
 
 /** Shared by pathway-check and antibiotic-suggest. */

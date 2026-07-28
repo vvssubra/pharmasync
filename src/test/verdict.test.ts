@@ -66,3 +66,29 @@ describe("checkPathway", () => {
     expect(r.verdict).toBe("supported");
   });
 });
+
+describe("paediatric patient-group safety", () => {
+  it("does not apply an adult-only pathway to a child", () => {
+    // Live bug: a 6-year-old with pneumonia was told "Amoxicillin 500mg-1g PO
+    // TDS" — the ADULT CAP regimen, ~150 mg/kg/day for a 20kg child — labelled
+    // as a confident NAG match, because matchPathway ended in `?? pool[0]`.
+    const r = checkPathway({ diagnosis: "community acquired pneumonia", antibiotic: "Amoxicillin 500mg TDS", patient_age: 6 });
+    expect(r.verdict).toBe("refer_specialist");
+    expect(r.explanation).toContain("different patient group");
+  });
+
+  it("still applies an adult pathway to an adult", () => {
+    const r = checkPathway({ diagnosis: "community acquired pneumonia", antibiotic: "Amoxicillin 500mg TDS", patient_age: 40, duration_days: 5 });
+    expect(r.verdict).toBe("supported");
+  });
+
+  it("still applies a paediatric pathway to a child", () => {
+    const r = checkPathway({ diagnosis: "acute otitis media", antibiotic: "Amoxicillin 80mg/kg/day", patient_age: 6, duration_days: 5 });
+    expect(r.verdict).toBe("supported");
+  });
+
+  it("stays permissive when no age is given, so adults without an IC still get a check", () => {
+    const r = checkPathway({ diagnosis: "community acquired pneumonia", antibiotic: "Amoxicillin 500mg TDS", duration_days: 5 });
+    expect(r.verdict).toBe("supported");
+  });
+});

@@ -5,7 +5,7 @@
 // the drug, dose, or duration itself.
 
 import { derivePathwayIndication, type ChecklistState } from "../_shared/doseQuery.ts";
-import { matchPathway, patientGroupFromAge, isStatedAllergy, identifyDrug, type NagPathway } from "../_shared/nagPathways.ts";
+import { matchPathwayDetailed, patientGroupFromAge, isStatedAllergy, identifyDrug, type NagPathway, type PathwayMatch } from "../_shared/nagPathways.ts";
 
 /**
  * The resolved regimen already names an allowed drug (it's built from
@@ -43,7 +43,7 @@ export interface ResolvedCase {
   needsLlmPhrasing: boolean;
 }
 
-function resolvePathway(input: ResolveInput): NagPathway | null {
+function resolvePathway(input: ResolveInput): PathwayMatch {
   let checklistIndication: string | null = null;
   if (input.checklist && typeof input.checklist === "object") {
     try {
@@ -54,11 +54,27 @@ function resolvePathway(input: ResolveInput): NagPathway | null {
   }
   const patientGroup = patientGroupFromAge(input.patient_age);
   const indicationText = checklistIndication ?? input.diagnosis;
-  return matchPathway(indicationText, input.diagnosis, patientGroup);
+  return matchPathwayDetailed(indicationText, input.diagnosis, patientGroup);
 }
 
 export function resolveCase(input: ResolveInput): ResolvedCase {
-  const pathway = resolvePathway(input);
+  const { pathway, groupMismatch, mismatchedIndication } = resolvePathway(input);
+
+  // A pathway written for another patient group must never be substituted.
+  // Only AOM carries paediatric weight-based dosing, so before this guard a
+  // child with pneumonia was handed the adult CAP regimen as a confident
+  // "NAG pathway match". Refusing is the safe answer; a wrong dose is not.
+  if (groupMismatch) {
+    const group = patientGroupFromAge(input.patient_age).toLowerCase();
+    return {
+      pathway: null,
+      regimenText: "Refer to specialist — no NAG 2024 regimen for this patient group",
+      rationale: `The NAG ${mismatchedIndication ?? "pathway"} in this system is written for a different patient group, so it cannot be applied to a ${group} patient. Consult the NAG ${group === "paediatric" ? "Section B (Paediatrics)" : "Section A (Adult)"} dosing tables directly.`,
+      warning: "Do not use an adult regimen for a paediatric patient — dosing is weight-based.",
+      needsLlmPhrasing: false,
+    };
+  }
+
   if (!pathway) {
     return {
       pathway: null,

@@ -5,7 +5,7 @@
 // chance of hallucinating an out-of-range verdict.
 
 import { derivePathwayIndication, type ChecklistState } from "../_shared/doseQuery.ts";
-import { matchPathway, patientGroupFromAge, isStatedAllergy, identifyDrug, type NagPathway } from "../_shared/nagPathways.ts";
+import { matchPathwayDetailed, patientGroupFromAge, isStatedAllergy, identifyDrug, type PathwayMatch } from "../_shared/nagPathways.ts";
 
 export type Verdict = "supported" | "review" | "not_supported" | "refer_specialist";
 
@@ -24,7 +24,7 @@ export interface PathwayVerdict {
   explanation: string;
 }
 
-function resolvePathway(input: PathwayCheckInput): NagPathway | null {
+function resolvePathway(input: PathwayCheckInput): PathwayMatch {
   let checklistIndication: string | null = null;
   if (input.checklist && typeof input.checklist === "object") {
     try {
@@ -37,11 +37,22 @@ function resolvePathway(input: PathwayCheckInput): NagPathway | null {
   }
   const indicationText = checklistIndication ?? input.indication ?? null;
   const patientGroup = patientGroupFromAge(input.patient_age);
-  return matchPathway(indicationText, input.diagnosis ?? null, patientGroup);
+  return matchPathwayDetailed(indicationText, input.diagnosis ?? null, patientGroup);
 }
 
 export function checkPathway(input: PathwayCheckInput): PathwayVerdict {
-  const pathway = resolvePathway(input);
+  const { pathway, groupMismatch, mismatchedIndication } = resolvePathway(input);
+
+  // Same guard as antibiotic-suggest: never validate a regimen against a
+  // pathway written for a different patient group. Otherwise a paediatric
+  // case would be marked "supported" for an adult dose.
+  if (groupMismatch) {
+    const group = patientGroupFromAge(input.patient_age).toLowerCase();
+    return {
+      verdict: "refer_specialist",
+      explanation: `The NAG ${mismatchedIndication ?? "pathway"} in this system is written for a different patient group and cannot be applied to a ${group} patient — refer to specialist.`,
+    };
+  }
 
   if (!pathway) {
     return {
