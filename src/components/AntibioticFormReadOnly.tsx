@@ -28,7 +28,7 @@ export function AntibioticFormReadOnly({ form }: AntibioticFormViewerProps) {
       {/* Bahagian 1 */}
       <div className="space-y-2">
         <h4 className="font-semibold text-foreground">SECTION 1: Patient Details</h4>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           <Field label="Date" value={form.tarikh} />
           <Field label="Name" value={form.patient_name} />
           <Field label="IC" value={form.patient_ic} />

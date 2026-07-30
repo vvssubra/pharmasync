@@ -115,7 +115,7 @@ export default function MoDashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Stethoscope className="h-6 w-6" />
@@ -252,7 +252,7 @@ export default function MoDashboard() {
                       })() : <span className="text-xs text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => navigate(`/pesakit?drug=${d.id}`)}>
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs relative after:absolute after:-inset-2 after:content-[''] after:md:hidden" onClick={() => navigate(`/pesakit?drug=${d.id}`)}>
                         <Users className="h-3 w-3 mr-1" /> Patient Registry
                       </Button>
                     </TableCell>

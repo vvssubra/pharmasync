@@ -164,7 +164,11 @@ const Sidebar = React.forwardRef<
           }
           side={side}
         >
-          <div className="flex h-full w-full flex-col">{children}</div>
+          {/* Safe-area padding so the nav clears the notch and home indicator
+              once the app runs standalone with viewport-fit=cover. */}
+          <div className="flex h-full w-full flex-col pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+            {children}
+          </div>
         </SheetContent>
       </Sheet>
     );

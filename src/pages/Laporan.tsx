@@ -209,7 +209,7 @@ export default function Laporan() {
                 </PopoverContent>
               </Popover>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <DatePickerField label="From Date" date={pdfFrom} onSelect={setPdfFrom} />
               <DatePickerField label="To Date" date={pdfTo} onSelect={setPdfTo} />
             </div>
@@ -228,7 +228,7 @@ export default function Laporan() {
             <CardDescription>Aggregate stock receipts and dispensing by quarter</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <Label className="text-xs">Year</Label>
                 <Select value={year} onValueChange={setYear}>
@@ -301,7 +301,7 @@ export default function Laporan() {
             <CardDescription>Total stock dispensing by selected period</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <DatePickerField label="From Date" date={movFrom} onSelect={setMovFrom} />
               <DatePickerField label="To Date" date={movTo} onSelect={setMovTo} />
             </div>

@@ -236,7 +236,7 @@ export default function DrugLedger() {
           <label className="text-xs text-muted-foreground mb-1 block">From</label>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-[150px] justify-start text-left font-normal", !startDate && "text-muted-foreground")}>
+              <Button variant="outline" className={cn("w-full sm:w-[150px] justify-start text-left font-normal", !startDate && "text-muted-foreground")}>
                 <CalendarIcon className="mr-1 h-4 w-4" />
                 {startDate ? format(startDate, "dd/MM/yyyy") : "Start"}
               </Button>
@@ -250,7 +250,7 @@ export default function DrugLedger() {
           <label className="text-xs text-muted-foreground mb-1 block">To</label>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" className={cn("w-[150px] justify-start text-left font-normal", !endDate && "text-muted-foreground")}>
+              <Button variant="outline" className={cn("w-full sm:w-[150px] justify-start text-left font-normal", !endDate && "text-muted-foreground")}>
                 <CalendarIcon className="mr-1 h-4 w-4" />
                 {endDate ? format(endDate, "dd/MM/yyyy") : "End"}
               </Button>
@@ -263,7 +263,7 @@ export default function DrugLedger() {
         <div>
           <label className="text-xs text-muted-foreground mb-1 block">Type</label>
           <Select value={typeFilter} onValueChange={setTypeFilter}>
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="w-full sm:w-[140px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -281,7 +281,7 @@ export default function DrugLedger() {
               placeholder="No. rujukan / pegawai"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 w-[200px]"
+              className="pl-9 w-full sm:w-[200px]"
             />
           </div>
         </div>
@@ -296,7 +296,11 @@ export default function DrugLedger() {
       {/* Ledger Table */}
       <Card>
         <CardContent className="p-0">
-          <Table>
+          {/* KEW.PS-3 is a statutory form: 16 columns in a prescribed order that
+              a pharmacist cross-checks against the paper card, so this scrolls
+              horizontally rather than reflowing into cards. Pinning the Date
+              column keeps the row anchored while scrolling. */}
+          <Table className="[&_tbody_td:first-child]:sticky [&_tbody_td:first-child]:left-0 [&_tbody_td:first-child]:z-10 [&_tbody_td:first-child]:bg-background [&_thead_th:first-child]:sticky [&_thead_th:first-child]:left-0 [&_thead_th:first-child]:z-20 [&_thead_th:first-child]:bg-background">
             <TableHeader>
               <TableRow>
                 <TableHead rowSpan={2} className="align-bottom border-r">Date</TableHead>

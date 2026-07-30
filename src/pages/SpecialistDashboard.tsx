@@ -350,9 +350,9 @@ export default function SpecialistDashboard() {
                               </Badge>
                             </TableCell>
                             <TableCell>
-                              <div className="flex gap-1">
-                                <Button size="sm" className="h-7 bg-green-600 hover:bg-green-700 text-white" onClick={() => setApproveTarget(r)}>Approve</Button>
-                                <Button size="sm" variant="destructive" className="h-7" onClick={() => setRejectTarget(r)}>Reject</Button>
+                              <div className="flex flex-wrap gap-2">
+                                <Button size="touch" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => setApproveTarget(r)}>Approve</Button>
+                                <Button size="touch" variant="destructive" onClick={() => setRejectTarget(r)}>Reject</Button>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -403,9 +403,9 @@ export default function SpecialistDashboard() {
                             <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 border-blue-300">Unlimited</Badge>
                           </TableCell>
                           <TableCell>
-                            <div className="flex gap-1">
-                              <Button size="sm" className="h-7 bg-green-600 hover:bg-green-700 text-white" onClick={() => setApproveTarget(r)}>Approve</Button>
-                              <Button size="sm" variant="destructive" className="h-7" onClick={() => setRejectTarget(r)}>Reject</Button>
+                            <div className="flex flex-wrap gap-2">
+                              <Button size="touch" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => setApproveTarget(r)}>Approve</Button>
+                              <Button size="touch" variant="destructive" onClick={() => setRejectTarget(r)}>Reject</Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -422,7 +422,7 @@ export default function SpecialistDashboard() {
             <Card>
               <CollapsibleTrigger asChild>
                 <CardHeader className="cursor-pointer hover:bg-muted/50">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <CardTitle className="text-base">Approval History (Drug)</CardTitle>
                     <ChevronDown className="h-4 w-4 text-muted-foreground" />
                   </div>
@@ -490,9 +490,9 @@ export default function SpecialistDashboard() {
                       <TableCell><Badge variant="outline" className="text-[10px]">{f.prescription_unit || "—"}</Badge></TableCell>
                       <TableCell>{renderNagBadge(f.pathway_check_result)}</TableCell>
                       <TableCell>
-                        <div className="flex gap-1">
-                          <Button size="sm" className="h-7 bg-green-600 hover:bg-green-700 text-white" onClick={() => setAbApproveTarget(f)}>Review & Approve</Button>
-                          <Button size="sm" variant="destructive" className="h-7" onClick={() => setAbRejectTarget(f)}>Reject</Button>
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="touch" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => setAbApproveTarget(f)}>Review & Approve</Button>
+                          <Button size="touch" variant="destructive" onClick={() => setAbRejectTarget(f)}>Reject</Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -507,7 +507,7 @@ export default function SpecialistDashboard() {
             <Card>
               <CollapsibleTrigger asChild>
                 <CardHeader className="cursor-pointer hover:bg-muted/50">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <CardTitle className="text-base">Approval History (Antibiotic)</CardTitle>
                     <ChevronDown className="h-4 w-4 text-muted-foreground" />
                   </div>
@@ -632,7 +632,10 @@ export default function SpecialistDashboard() {
               </div>
             </div>
           )}
-          <DialogFooter>
+          {/* Pinned: this is the tallest overlay in the app (a full read-only
+              form plus a notes field), so on a phone the approve/cancel pair
+              would otherwise sit far below the fold. */}
+          <DialogFooter className="sticky bottom-0 -mx-6 -mb-6 bg-background px-6 pb-6 pt-3">
             <Button variant="outline" onClick={() => setAbApproveTarget(null)}>Cancel</Button>
             <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={() => abApproveMutation.mutate()} disabled={abApproveMutation.isPending}>{abApproveMutation.isPending ? "Processing..." : "Approve Form"}</Button>
           </DialogFooter>

@@ -21,6 +21,11 @@ const buttonVariants = cva(
         sm: "h-9 rounded-md px-3",
         lg: "h-12 min-h-[44px] rounded-md px-8",
         icon: "h-10 w-10",
+        // For touch-critical controls — approve/reject and row actions. Added as
+        // new variants rather than by growing `sm`/`icon`, which would inflate
+        // every row of the dense KEW.PS tables.
+        touch: "h-11 min-h-[44px] rounded-md px-3",
+        "icon-touch": "h-11 w-11 min-h-[44px] min-w-[44px]",
       },
     },
     defaultVariants: {

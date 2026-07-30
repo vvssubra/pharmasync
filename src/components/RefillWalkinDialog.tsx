@@ -269,7 +269,7 @@ export function RefillWalkinDialog({ open, onOpenChange, patients, initialPatien
                 </Popover>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Kuantiti</Label>
                   <Input type="number" min={1} value={refillQty} onChange={e => setRefillQty(parseInt(e.target.value) || 0)} />

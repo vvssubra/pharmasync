@@ -209,7 +209,7 @@ export default function PharmacistFulfilment() {
             return (
               <Card key={req.id} className="overflow-hidden" style={{ borderLeft: `4px solid ${outOfStock ? '#dc2626' : belowMin ? '#dc2626' : isSpecialistApproved ? '#16A34A' : '#2E75B6'}` }}>
                 <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
                       <CardTitle className="text-base">{drug?.drug_name}</CardTitle>
                       <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(req.created_at), { addSuffix: true })}</span>
@@ -221,7 +221,7 @@ export default function PharmacistFulfilment() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm mb-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-5 text-sm mb-4">
                     <div><span className="text-muted-foreground text-xs">Patient</span><p className="font-medium">{req.patient_name}</p></div>
                     <div><span className="text-muted-foreground text-xs">IC</span><p>{formatIC(req.no_ic)}</p></div>
                     <div><span className="text-muted-foreground text-xs">Quantity</span><p>{req.quantity} {drug?.unit_pengukuran}</p></div>
@@ -235,7 +235,7 @@ export default function PharmacistFulfilment() {
                     <p className="text-xs text-destructive flex items-center gap-1 mb-3"><AlertTriangle className="h-3 w-3" /> Stock below minimum level</p>
                   )}
                   {outOfStock && <p className="text-xs text-destructive font-medium mb-3">Out of Stock — Add Receipt first</p>}
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Other Actions</Button></DropdownMenuTrigger>
                       <DropdownMenuContent>
@@ -295,7 +295,7 @@ export default function PharmacistFulfilment() {
               ) : abPendingAck.map((f: any) => (
                 <Card key={f.id} className="overflow-hidden" style={{ borderLeft: "4px solid #0891B2" }}>
                   <CardHeader className="pb-2">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <CardTitle className="text-base">{f.patient_name}</CardTitle>
                         <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(f.created_at), { addSuffix: true })}</span>
@@ -304,14 +304,14 @@ export default function PharmacistFulfilment() {
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-4">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 text-sm mb-4">
                       <div><span className="text-muted-foreground text-xs">IC</span><p>{formatIC(f.patient_ic)}</p></div>
                       <div><span className="text-muted-foreground text-xs">Diagnosis</span><p className="truncate max-w-[150px]">{f.diagnosis}</p></div>
                       <div><span className="text-muted-foreground text-xs">Unit</span><Badge variant="outline" className="text-[10px]">{f.prescription_unit || "—"}</Badge></div>
                       <div><span className="text-muted-foreground text-xs">Antibiotic</span><p className="truncate max-w-[150px]">{f.antibiotic_regimen || "—"}</p></div>
                     </div>
                     {f.fms_code && <p className="text-xs text-muted-foreground mb-2">FMS Code: {f.fms_code}</p>}
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <Button variant="outline" size="sm" onClick={() => setAbViewTarget(f)}>Review Form</Button>
                       <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => setAbAckTarget(f)}>Acknowledge</Button>
                     </div>

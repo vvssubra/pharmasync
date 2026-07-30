@@ -347,7 +347,7 @@ checklist: checklist as unknown as Record<string, unknown>,
               </div>
 
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <Label>8. Antibiotic Regimen (Dose, frequency, duration)</Label>
                   {AI_ENABLED && canUseAiSuggest && (
                     <Button
@@ -485,7 +485,7 @@ checklist: checklist as unknown as Record<string, unknown>,
             <CardHeader className="pb-2"><CardTitle className="text-sm">ACUTE OTITIS MEDIA</CardTitle></CardHeader>
             <CardContent className="space-y-2">
               <p className="text-xs font-medium text-muted-foreground">1. PRESENCE OF SYMPTOM:</p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <CBox label="OTALGIA" checked={checklist.aom.otalgia} onChange={v => updateChecklist("aom", "otalgia", v)} />
                 <CBox label="URTI SYMPTOMS" checked={checklist.aom.urti} onChange={v => updateChecklist("aom", "urti", v)} />
                 <CBox label="FEVER >38" checked={checklist.aom.fever} onChange={v => updateChecklist("aom", "fever", v)} />
@@ -524,7 +524,7 @@ checklist: checklist as unknown as Record<string, unknown>,
               ].map(item => (
                 <div key={item.field} className="flex items-center justify-between text-sm">
                   <span className="text-xs">{item.label}</span>
-                  <RadioGroup value={String(checklist.pharyngitis[item.field])} onValueChange={v => updateChecklist("pharyngitis", item.field, parseInt(v))} className="flex gap-2">
+                  <RadioGroup value={String(checklist.pharyngitis[item.field])} onValueChange={v => updateChecklist("pharyngitis", item.field, parseInt(v))} className="flex flex-wrap gap-2">
                     <div className="flex items-center gap-1">
                       <RadioGroupItem value="1" id={`${item.field}-1`} />
                       <Label htmlFor={`${item.field}-1`} className="text-xs cursor-pointer">1</Label>
@@ -538,7 +538,7 @@ checklist: checklist as unknown as Record<string, unknown>,
               ))}
               <div className="flex items-center justify-between text-sm">
                 <span className="text-xs">5. PATIENT AGE</span>
-                <RadioGroup value={String(checklist.pharyngitis.age_score)} onValueChange={v => updateChecklist("pharyngitis", "age_score", parseInt(v))} className="flex gap-2">
+                <RadioGroup value={String(checklist.pharyngitis.age_score)} onValueChange={v => updateChecklist("pharyngitis", "age_score", parseInt(v))} className="flex flex-wrap gap-2">
                   <div className="flex items-center gap-1">
                     <RadioGroupItem value="1" id="age-1" />
                     <Label htmlFor="age-1" className="text-xs cursor-pointer">3-14 (+1)</Label>
@@ -606,7 +606,7 @@ checklist: checklist as unknown as Record<string, unknown>,
               <CBox label="a) Nit +ve (can initiate abx)" checked={checklist.uti.nit_positive} onChange={v => updateChecklist("uti", "nit_positive", v)} />
               <p className="text-xs text-muted-foreground mt-2">2. b) Nit -ve, Leu +ve:</p>
               <p className="text-xs text-muted-foreground italic">*Symptoms &gt;3 for suggestive UTI · *Symptoms &lt;3 send urine culture & TCA</p>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <CBox label="FREQUENCY" checked={checklist.uti.frequency} onChange={v => updateChecklist("uti", "frequency", v)} />
                 <CBox label="DYSURIA" checked={checklist.uti.dysuria} onChange={v => updateChecklist("uti", "dysuria", v)} />
                 <CBox label="HEMATURIA" checked={checklist.uti.hematuria} onChange={v => updateChecklist("uti", "hematuria", v)} />

@@ -189,14 +189,22 @@ export default function AiChatWidget() {
       <button
         aria-label="Ask AI"
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-primary shadow-lg hover:bg-primary/90 transition-colors"
+        // Offsets include the safe-area insets so the button clears the iOS home
+        // indicator once the app runs standalone with viewport-fit=cover.
+        className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-[calc(1.5rem+env(safe-area-inset-right))] z-50 flex h-12 w-12 items-center justify-center rounded-full bg-primary shadow-lg hover:bg-primary/90 transition-colors"
       >
         <Bot className="h-5 w-5 text-primary-foreground" />
       </button>
 
       {/* Slide-up panel */}
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="bottom" className="w-full h-[500px] flex flex-col p-0">
+        {/* 85dvh, not a fixed 500px: on a phone with the soft keyboard open a
+            fixed height left almost no room, and dvh tracks the visible
+            viewport. The bottom padding clears the iOS home indicator. */}
+        <SheetContent
+          side="bottom"
+          className="w-full h-[85dvh] flex flex-col p-0 pb-[env(safe-area-inset-bottom)]"
+        >
           <SheetHeader className="px-4 py-3 border-b">
             <SheetTitle className="flex items-center gap-2 text-sm">
               <Bot className="h-4 w-4" />

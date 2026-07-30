@@ -72,7 +72,7 @@ export function PatientHistorySheet({ patient, onOpenChange, onRefill }: Props) 
                 <RefreshCw className="mr-1 h-3 w-3" /> Isi Semula Ubat
               </Button>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
                 {[
                   { label: "Ubat Semasa", value: history.length > 0 ? history[0].drugs?.drug_name ?? "—" : "—" },
                   { label: "Jumlah Lawatan", value: history.length },

@@ -312,7 +312,7 @@ export default function Dashboard() {
                       {d.lastUpdated ? formatDistanceToNow(new Date(d.lastUpdated), { addSuffix: true }) : "—"}
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => navigate(`/pesakit?drug=${d.id}`)}>
+                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs relative after:absolute after:-inset-2 after:content-[''] after:md:hidden" onClick={() => navigate(`/pesakit?drug=${d.id}`)}>
                         <Users className="h-3 w-3 mr-1" /> Patient Registry
                       </Button>
                     </TableCell>
@@ -445,24 +445,24 @@ function PendingRequestsCard({ navigate }: { navigate: (path: string) => void })
         <CardTitle className="text-base font-semibold">Pending Requests</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <Pill className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm">Controlled Drug</span>
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-xs">{ubatCount} pending</Badge>
-            <Button variant="link" size="sm" className="text-xs h-auto p-0" onClick={() => navigate("/fulfilment")}>Process →</Button>
+            <Button variant="link" size="sm" className="text-xs h-auto p-0 relative after:absolute after:-inset-2 after:content-[''] after:md:hidden" onClick={() => navigate("/fulfilment")}>Process →</Button>
           </div>
         </div>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <FileCheck className="h-4 w-4 text-muted-foreground" />
             <span className="text-sm">Antibiotic Form</span>
           </div>
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="text-xs">{abCount} awaiting confirmation</Badge>
-            <Button variant="link" size="sm" className="text-xs h-auto p-0" onClick={() => navigate("/fulfilment")}>Review →</Button>
+            <Button variant="link" size="sm" className="text-xs h-auto p-0 relative after:absolute after:-inset-2 after:content-[''] after:md:hidden" onClick={() => navigate("/fulfilment")}>Review →</Button>
           </div>
         </div>
       </CardContent>

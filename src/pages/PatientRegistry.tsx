@@ -145,7 +145,7 @@ export default function PatientRegistry() {
         </Card>
       ) : (
         <>
-          <div className="max-w-xs">
+          <div className="w-full sm:max-w-xs">
             <Select value={effectiveDrugId} onValueChange={setSelectedDrugId}>
               <SelectTrigger aria-label="Pilih ubat">
                 <SelectValue placeholder="Pilih ubat...">{selectedDrugName}</SelectValue>

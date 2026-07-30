@@ -11,7 +11,7 @@ export function PageSkeleton() {
       </div>
 
       {/* KPI cards row */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="rounded-lg border bg-card p-4 space-y-3">
             <Skeleton className="h-4 w-20" />

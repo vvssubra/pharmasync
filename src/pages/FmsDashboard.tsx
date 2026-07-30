@@ -11,7 +11,7 @@ import { BarChart2, Package, Clock, AlertTriangle, ShieldCheck, Users } from "lu
 import { quotaStatus, forecastStatus, daysRemaining, projectedExhaustion, quotaDerivedStatus } from "@/lib/quotaHelpers";
 import { computeStock, stockStatus } from "@/lib/stock";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -441,7 +441,7 @@ export default function FmsDashboard() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => navigate(`/pesakit?drug=${d.id}`)}>
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs relative after:absolute after:-inset-2 after:content-[''] after:md:hidden" onClick={() => navigate(`/pesakit?drug=${d.id}`)}>
                           <Users className="h-3 w-3 mr-1" /> Patient Registry
                         </Button>
                       </TableCell>
@@ -500,19 +500,19 @@ export default function FmsDashboard() {
                         <TableCell className="text-sm">{r.quantity} {(r.drugs as any)?.unit_pengukuran}</TableCell>
                         <TableCell className="text-sm font-medium">{(r as any).mo_name}</TableCell>
                         <TableCell className="text-right">
-                          <div className="flex gap-2 justify-end">
+                          <div className="flex flex-wrap gap-2 justify-end">
                             <Button
-                              size="sm"
-                              className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
+                              size="touch"
+                              className="text-xs bg-green-600 hover:bg-green-700 text-white"
                               onClick={() => setApproveTarget(r)}
                               disabled={approveMutation.isPending}
                             >
                               Approve
                             </Button>
                             <Button
-                              size="sm"
+                              size="touch"
                               variant="destructive"
-                              className="h-7 text-xs"
+                              className="text-xs"
                               onClick={() => { setRejectTarget(r); setRejectReason(""); }}
                             >
                               Reject
@@ -554,19 +554,19 @@ export default function FmsDashboard() {
                         <TableCell className="text-xs max-w-[200px] truncate">{f.diagnosis}</TableCell>
                         <TableCell className="text-sm font-medium">{f.mo_name}</TableCell>
                         <TableCell className="text-right">
-                          <div className="flex gap-2 justify-end">
+                          <div className="flex flex-wrap gap-2 justify-end">
                             <Button
-                              size="sm"
-                              className="h-7 text-xs bg-green-600 hover:bg-green-700 text-white"
+                              size="touch"
+                              className="text-xs bg-green-600 hover:bg-green-700 text-white"
                               onClick={() => setAbApproveTarget(f)}
                               disabled={abApproveMutation.isPending}
                             >
                               Approve
                             </Button>
                             <Button
-                              size="sm"
+                              size="touch"
                               variant="destructive"
-                              className="h-7 text-xs"
+                              className="text-xs"
                               onClick={() => { setAbRejectTarget(f); setAbRejectReason(""); }}
                             >
                               Reject
@@ -587,10 +587,10 @@ export default function FmsDashboard() {
       {/* Usage graph */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="text-base">Drug Usage Trend (Dispensed)</CardTitle>
             <Select value={selectedDrugId} onValueChange={setSelectedDrugId}>
-              <SelectTrigger className="w-52 h-8 text-xs">
+              <SelectTrigger className="w-full sm:w-52 h-8 text-xs">
                 <SelectValue placeholder="All drugs" />
               </SelectTrigger>
               <SelectContent>
@@ -608,12 +608,17 @@ export default function FmsDashboard() {
           ) : (
             <ResponsiveContainer width="100%" height={260}>
               <LineChart data={usageData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
+                {/* Theme tokens rather than hardcoded hex, so the chart follows
+                    the palette like everything else. */}
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                {/* At ~300px wide the month labels collided; thin them out and
+                    keep the first and last so the range stays readable. */}
+                <XAxis dataKey="month" tick={{ fontSize: 11 }} interval="preserveStartEnd" minTickGap={24} />
+                <YAxis tick={{ fontSize: 11 }} width={36} />
                 <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="qty" name="Units dispensed" stroke="#059669" strokeWidth={2} dot={false} />
+                {/* No Legend: one series, and on a phone it was pure vertical
+                    cost — the axis title already says what the line is. */}
+                <Line type="monotone" dataKey="qty" name="Units dispensed" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           )}

@@ -76,20 +76,18 @@
     border-radius: calc(var(--radius) - 2px);
   }
 
-  /* Smooth transitions on interactive elements */
-  button, a, [role="button"] {
-    transition: background-color 150ms ease, color 150ms ease, opacity 150ms ease, box-shadow 150ms ease;
-  }
+  /* Smooth transitions and pointer cursors, but only for real pointing devices.
+     Unguarded, a tap on a touchscreen leaves the element stuck in :hover until
+     the next tap elsewhere — on an Approve button that reads as "already
+     pressed". */
+  @media (hover: hover) and (pointer: fine) {
+    button, a, [role="button"] {
+      transition: background-color 150ms ease, color 150ms ease, opacity 150ms ease, box-shadow 150ms ease;
+    }
 
-  /* Cursor pointer on all clickable elements */
-  button:not(:disabled), a, [role="button"]:not([aria-disabled="true"]) {
-    cursor: pointer;
-  }
-
-  /* Mobile table scroll */
-  .table-wrap {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    button:not(:disabled), a, [role="button"]:not([aria-disabled="true"]) {
+      cursor: pointer;
+    }
   }
 }
 

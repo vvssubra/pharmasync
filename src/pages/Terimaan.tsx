@@ -346,7 +346,7 @@ export default function Terimaan() {
         )}
       />
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <FormField
           control={f.control}
           name="jenis_rujukan"
@@ -399,7 +399,7 @@ export default function Terimaan() {
         )}
       />
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <FormField
           control={f.control}
           name="kuantiti"
@@ -607,7 +607,7 @@ export default function Terimaan() {
 
       {/* Edit Dialog */}
       <Dialog open={!!editingTx} onOpenChange={(open) => !open && setEditingTx(null)}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit Receipt</DialogTitle>
           </DialogHeader>

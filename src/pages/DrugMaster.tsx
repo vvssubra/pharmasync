@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
-import { FileText, Plus, Search, Pencil, Ban, RotateCcw, BookOpen, CalendarRange, Lock, Unlock, PackagePlus } from "lucide-react";
+import { FileText, Plus, Search, Pencil, Ban, RotateCcw, BookOpen, CalendarRange, Lock, Unlock, PackagePlus, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,9 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { DrugFormDialog } from "@/components/DrugFormDialog";
 import DrugQuotaDialog from "@/components/DrugQuotaDialog";
 import ReplenishQuotaDialog from "@/components/ReplenishQuotaDialog";
@@ -114,7 +117,7 @@ export default function DrugMaster() {
         </Button>
       </div>
 
-      <div className="relative max-w-sm">
+      <div className="relative w-full sm:max-w-sm">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
           placeholder="Search drugs..."
@@ -194,45 +197,60 @@ export default function DrugMaster() {
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => navigate(`/drugs/${drug.id}/ledger`)} title="View Ledger">
-                            <BookOpen className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(drug)}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() =>
-                              drug.is_active
-                                ? setDeactivateTarget(drug)
-                                : toggleMutation.mutate({ id: drug.id, is_active: true })
-                            }
-                          >
-                            {drug.is_active ? <Ban className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
-                          </Button>
-                          {(role === "admin" || role === "super_admin") && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Set Annual Quota" onClick={() => setQuotaTarget(drug)}>
-                              <CalendarRange className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                          {(role === "admin" || role === "super_admin") && quotaRow && (
-                            <Button variant="ghost" size="icon" className="h-7 w-7" title="Replenish Quota" onClick={() => setReplenishTarget(drug)}>
-                              <PackagePlus className="h-3.5 w-3.5" />
-                            </Button>
-                          )}
-                          {(role === "admin" || role === "super_admin") && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7"
-                              title={drug.is_blocked ? "Unblock requests" : "Block requests"}
-                              onClick={() => blockMutation.mutate({ id: drug.id, is_blocked: !drug.is_blocked })}
-                            >
-                              {drug.is_blocked ? <Unlock className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
-                            </Button>
-                          )}
+                        {/* Up to six actions used to sit in this one cell, three
+                            of them 28px and 4px apart. Resizing them was not an
+                            option — they would overflow the cell — so they moved
+                            into an overflow menu, whose items are 44px tall by
+                            default and which also removes the misclick surface
+                            between Deactivate and Block. */}
+                        <div className="flex justify-end">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon-touch" aria-label={`Actions for ${drug.drug_name}`}>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                              <DropdownMenuItem className="min-h-[44px]" onClick={() => navigate(`/drugs/${drug.id}/ledger`)}>
+                                <BookOpen className="mr-2 h-4 w-4" /> View Ledger
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="min-h-[44px]" onClick={() => handleEdit(drug)}>
+                                <Pencil className="mr-2 h-4 w-4" /> Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="min-h-[44px]"
+                                onClick={() =>
+                                  drug.is_active
+                                    ? setDeactivateTarget(drug)
+                                    : toggleMutation.mutate({ id: drug.id, is_active: true })
+                                }
+                              >
+                                {drug.is_active
+                                  ? <><Ban className="mr-2 h-4 w-4" /> Deactivate</>
+                                  : <><RotateCcw className="mr-2 h-4 w-4" /> Reactivate</>}
+                              </DropdownMenuItem>
+                              {(role === "admin" || role === "super_admin") && (
+                                <DropdownMenuItem className="min-h-[44px]" onClick={() => setQuotaTarget(drug)}>
+                                  <CalendarRange className="mr-2 h-4 w-4" /> Set Annual Quota
+                                </DropdownMenuItem>
+                              )}
+                              {(role === "admin" || role === "super_admin") && quotaRow && (
+                                <DropdownMenuItem className="min-h-[44px]" onClick={() => setReplenishTarget(drug)}>
+                                  <PackagePlus className="mr-2 h-4 w-4" /> Replenish Quota
+                                </DropdownMenuItem>
+                              )}
+                              {(role === "admin" || role === "super_admin") && (
+                                <DropdownMenuItem
+                                  className="min-h-[44px]"
+                                  onClick={() => blockMutation.mutate({ id: drug.id, is_blocked: !drug.is_blocked })}
+                                >
+                                  {drug.is_blocked
+                                    ? <><Unlock className="mr-2 h-4 w-4" /> Unblock requests</>
+                                    : <><Lock className="mr-2 h-4 w-4" /> Block requests</>}
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </TableCell>
                     </TableRow>

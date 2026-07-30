@@ -41,9 +41,18 @@ const items: NavItem[] = [
 ];
 
 export function AppSidebar() {
-  const { state } = useSidebar();
+  const { state, isMobile, setOpenMobile } = useSidebar();
   const { role } = useAuth();
   const collapsed = state === "collapsed";
+
+  // On phones the sidebar is a Sheet overlaying the page, and nothing was
+  // closing it on navigation — so tapping a nav item left the drawer sitting on
+  // top of the page it had just opened. Handled here rather than inside NavLink,
+  // which is generic and would then require sidebar context everywhere it is
+  // used.
+  const closeOnNavigate = () => {
+    if (isMobile) setOpenMobile(false);
+  };
 
   const visibleItems = role ? items.filter((item) => role === "super_admin" || item.roles.includes(role)) : [];
 
@@ -131,6 +140,7 @@ export function AppSidebar() {
                     <NavLink
                       to={item.url}
                       end={item.url === "/"}
+                      onClick={closeOnNavigate}
                       className="hover:bg-sidebar-accent"
                       activeClassName="bg-sidebar-accent text-sidebar-accent-foreground font-medium"
                     >

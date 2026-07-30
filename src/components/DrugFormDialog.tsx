@@ -188,7 +188,7 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{isEdit ? "Edit Drug" : "Add Drug"}</DialogTitle>
           <DialogDescription>
@@ -217,7 +217,7 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
               <p className="text-xs text-muted-foreground">
                 Drives the Critical/Low/Normal/Excess status shown on the dashboards. Leave all at 0 if you're not tracking physical stock levels for this drug.
               </p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <FormField control={form.control} name="stok_min" render={({ field }) => (
                   <FormItem>
                     <FormLabel>Min</FormLabel>

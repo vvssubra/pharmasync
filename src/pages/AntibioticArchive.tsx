@@ -99,7 +99,7 @@ export default function AntibioticArchive() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Cari mengikut nama, IC, diagnosis atau FMS..."
-              className="max-w-md"
+              className="w-full sm:max-w-md"
             />
           </div>
         </CardHeader>
@@ -133,11 +133,11 @@ export default function AntibioticArchive() {
                       {f.acknowledged_at ? format(new Date(f.acknowledged_at), "d MMM yyyy, HH:mm") : "—"}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex gap-2 justify-end">
-                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setViewTarget(f)}>
+                      <div className="flex flex-wrap gap-2 justify-end">
+                        <Button size="touch" variant="outline" className="text-xs gap-1" onClick={() => setViewTarget(f)}>
                           <Eye className="h-3 w-3" /> Lihat
                         </Button>
-                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => handleDownload(f)}>
+                        <Button size="touch" variant="outline" className="text-xs gap-1" onClick={() => handleDownload(f)}>
                           <Download className="h-3 w-3" /> .md
                         </Button>
                       </div>

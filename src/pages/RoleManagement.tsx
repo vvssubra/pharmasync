@@ -242,7 +242,7 @@ export default function RoleManagement() {
                 const clinicId = isSuperAdmin ? (approveClinic[u.user_id] ?? "") : "";
 
                 return (
-                  <div key={u.user_id} className="flex items-center justify-between py-3 gap-4">
+                  <div key={u.user_id} className="flex flex-wrap items-center justify-between py-3 gap-4">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{u.full_name || "—"}</p>
                       <p className="text-xs text-muted-foreground truncate">{u.email}</p>
@@ -253,7 +253,7 @@ export default function RoleManagement() {
                       </p>
                     </div>
 
-                    <div className="flex items-center gap-3 shrink-0">
+                    <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto sm:shrink-0">
                       {isSuperAdmin && (
                         <Select
                           value={clinicId}
@@ -261,7 +261,7 @@ export default function RoleManagement() {
                             setApproveClinic(prev => ({ ...prev, [u.user_id]: val }))
                           }
                         >
-                          <SelectTrigger className="w-48 h-8 text-xs" data-testid={`clinic-${u.user_id}`}>
+                          <SelectTrigger className="w-full sm:w-48 h-8 text-xs" data-testid={`clinic-${u.user_id}`}>
                             <SelectValue placeholder="Select clinic" />
                           </SelectTrigger>
                           <SelectContent>
@@ -354,7 +354,7 @@ export default function RoleManagement() {
                   pendingRole[u.user_id] !== (u.role ?? "unassigned");
 
                 return (
-                  <div key={u.user_id} className="flex items-center justify-between py-3 gap-4">
+                  <div key={u.user_id} className="flex flex-wrap items-center justify-between py-3 gap-4">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium truncate">{u.full_name || "—"}</p>
                       <p className="text-xs text-muted-foreground truncate">{u.email}</p>
@@ -363,7 +363,7 @@ export default function RoleManagement() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-3 shrink-0">
+                    <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto sm:shrink-0">
                       {u.role && ROLE_BADGE_CLASSES[u.role] && (
                         <Badge variant="outline" className={`text-[11px] ${ROLE_BADGE_CLASSES[u.role]}`}>
                           {ROLE_LABELS[u.role] ?? u.role}
@@ -377,7 +377,7 @@ export default function RoleManagement() {
                         }
                         disabled={isSelf(u.user_id)}
                       >
-                        <SelectTrigger className="w-40 h-8 text-xs">
+                        <SelectTrigger className="w-full sm:w-40 h-8 text-xs">
                           <SelectValue placeholder="Select role" />
                         </SelectTrigger>
                         <SelectContent>
