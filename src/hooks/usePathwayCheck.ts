@@ -41,6 +41,10 @@ export function usePathwayCheck(fields: FormFields, options?: { enabled?: boolea
   const [status, setStatus] = useState<PathwayStatus>("idle");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Serialised so the effect re-runs on checklist *content* rather than object
+  // identity; hoisted out of the dep array so the rule can check it statically.
+  const checklistKey = JSON.stringify(fields.checklist);
+
   useEffect(() => {
     if (!enabled) {
       setStatus("idle");
@@ -96,6 +100,12 @@ export function usePathwayCheck(fields: FormFields, options?: { enabled?: boolea
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
+    // Every field of FormFields is listed individually, so these deps are
+    // exhaustive in effect even though the rule wants `fields` itself.
+    // Depending on the object would be a regression: the caller builds it
+    // inline each render (AntibioticForm.tsx), so a new identity every render
+    // would reset the debounce timer above forever.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     enabled,
     fields.diagnosis,
@@ -104,8 +114,7 @@ export function usePathwayCheck(fields: FormFields, options?: { enabled?: boolea
     fields.duration_days,
     fields.allergy_status,
     fields.patient_age,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    JSON.stringify(fields.checklist),
+    checklistKey,
   ]);
 
   return { verdict, explanation, status };

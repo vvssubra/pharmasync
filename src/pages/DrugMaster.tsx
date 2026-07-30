@@ -45,8 +45,10 @@ export default function DrugMaster() {
   const navigate = useNavigate();
   const currentYear = new Date().getFullYear();
 
+  // Namespaced — this query selects * and, unlike the other two, does not
+  // filter on is_active. Prefix invalidation on ["drugs"] still applies.
   const { data: drugs = [], isLoading } = useQuery({
-    queryKey: ["drugs"],
+    queryKey: ["drugs", "master"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("drugs")

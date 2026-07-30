@@ -47,6 +47,13 @@ export function useDoseSuggestion(
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
+    // DoseQuery has exactly two fields (see src/lib/doseQuery.ts), and both are
+    // listed, so these deps are exhaustive in effect even though the rule wants
+    // the object itself. Depending on `query` would be a regression: callers
+    // build it inline each render (AntibioticForm.tsx), so a new object identity
+    // every render would reset the debounce timer below forever and the lookup
+    // would never fire.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, query?.query, query?.patient_group]);
 
   return { matches, message, status };

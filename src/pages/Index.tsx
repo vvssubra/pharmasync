@@ -66,9 +66,12 @@ export default function Dashboard() {
   const currentYear = new Date().getFullYear();
   const { byDrugId: quotaUsageByDrug } = useDrugQuotaUsage(currentYear);
 
-  // Fetch drugs
+  // Fetch drugs. The key is namespaced because this projection differs from
+  // Terimaan's and DrugMaster's; sharing a bare ["drugs"] key made them serve
+  // each other's row shape. invalidateQueries(["drugs"]) still matches by
+  // prefix, so every existing invalidator keeps working.
   const { data: drugs } = useQuery({
-    queryKey: ["drugs"],
+    queryKey: ["drugs", "dashboard"],
     queryFn: async () => {
       const { data, error } = await supabase.from("drugs").select("id, drug_name, unit_pengukuran, stok_min, stok_reorder, stok_max, perlu_kelulusan_pakar").eq("is_active", true);
       if (error) throw error;
@@ -165,7 +168,7 @@ export default function Dashboard() {
   const activityFeed = useMemo(() => {
     if (!recentTx || recentTx.length === 0) return [];
     return recentTx.map((tx) => ({
-      drug_name: (tx.drugs as any)?.drug_name ?? "—",
+      drug_name: tx.drugs?.drug_name ?? "—",
       jenis: tx.jenis,
       kuantiti: tx.kuantiti,
       nama_pegawai: tx.nama_pegawai ?? "—",
@@ -389,7 +392,7 @@ export default function Dashboard() {
                 ) : (
                   recentDispensing.map((r) => (
                     <TableRow key={r.id}>
-                      <TableCell className="text-xs font-medium truncate max-w-[120px]">{(r.drugs as any)?.drug_name ?? "—"}</TableCell>
+                      <TableCell className="text-xs font-medium truncate max-w-[120px]">{r.drugs?.drug_name ?? "—"}</TableCell>
                       <TableCell className="text-xs truncate max-w-[130px]">{r.patient_name}</TableCell>
                       <TableCell className="text-xs text-muted-foreground">{r.no_ic}</TableCell>
                       <TableCell className="text-xs text-right font-semibold">{r.quantity}</TableCell>
@@ -427,12 +430,12 @@ function PendingRequestsCard({ navigate }: { navigate: (path: string) => void })
     refetchInterval: 15000,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("antibiotic_forms" as any)
+        .from("antibiotic_forms")
         .select("id")
         .eq("status", "approved")
         .is("acknowledged_at", null);
       if (error) return 0;
-      return (data as any[])?.length ?? 0;
+      return data?.length ?? 0;
     },
   });
 

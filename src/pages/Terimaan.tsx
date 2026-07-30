@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { CalendarIcon, Check, ChevronsUpDown, Pencil, FileText } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -50,6 +51,10 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+// Shape returned by the recent-receipts query below: a transactions row plus the
+// joined drug name.
+type TerimaanRow = Tables<"transactions"> & { drugs: { drug_name: string } | null };
+
 export default function Terimaan() {
   const { profile, role, user } = useAuth();
   const queryClient = useQueryClient();
@@ -57,9 +62,11 @@ export default function Terimaan() {
   const [editingTx, setEditingTx] = useState<string | null>(null);
   const [editDrugPopoverOpen, setEditDrugPopoverOpen] = useState(false);
 
-  // Fetch drugs
+  // Fetch drugs. Namespaced — this projection omits the stock-level columns the
+  // dashboard needs, so a shared ["drugs"] key made the dashboard grade every
+  // drug against undefined thresholds. Prefix invalidation still applies.
   const { data: drugs = [] } = useQuery({
-    queryKey: ["drugs"],
+    queryKey: ["drugs", "terimaan"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("drugs")
@@ -218,7 +225,7 @@ export default function Terimaan() {
     if (editingTx) updateMutation.mutate({ id: editingTx, values });
   };
 
-  const openEdit = (tx: any) => {
+  const openEdit = (tx: TerimaanRow) => {
     setEditingTx(tx.id);
     editForm.reset({
       drug_id: tx.drug_id,
@@ -233,7 +240,7 @@ export default function Terimaan() {
     });
   };
 
-  const canEdit = (tx: any) => {
+  const canEdit = (tx: TerimaanRow) => {
     if (role !== "pharmacist" && role !== "admin" && role !== "super_admin") return false;
     const created = new Date(tx.created_at);
     const diff = Date.now() - created.getTime();
@@ -477,7 +484,12 @@ export default function Terimaan() {
             </CardHeader>
             <CardContent>
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                {/* noValidate: the kuantiti Input carries min={1} while the
+                    form defaults to 0, so native constraint validation aborts
+                    submit before handleSubmit runs and none of the Zod messages
+                    ever render. formSchema covers every declared constraint
+                    (kuantiti .int().min(1), harga_seunit .min(0)). */}
+                <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
                   {renderFormFields(form, jumlahRm, drugPopoverOpen, setDrugPopoverOpen)}
 
                   <div className="flex gap-2 pt-2">
@@ -552,12 +564,12 @@ export default function Terimaan() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {recentTerimaan.map((tx: any) => (
+                    {recentTerimaan.map((tx) => (
                       <TableRow key={tx.id}>
                         <TableCell className="whitespace-nowrap">
                           {format(new Date(tx.tarikh), "dd/MM/yyyy")}
                         </TableCell>
-                        <TableCell>{(tx.drugs as any)?.drug_name ?? "-"}</TableCell>
+                        <TableCell>{tx.drugs?.drug_name ?? "-"}</TableCell>
                         <TableCell className="text-right">{tx.kuantiti}</TableCell>
                         <TableCell className="text-right">
                           {Number(tx.jumlah_rm || 0).toFixed(2)}
@@ -600,7 +612,8 @@ export default function Terimaan() {
             <DialogTitle>Edit Receipt</DialogTitle>
           </DialogHeader>
           <Form {...editForm}>
-            <form onSubmit={editForm.handleSubmit(onEditSubmit)} className="space-y-4">
+            {/* noValidate: same reason as the create form above. */}
+            <form onSubmit={editForm.handleSubmit(onEditSubmit)} noValidate className="space-y-4">
               {renderFormFields(editForm, editJumlahRm, editDrugPopoverOpen, setEditDrugPopoverOpen)}
               <div className="flex gap-2 pt-2">
                 <Button type="submit" disabled={updateMutation.isPending}>

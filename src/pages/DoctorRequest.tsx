@@ -212,7 +212,11 @@ export default function DoctorRequest() {
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            {/* noValidate: the quantity Input carries min={1} while the form
+                defaults to 0, so native constraint validation aborts submit
+                before handleSubmit runs and none of the Zod messages ever
+                render. Zod covers every constraint the markup declared. */}
+            <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
               <FormField control={form.control} name="patient_name" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Patient Name *</FormLabel>
