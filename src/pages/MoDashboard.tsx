@@ -111,6 +111,23 @@ export default function MoDashboard() {
     },
   });
 
+  // Forms the FMS sent back for correction. 15s poll matches the other queue
+  // badges; the push notification is the fast path, this is the reliable one.
+  const { data: rejectedForms = [] } = useQuery({
+    queryKey: ["mo-rejected-antibiotic", user?.id],
+    enabled: !!user?.id,
+    refetchInterval: 15000,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("antibiotic_forms")
+        .select("id, patient_name, diagnosis, specialist_notes, specialist_action_at")
+        .eq("submitted_by", user!.id)
+        .eq("status", "rejected")
+        .order("specialist_action_at", { ascending: false });
+      return data ?? [];
+    },
+  });
+
   const availableDrugs = drugStock.filter(d => d.status !== "critical");
 
   return (
@@ -136,6 +153,45 @@ export default function MoDashboard() {
           </Button>
         </div>
       </div>
+
+      {/* Antibiotic forms returned by the FMS — the MO's correction queue.
+          Rendered above everything else: it is the only item on this page that
+          blocks someone else's work. */}
+      {rejectedForms.length > 0 && (
+        <Card className="border-destructive/50">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-4 w-4" />
+              Returned for correction ({rejectedForms.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {rejectedForms.map((f) => (
+              <div
+                key={f.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded border border-destructive/30 bg-destructive/5 p-3"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium">{f.patient_name}</p>
+                  <p className="truncate text-xs text-muted-foreground">{f.diagnosis}</p>
+                  {f.specialist_notes && (
+                    <p className="mt-1 text-xs text-destructive">
+                      FMS: {f.specialist_notes}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  size="touch"
+                  variant="destructive"
+                  onClick={() => navigate(`/request/antibiotik?edit=${f.id}`)}
+                >
+                  Correct & resubmit
+                </Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Summary — click a card to filter the table below */}
       <div className="grid gap-4 sm:grid-cols-3">

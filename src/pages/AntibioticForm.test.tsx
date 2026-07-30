@@ -6,11 +6,26 @@ import AntibioticForm from "./AntibioticForm";
 
 const rpc = vi.fn();
 
+const insertSpy = vi.fn(() => Promise.resolve({ error: null }));
+const updateEqSpy = vi.fn(() => Promise.resolve({ error: null }));
+
+// The row served for ?edit=<id> correction-mode tests. status must be
+// 'rejected' and submitted_by must match the mocked auth user, or the page
+// treats the visit as a plain new form. Holder object so tests can swap the
+// row without reassigning a module binding.
+const editHolder: { row: Record<string, unknown> | null } = { row: null };
+
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     rpc: (...args: unknown[]) => rpc(...args),
     from: vi.fn(() => ({
-      insert: vi.fn(() => Promise.resolve({ error: null })),
+      insert: insertSpy,
+      update: vi.fn(() => ({ eq: updateEqSpy })),
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          single: vi.fn(() => Promise.resolve({ data: editHolder.row, error: null })),
+        })),
+      })),
     })),
     auth: {
       getSession: vi.fn(() => Promise.resolve({ data: { session: null }, error: null })),
@@ -39,10 +54,10 @@ vi.mock("@/lib/featureFlags", () => ({
   KNOWLEDGE_ENABLED: false,
 }));
 
-function renderForm() {
+function renderForm(initialEntry = "/request/antibiotik") {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <MemoryRouter>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <QueryClientProvider client={client}>
         <AntibioticForm />
       </QueryClientProvider>
@@ -88,5 +103,62 @@ describe("AntibioticForm assigned FMS", () => {
 
     fireEvent.keyDown(screen.getByText("Select FMS"), { key: "Enter" });
     expect(await screen.findByText(/Tiada FMS berdaftar/, {}, { timeout: 10_000 })).toBeInTheDocument();
+  });
+});
+
+describe("AntibioticForm correction mode (?edit=<id>)", () => {
+  beforeEach(() => {
+    editHolder.row = {
+      id: "form-9",
+      status: "rejected",
+      submitted_by: "mo-1", // matches the mocked auth user
+      tarikh: "2026-07-30",
+      patient_name: "Aminah binti Yusof",
+      patient_ic: "900101-01-1234",
+      patient_weight_kg: null,
+      diagnosis: "Community Acquired Pneumonia",
+      prescription_unit: "OPD",
+      drug_allergy: false,
+      drug_allergy_detail: null,
+      antibiotic_regimen: "Amoxicillin 500mg TDS 5/7",
+      fms_code: null,
+      assigned_fms: "Dr Norlaila Najwa",
+      health_ed_compliance: true,
+      health_ed_sideeffect: false,
+      health_ed_tca: true,
+      checklist_data: null,
+      prescriber_notes: null,
+      specialist_notes: "Dose does not match weight — recalculate",
+    };
+  });
+
+  it("prefills the rejected form and shows the FMS's reason", async () => {
+    renderForm("/request/antibiotik?edit=form-9");
+    expect(
+      await screen.findByText(/returned by the FMS for correction/i, {}, { timeout: 10_000 })
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Dose does not match weight/)).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Aminah binti Yusof")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Community Acquired Pneumonia")).toBeInTheDocument();
+  });
+
+  it("resubmits via UPDATE (back to pending_specialist), not a new INSERT", async () => {
+    renderForm("/request/antibiotik?edit=form-9");
+    await screen.findByDisplayValue("Aminah binti Yusof", {}, { timeout: 10_000 });
+
+    fireEvent.click(screen.getByRole("button", { name: /submit for specialist approval/i }));
+
+    await waitFor(() => expect(updateEqSpy).toHaveBeenCalledWith("id", "form-9"), {
+      timeout: 10_000,
+    });
+    expect(insertSpy).not.toHaveBeenCalled();
+  });
+
+  it("treats someone else's rejected form as a plain new form", async () => {
+    editHolder.row = { ...editHolder.row!, submitted_by: "someone-else" };
+    renderForm("/request/antibiotik?edit=form-9");
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("get_fms_list"));
+    expect(screen.queryByText(/returned by the FMS for correction/i)).toBeNull();
+    expect(screen.queryByDisplayValue("Aminah binti Yusof")).toBeNull();
   });
 });

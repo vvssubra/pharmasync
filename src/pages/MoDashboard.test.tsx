@@ -62,4 +62,41 @@ describe("MoDashboard", () => {
     const header = await screen.findByText(/Quota Remaining/i);
     expect(header).toBeInTheDocument();
   });
+
+  it("lists antibiotic forms returned by the FMS with the rejection reason", async () => {
+    const { supabase } = await import("@/integrations/supabase/client");
+    vi.mocked(supabase.from).mockImplementation(((table: string) => {
+      if (table === "antibiotic_forms") {
+        const chain: Record<string, unknown> = {};
+        chain.select = vi.fn(() => chain);
+        chain.eq = vi.fn(() => chain);
+        chain.order = vi.fn(() =>
+          resolved([
+            {
+              id: "form-9",
+              patient_name: "Aminah binti Yusof",
+              diagnosis: "Community Acquired Pneumonia",
+              specialist_notes: "Dose does not match weight — recalculate",
+              specialist_action_at: new Date().toISOString(),
+            },
+          ]),
+        );
+        return chain;
+      }
+      return mockChain();
+    }) as never);
+
+    render(
+      <MemoryRouter>
+        <QueryClientProvider client={makeQC()}>
+          <MoDashboard />
+        </QueryClientProvider>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText(/Returned for correction \(1\)/)).toBeInTheDocument();
+    expect(screen.getByText("Aminah binti Yusof")).toBeInTheDocument();
+    expect(screen.getByText(/Dose does not match weight/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Correct & resubmit/i })).toBeInTheDocument();
+  });
 });

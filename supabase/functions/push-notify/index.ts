@@ -22,16 +22,34 @@ const NOTIFY_ROLES = ["fms", "admin", "super_admin"];
 
 // Deliberately no patient identifiers: lock screens are readable by whoever is
 // holding the phone. The queue page has the details.
-const MESSAGES: Record<string, { title: string; body: string; tag: string }> = {
+//
+// Keyed by `table` or `table:event`. Events come from notify_push_event()
+// (migration 20260731000000): 'rejected' targets the submitting MO, and
+// 'resubmitted' broadcasts to approvers like a fresh submission.
+const MESSAGES: Record<string, { title: string; body: string; tag: string; url: string }> = {
   dispensing_requests: {
     title: "PharmaSync — New drug request",
     body: "A controlled-drug request is awaiting specialist approval.",
     tag: "dispensing",
+    url: "/specialist",
   },
   antibiotic_forms: {
     title: "PharmaSync — New antibiotic form",
     body: "An antibiotic form is awaiting specialist approval.",
     tag: "antibiotic",
+    url: "/specialist",
+  },
+  "antibiotic_forms:rejected": {
+    title: "PharmaSync — Antibiotic form returned",
+    body: "The FMS returned your antibiotic form for correction. Tap to fix and resubmit.",
+    tag: "antibiotic-rejected",
+    url: "/request/antibiotik", // ?edit=<id> appended below
+  },
+  "antibiotic_forms:resubmitted": {
+    title: "PharmaSync — Antibiotic form resubmitted",
+    body: "A corrected antibiotic form is awaiting specialist approval.",
+    tag: "antibiotic",
+    url: "/specialist",
   },
 };
 
@@ -59,14 +77,20 @@ Deno.serve(async (req) => {
   }
 
   let table: string;
+  let event: string;
+  let rowId: string;
+  let targetUser: string | null;
   try {
     const payload = await req.json();
     table = String(payload.table ?? "");
+    event = String(payload.event ?? "");
+    rowId = String(payload.id ?? "");
+    targetUser = payload.target_user ? String(payload.target_user) : null;
   } catch {
     return new Response(JSON.stringify({ error: "bad payload" }), { status: 400 });
   }
 
-  const message = MESSAGES[table];
+  const message = MESSAGES[event ? `${table}:${event}` : table] ?? MESSAGES[table];
   if (!message) {
     return new Response(JSON.stringify({ error: `unknown table ${table}` }), { status: 400 });
   }
@@ -76,16 +100,22 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
   );
 
-  // Approvers, then their push endpoints. A user with several devices has
-  // several rows; all of them ring.
-  const { data: roles, error: rolesErr } = await supabase
-    .from("user_roles")
-    .select("user_id")
-    .in("role", NOTIFY_ROLES);
-  if (rolesErr) {
-    return new Response(JSON.stringify({ error: rolesErr.message }), { status: 500 });
+  // Who rings: a targeted event addresses exactly one user (the submitting MO
+  // on rejection); everything else broadcasts to the approver roles. A user
+  // with several devices has several subscription rows; all of them ring.
+  let userIds: string[];
+  if (targetUser) {
+    userIds = [targetUser];
+  } else {
+    const { data: roles, error: rolesErr } = await supabase
+      .from("user_roles")
+      .select("user_id")
+      .in("role", NOTIFY_ROLES);
+    if (rolesErr) {
+      return new Response(JSON.stringify({ error: rolesErr.message }), { status: 500 });
+    }
+    userIds = [...new Set((roles ?? []).map((r) => r.user_id))];
   }
-  const userIds = [...new Set((roles ?? []).map((r) => r.user_id))];
   if (userIds.length === 0) {
     return new Response(JSON.stringify({ sent: 0, pruned: 0 }), { status: 200 });
   }
@@ -99,11 +129,14 @@ Deno.serve(async (req) => {
   }
 
   const appServer = await appServerPromise;
+  // Rejections deep-link straight into the correction form.
+  const url =
+    event === "rejected" && rowId ? `${message.url}?edit=${rowId}` : message.url;
   const text = JSON.stringify({
     title: message.title,
     body: message.body,
     tag: message.tag,
-    url: "/specialist",
+    url,
   });
 
   let sent = 0;

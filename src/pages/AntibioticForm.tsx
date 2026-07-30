@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { getErrorMessage } from "@/lib/errors";
 
 
@@ -68,6 +69,13 @@ interface AiSuggestion {
 
 export default function AntibioticForm() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const queryClient = useQueryClient();
+  // Correction mode: ?edit=<id> reopens the MO's own REJECTED form, prefilled,
+  // and submitting UPDATEs it back to pending_specialist instead of inserting.
+  // RLS enforces the real rules (own form, rejected → pending_specialist only);
+  // the client checks are just for honest UI.
+  const editId = searchParams.get("edit");
   const { user, profile, role } = useAuth();
   // Mirrors ALLOWED_ROLES in supabase/functions/antibiotic-suggest/index.ts and
   // pathway-check/index.ts. Rendering the button for a role the endpoint
@@ -108,6 +116,60 @@ export default function AntibioticForm() {
 
   // Section 2
   const [checklist, setChecklist] = useState<ChecklistState>(defaultChecklist);
+
+  // ── Correction mode: load + prefill the rejected form ─────────────────────
+  const { data: editForm } = useQuery({
+    queryKey: ["antibiotic-form-edit", editId],
+    enabled: !!editId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("antibiotic_forms")
+        .select("*")
+        .eq("id", editId!)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  // Only the submitter's own rejected form is correctable — anything else in
+  // ?edit is treated as a plain new-form visit.
+  const editable =
+    !!editForm && editForm.status === "rejected" && editForm.submitted_by === user?.id;
+
+  useEffect(() => {
+    if (!editable || !editForm) return;
+    setTarikh(editForm.tarikh);
+    setPatientName(editForm.patient_name);
+    setPatientIC(editForm.patient_ic);
+    setPatientWeight(editForm.patient_weight_kg != null ? String(editForm.patient_weight_kg) : "");
+    setDiagnosis(editForm.diagnosis);
+    setPrescriptionUnit(editForm.prescription_unit ?? "");
+    setDrugAllergy(!!editForm.drug_allergy);
+    setDrugAllergyDetail(editForm.drug_allergy_detail ?? "");
+    setAntibioticRegimen(editForm.antibiotic_regimen ?? "");
+    setFmsCode(editForm.fms_code ?? "");
+    setAssignedFms(editForm.assigned_fms ?? "");
+    setHealthEdCompliance(!!editForm.health_ed_compliance);
+    setHealthEdSideeffect(!!editForm.health_ed_sideeffect);
+    setHealthEdTca(!!editForm.health_ed_tca);
+    setPrescriberNotes(editForm.prescriber_notes ?? "");
+    // Merge over the defaults so checklist keys added after this row was
+    // written still exist in state.
+    const stored = (editForm.checklist_data ?? {}) as Partial<ChecklistState>;
+    setChecklist((prev) => {
+      const merged = { ...prev } as ChecklistState;
+      for (const key of Object.keys(defaultChecklist) as (keyof ChecklistState)[]) {
+        if (stored[key]) {
+          merged[key] = { ...defaultChecklist[key], ...(stored[key] as object) } as never;
+        }
+      }
+      return merged;
+    });
+    // The effect must run once per loaded row, not on every keystroke —
+    // depending on editForm's id alone keeps it that way.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editable, editForm?.id]);
 
   const age = getAgeFromIC(patientIC);
   const showWeight = age !== null && age < 12;
@@ -189,7 +251,7 @@ checklist: checklist as unknown as Record<string, unknown>,
     }
     setSubmitting(true);
     try {
-      const { error } = await supabase.from("antibiotic_forms").insert({
+      const fields = {
         tarikh,
         patient_name: patientName,
         patient_ic: patientIC,
@@ -208,9 +270,28 @@ checklist: checklist as unknown as Record<string, unknown>,
         prescriber_notes: prescriberNotes || null,
         pathway_check_result: pathwayVerdict ?? "unavailable",
         status: "pending_specialist",
-        submitted_by: user?.id,
-      });
-      if (error) throw error;
+      };
+      if (editable) {
+        // Resubmission: same row goes back into the specialist queue with the
+        // previous decision cleared. The DB trigger notifies the approvers.
+        const { error } = await supabase
+          .from("antibiotic_forms")
+          .update({
+            ...fields,
+            specialist_id: null,
+            specialist_notes: null,
+            specialist_action_at: null,
+          })
+          .eq("id", editForm!.id);
+        if (error) throw error;
+        queryClient.invalidateQueries({ queryKey: ["mo-rejected-antibiotic"] });
+        queryClient.invalidateQueries({ queryKey: ["antibiotic-form-edit", editId] });
+      } else {
+        const { error } = await supabase
+          .from("antibiotic_forms")
+          .insert({ ...fields, submitted_by: user?.id });
+        if (error) throw error;
+      }
       setSubmitted({ patient_name: patientName, patient_ic: patientIC, diagnosis });
     } catch (error) {
       console.error("Antibiotic form submission failed:", error);
@@ -255,6 +336,21 @@ checklist: checklist as unknown as Record<string, unknown>,
       <Button variant="ghost" size="sm" onClick={() => navigate("/request")} className="gap-1">
         <ArrowLeft className="h-4 w-4" /> Back to Request Options
       </Button>
+
+      {editable && (
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <span className="font-medium">This form was returned by the FMS for correction.</span>
+            {editForm?.specialist_notes && (
+              <>
+                {" "}Reason: <span className="font-medium">{editForm.specialist_notes}</span>
+              </>
+            )}
+            {" "}Fix the issues below and submit again — it will go back to the same queue.
+          </AlertDescription>
+        </Alert>
+      )}
 
       {/* Header */}
       <Card className="border-none text-primary-foreground" style={{ backgroundColor: "#0b3b28" }}>
