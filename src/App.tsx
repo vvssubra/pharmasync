@@ -6,7 +6,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppLayout } from "@/components/AppLayout";
 import { PwaUpdatePrompt } from "@/components/PwaUpdatePrompt";
-import { IosInstallPrompt } from "@/components/IosInstallPrompt";
+import { InstallPrompt } from "@/components/InstallPrompt";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Index";
 import FmsDashboard from "@/pages/FmsDashboard";
@@ -41,11 +41,13 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
-      {/* Above AuthProvider on purpose: both work on the login screen, before
-          anyone has signed in. */}
+      {/* Above AuthProvider on purpose: the update toast must work on the
+          login screen too. */}
       <PwaUpdatePrompt />
-      <IosInstallPrompt />
       <AuthProvider>
+        {/* Inside AuthProvider: fires after login, every login, until the app
+            is actually installed on the device. */}
+        <InstallPrompt />
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
