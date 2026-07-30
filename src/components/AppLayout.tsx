@@ -7,9 +7,14 @@ import { AI_ENABLED } from "@/lib/featureFlags";
 export function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      <div className="min-h-dvh flex w-full">
         <AppSidebar />
-        <div className="flex-1 flex flex-col">
+        {/* min-w-0 is load-bearing: without it this flex item keeps the default
+            min-width:auto, so a wide table's min-content width expands the whole
+            content column past the viewport and the *body* scrolls sideways
+            instead of the table scrolling inside its own overflow wrapper
+            (ui/table.tsx). Do not remove. */}
+        <div className="flex-1 flex flex-col min-w-0">
           <TopNavbar />
           <main className="flex-1 overflow-auto p-4 sm:p-6">
             <div className="mx-auto w-full max-w-7xl">{children}</div>
