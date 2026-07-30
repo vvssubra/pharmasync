@@ -7,6 +7,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppLayout } from "@/components/AppLayout";
 import { PwaUpdatePrompt } from "@/components/PwaUpdatePrompt";
 import { InstallPrompt } from "@/components/InstallPrompt";
+import { NotificationSetup } from "@/components/NotificationSetup";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Index";
 import FmsDashboard from "@/pages/FmsDashboard";
@@ -48,6 +49,9 @@ const App = () => (
         {/* Inside AuthProvider: fires after login, every login, until the app
             is actually installed on the device. */}
         <InstallPrompt />
+        {/* Approver roles only: subscribes the device to Web Push so request
+            notifications arrive even with the app closed. */}
+        <NotificationSetup />
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />

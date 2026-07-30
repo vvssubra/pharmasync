@@ -25,6 +25,16 @@ export default defineConfig(({ mode }) => ({
       // content-hashed entry chunk instead, which is one fewer un-hashed file for
       // nginx to cache wrongly.
       injectRegister: null,
+      // Custom worker (src/sw.ts) instead of a generated one — generateSW cannot
+      // host the Web Push handlers. src/sw.ts reproduces everything the
+      // generated worker did (precache, SPA fallback, prompt updates, no runtime
+      // caching) and documents the invariants; read it before changing strategy.
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
+      injectManifest: {
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,webmanifest}"],
+      },
       manifest: {
         id: "/",
         name: "PharmaSync — Klinik Kesihatan Kempas",
@@ -57,21 +67,9 @@ export default defineConfig(({ mode }) => ({
           },
         ],
       },
-      workbox: {
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,webmanifest}"],
-        // Install shell only. Supabase is a different origin and no route matches
-        // it, so every data request goes straight to the network.
-        //
-        // Do not add a runtime cache here. This app reports live stock levels and
-        // controlled-drug quota balances; serving either from a cache would show a
-        // pharmacist a number that is no longer true, with no indication it is
-        // stale. Offline must fail visibly instead.
-        runtimeCaching: [],
-        navigateFallback: "/index.html",
-        cleanupOutdatedCaches: true,
-        clientsClaim: false,
-        skipWaiting: false,
-      },
+      // The former `workbox:` generateSW options (runtimeCaching: [] — never
+      // cache Supabase; navigateFallback; cleanupOutdatedCaches; no
+      // skipWaiting/clientsClaim) now live as code in src/sw.ts.
       // If a bad worker ever ships, set this to true and release once: it emits a
       // worker that unregisters itself and clears its caches. Reverting the PWA
       // commit alone does not help — the old worker stays live on every device
