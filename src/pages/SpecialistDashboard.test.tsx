@@ -5,45 +5,29 @@ import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import SpecialistDashboard from "./SpecialistDashboard";
 
-// Build a chainable Supabase mock that supports deep method chains,
-// resolving with configurable data at the terminal call.
-function makeSupabaseMock(
-  dispensingData: any[] = [],
-  drugQuotaData: any[] = [],
-  quotaCountRegularData: any[] = [],
-  quotaCountPesaraData: any[] = [],
+// One fluent Supabase-like chain for per-test overrides. Filter methods keep
+// chaining; a method listed in `terminals` resolves with those rows instead;
+// awaiting the chain itself resolves with `data`. Cast at the call site because
+// the real query-builder type is far richer than tests need.
+type ChainResult = { data: unknown[]; error: null };
+function chainOf(
+  data: unknown[],
+  terminals: Partial<Record<"order" | "lt" | "in", unknown[]>> = {},
 ) {
-  // Tracks which table is being queried to return the right data
-  const buildChain = (data: any[], error: null = null): any => {
-    const resolve = () => Promise.resolve({ data, error });
-    const chain: any = {
-      select: vi.fn(() => chain),
-      eq: vi.fn(() => chain),
-      in: vi.fn(() => chain),
-      order: vi.fn(resolve),
-      gte: vi.fn(() => chain),
-      lt: vi.fn(resolve),
-      update: vi.fn(() => chain),
-    };
-    // Make the chain itself thenable so `await supabase.from().select()...` works
-    chain.then = (onFulfilled: any) => Promise.resolve({ data, error }).then(onFulfilled);
-    return chain;
+  const resolved = (rows: unknown[]) => Promise.resolve({ data: rows, error: null });
+  const chain = {
+    select: () => chain,
+    eq: () => chain,
+    gte: () => chain,
+    update: () => chain,
+    in: () => ("in" in terminals ? resolved(terminals.in!) : chain),
+    order: () => ("order" in terminals ? resolved(terminals.order!) : chain),
+    lt: () => ("lt" in terminals ? resolved(terminals.lt!) : chain),
+    then: (onFulfilled: (value: ChainResult) => unknown) => resolved(data).then(onFulfilled),
   };
-
-  return {
-    supabase: {
-      from: vi.fn((table: string) => {
-        if (table === "drug_quotas") return buildChain(drugQuotaData);
-        // For quota count queries we need to support two parallel calls with different is_pesara values
-        // The mock returns the full dispensing data and lets the component filter
-        if (table === "dispensing_requests") return buildChain(dispensingData);
-        if (table === "profiles") return buildChain([]);
-        if (table === "antibiotic_forms") return buildChain([]);
-        return buildChain([]);
-      }),
-    },
-  };
+  return chain;
 }
+type FromReturn = ReturnType<(typeof import("@/integrations/supabase/client"))["supabase"]["from"]>;
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
@@ -150,34 +134,15 @@ describe("SpecialistDashboard", () => {
       // Override mock for this test to return a request
       vi.mocked(supabase.from).mockImplementation((table: string) => {
         if (table === "drug_quotas") {
-          const chain: any = {
-            select: vi.fn(() => chain),
-            eq: vi.fn(() => chain),
-            then: (onFulfilled: any) => Promise.resolve({ data: [{ drug_id: "drug-1", quota_limit: 60 }], error: null }).then(onFulfilled),
-          };
-          return chain;
+          return chainOf([{ drug_id: "drug-1", quota_limit: 60 }]) as unknown as FromReturn;
         }
         if (table === "dispensing_requests") {
-          const chain: any = {
-            select: vi.fn(() => chain),
-            eq: vi.fn(() => chain),
-            in: vi.fn(() => chain),
-            order: vi.fn(() => Promise.resolve({ data: [mockRequest], error: null })),
-            gte: vi.fn(() => chain),
-            lt: vi.fn(() => Promise.resolve({ data: [{ drug_id: "drug-1", no_ic: "800101011234" }], error: null })),
-          };
-          return chain;
+          return chainOf([], {
+            order: [mockRequest],
+            lt: [{ drug_id: "drug-1", no_ic: "800101011234" }],
+          }) as unknown as FromReturn;
         }
-        const chain: any = {
-          select: vi.fn(() => chain),
-          eq: vi.fn(() => chain),
-          in: vi.fn(() => Promise.resolve({ data: [], error: null })),
-          order: vi.fn(() => Promise.resolve({ data: [], error: null })),
-          gte: vi.fn(() => chain),
-          lt: vi.fn(() => Promise.resolve({ data: [], error: null })),
-          then: (onFulfilled: any) => Promise.resolve({ data: [], error: null }).then(onFulfilled),
-        };
-        return chain;
+        return chainOf([], { in: [], order: [], lt: [] }) as unknown as FromReturn;
       });
 
       renderDashboard();
@@ -208,34 +173,12 @@ describe("SpecialistDashboard", () => {
 
       vi.mocked(supabase.from).mockImplementation((table: string) => {
         if (table === "drug_quotas") {
-          const chain: any = {
-            select: vi.fn(() => chain),
-            eq: vi.fn(() => chain),
-            then: (onFulfilled: any) => Promise.resolve({ data: [], error: null }).then(onFulfilled),
-          };
-          return chain;
+          return chainOf([]) as unknown as FromReturn;
         }
         if (table === "dispensing_requests") {
-          const chain: any = {
-            select: vi.fn(() => chain),
-            eq: vi.fn(() => chain),
-            in: vi.fn(() => chain),
-            order: vi.fn(() => Promise.resolve({ data: [mockPesaraRequest], error: null })),
-            gte: vi.fn(() => chain),
-            lt: vi.fn(() => Promise.resolve({ data: [], error: null })),
-          };
-          return chain;
+          return chainOf([], { order: [mockPesaraRequest], lt: [] }) as unknown as FromReturn;
         }
-        const chain: any = {
-          select: vi.fn(() => chain),
-          eq: vi.fn(() => chain),
-          in: vi.fn(() => Promise.resolve({ data: [], error: null })),
-          order: vi.fn(() => Promise.resolve({ data: [], error: null })),
-          gte: vi.fn(() => chain),
-          lt: vi.fn(() => Promise.resolve({ data: [], error: null })),
-          then: (onFulfilled: any) => Promise.resolve({ data: [], error: null }).then(onFulfilled),
-        };
-        return chain;
+        return chainOf([], { in: [], order: [], lt: [] }) as unknown as FromReturn;
       });
 
       const user = userEvent.setup();

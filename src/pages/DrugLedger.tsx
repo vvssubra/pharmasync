@@ -103,7 +103,7 @@ export default function DrugLedger() {
     let runQty = 0;
     let runRM = 0;
     return rows.map((tx) => {
-      const t = tx as any;
+      const t = tx;
       const jenis = t.jenis as "terimaan" | "keluaran" | "baki_awal";
       const kuantiti = Number(t.kuantiti) || 0;
       const jumlahRM = t.jumlah_rm != null ? Number(t.jumlah_rm) : undefined;

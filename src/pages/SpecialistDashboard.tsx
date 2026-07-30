@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
 import { toast } from "sonner";
@@ -45,6 +46,13 @@ function renderNagBadge(result: string | null | undefined) {
   return <Badge variant="outline" className={`text-[10px] ${c.cls}`}>{c.label}</Badge>;
 }
 
+// Rows as this page queries them: dispensing requests join the drug's name and
+// unit; antibiotic forms are decorated with the submitter's profile name.
+type DispensingRow = Tables<"dispensing_requests"> & {
+  drugs: { drug_name: string; unit_pengukuran: string } | null;
+};
+type AbFormRow = Tables<"antibiotic_forms"> & { submitter_name: string };
+
 function formatIC(ic: string) {
   const d = ic.replace(/\D/g, "");
   if (d.length === 12) return `${d.slice(0, 6)}-${d.slice(6, 8)}-${d.slice(8)}`;
@@ -54,8 +62,8 @@ function formatIC(ic: string) {
 export default function SpecialistDashboard() {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
-  const [approveTarget, setApproveTarget] = useState<any>(null);
-  const [rejectTarget, setRejectTarget] = useState<any>(null);
+  const [approveTarget, setApproveTarget] = useState<DispensingRow | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<DispensingRow | null>(null);
   const [notes, setNotes] = useState("");
   const [rejectReason, setRejectReason] = useState("");
   const [borrowClinicId, setBorrowClinicId] = useState("");
@@ -70,8 +78,8 @@ export default function SpecialistDashboard() {
   });
 
   // Antibiotic states
-  const [abApproveTarget, setAbApproveTarget] = useState<any>(null);
-  const [abRejectTarget, setAbRejectTarget] = useState<any>(null);
+  const [abApproveTarget, setAbApproveTarget] = useState<AbFormRow | null>(null);
+  const [abRejectTarget, setAbRejectTarget] = useState<AbFormRow | null>(null);
   const [abNotes, setAbNotes] = useState("");
   const [abRejectReason, setAbRejectReason] = useState("");
 
@@ -86,7 +94,7 @@ export default function SpecialistDashboard() {
         .in("status", ["pending_specialist", "pending_pharmacy", "approved", "rejected"])
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data;
+      return data as DispensingRow[];
     },
   });
 
@@ -123,13 +131,13 @@ export default function SpecialistDashboard() {
     refetchInterval: 30000,
     queryFn: async () => {
       const { data: forms, error } = await supabase
-        .from("antibiotic_forms" as any)
+        .from("antibiotic_forms")
         .select("*")
         .in("status", ["pending_specialist", "approved", "rejected"])
         .order("created_at", { ascending: false });
       if (error) throw error;
 
-      const ids = [...new Set((forms ?? []).map((f: any) => f.submitted_by).filter(Boolean))];
+      const ids = [...new Set((forms ?? []).map((f) => f.submitted_by).filter(Boolean))];
       const profileMap: Record<string, string> = {};
       if (ids.length > 0) {
         const { data: profiles } = await supabase
@@ -139,10 +147,10 @@ export default function SpecialistDashboard() {
         for (const p of profiles ?? []) profileMap[p.user_id] = p.full_name;
       }
 
-      return (forms ?? []).map((f: any) => ({
+      return (forms ?? []).map((f): AbFormRow => ({
         ...f,
-        submitter_name: profileMap[f.submitted_by] ?? "Unknown MO",
-      })) as any[];
+        submitter_name: (f.submitted_by && profileMap[f.submitted_by]) || "Unknown MO",
+      }));
     },
   });
 
@@ -150,8 +158,8 @@ export default function SpecialistDashboard() {
 
   // Controlled Drug computed
   const allPending = useMemo(() => requests.filter(r => r.status === "pending_specialist"), [requests]);
-  const regularPending = useMemo(() => allPending.filter(r => !(r as any).is_pesara), [allPending]);
-  const pesaraPending = useMemo(() => allPending.filter(r => (r as any).is_pesara), [allPending]);
+  const regularPending = useMemo(() => allPending.filter(r => !r.is_pesara), [allPending]);
+  const pesaraPending = useMemo(() => allPending.filter(r => r.is_pesara), [allPending]);
   const processedToday = useMemo(() =>
     requests.filter(r =>
       (r.status === "approved" || r.status === "pending_pharmacy" || r.status === "rejected") &&
@@ -162,21 +170,21 @@ export default function SpecialistDashboard() {
   const history = useMemo(() => requests.filter(r => r.specialist_action_at).slice(0, 20), [requests]);
 
   // Antibiotic computed
-  const abPending = useMemo(() => abForms.filter((f: any) => f.status === "pending_specialist"), [abForms]);
+  const abPending = useMemo(() => abForms.filter((f) => f.status === "pending_specialist"), [abForms]);
   const abProcessedToday = useMemo(() =>
-    abForms.filter((f: any) =>
+    abForms.filter((f) =>
       (f.status === "approved" || f.status === "rejected") &&
       f.specialist_action_at && f.specialist_action_at >= todayStart
     ), [abForms, todayStart]);
-  const abApprovedToday = abProcessedToday.filter((f: any) => f.status === "approved").length;
-  const abRejectedToday = abProcessedToday.filter((f: any) => f.status === "rejected").length;
-  const abHistory = useMemo(() => abForms.filter((f: any) => f.specialist_action_at).slice(0, 20), [abForms]);
+  const abApprovedToday = abProcessedToday.filter((f) => f.status === "approved").length;
+  const abRejectedToday = abProcessedToday.filter((f) => f.status === "rejected").length;
+  const abHistory = useMemo(() => abForms.filter((f) => f.specialist_action_at).slice(0, 20), [abForms]);
 
   // Approve dialog quota computations
   const approveQuotaRow = approveTarget ? quotaUsageByDrug.get(approveTarget.drug_id) : null;
   const approveQuotaLimit = approveQuotaRow ? approveQuotaRow.quota_limit : null;
   const approveUsedCount = approveQuotaRow?.used ?? 0;
-  const isApproveTargetPesara = approveTarget ? !!(approveTarget as any).is_pesara : false;
+  const isApproveTargetPesara = approveTarget ? !!approveTarget.is_pesara : false;
   const isQuotaExhausted = !isApproveTargetPesara && approveQuotaLimit !== null && approveUsedCount >= approveQuotaLimit;
 
   // --- Mutations ---
@@ -226,8 +234,8 @@ export default function SpecialistDashboard() {
   const abApproveMutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase
-        .from("antibiotic_forms" as any)
-        .update({ status: "approved", specialist_id: user?.id, specialist_action_at: new Date().toISOString(), specialist_notes: abNotes || null } as any)
+        .from("antibiotic_forms")
+        .update({ status: "approved", specialist_id: user?.id, specialist_action_at: new Date().toISOString(), specialist_notes: abNotes || null })
         .eq("id", abApproveTarget.id);
       if (error) throw error;
     },
@@ -238,8 +246,8 @@ export default function SpecialistDashboard() {
   const abRejectMutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase
-        .from("antibiotic_forms" as any)
-        .update({ status: "rejected", specialist_id: user?.id, specialist_action_at: new Date().toISOString(), specialist_notes: abRejectReason } as any)
+        .from("antibiotic_forms")
+        .update({ status: "rejected", specialist_id: user?.id, specialist_action_at: new Date().toISOString(), specialist_notes: abRejectReason })
         .eq("id", abRejectTarget.id);
       if (error) throw error;
     },
@@ -339,10 +347,10 @@ export default function SpecialistDashboard() {
                             <TableCell className="font-medium">{r.patient_name}</TableCell>
                             <TableCell className="text-xs">{formatIC(r.no_ic)}</TableCell>
                             <TableCell>
-                              {(r.drugs as any)?.drug_name}
+                              {r.drugs?.drug_name}
                               <Badge className="ml-1 bg-yellow-100 text-yellow-700 border-yellow-300 text-[10px]">Specialist</Badge>
                             </TableCell>
-                            <TableCell>{r.quantity} {(r.drugs as any)?.unit_pengukuran}</TableCell>
+                            <TableCell>{r.quantity} {r.drugs?.unit_pengukuran}</TableCell>
                             <TableCell className="text-xs">{r.prescriber_name}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className={`text-xs ${QUOTA_BADGE_CLASS[badgeState]}`}>
@@ -394,10 +402,10 @@ export default function SpecialistDashboard() {
                           <TableCell className="font-medium">{r.patient_name}</TableCell>
                           <TableCell className="text-xs">{formatIC(r.no_ic)}</TableCell>
                           <TableCell>
-                            {(r.drugs as any)?.drug_name}
+                            {r.drugs?.drug_name}
                             <Badge className="ml-1 bg-yellow-100 text-yellow-700 border-yellow-300 text-[10px]">Specialist</Badge>
                           </TableCell>
-                          <TableCell>{r.quantity} {(r.drugs as any)?.unit_pengukuran}</TableCell>
+                          <TableCell>{r.quantity} {r.drugs?.unit_pengukuran}</TableCell>
                           <TableCell className="text-xs">{r.prescriber_name}</TableCell>
                           <TableCell>
                             <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 border-blue-300">Unlimited</Badge>
@@ -441,7 +449,7 @@ export default function SpecialistDashboard() {
                         <TableRow key={r.id}>
                           <TableCell className="text-xs">{formatDistanceToNow(new Date(r.specialist_action_at), { addSuffix: true })}</TableCell>
                           <TableCell>{r.patient_name}</TableCell>
-                          <TableCell>{(r.drugs as any)?.drug_name}</TableCell>
+                          <TableCell>{r.drugs?.drug_name}</TableCell>
                           <TableCell>{r.quantity}</TableCell>
                           <TableCell>
                             {r.status === "rejected" ? <Badge variant="destructive" className="text-xs">Rejected</Badge> : <Badge className="bg-green-100 text-green-700 border-green-300 text-xs">Approved</Badge>}
@@ -479,7 +487,7 @@ export default function SpecialistDashboard() {
                 <TableBody>
                   {abPending.length === 0 ? (
                     <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No antibiotic forms pending</TableCell></TableRow>
-                  ) : abPending.map((f: any) => (
+                  ) : abPending.map((f) => (
                     <TableRow key={f.id}>
                       <TableCell className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(f.created_at), { addSuffix: true })}</TableCell>
                       <TableCell className="font-medium">{f.patient_name}</TableCell>
@@ -522,7 +530,7 @@ export default function SpecialistDashboard() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {abHistory.map((f: any) => (
+                      {abHistory.map((f) => (
                         <TableRow key={f.id}>
                           <TableCell className="text-xs">{formatDistanceToNow(new Date(f.specialist_action_at), { addSuffix: true })}</TableCell>
                           <TableCell>{f.patient_name}</TableCell>
@@ -552,14 +560,14 @@ export default function SpecialistDashboard() {
               <div className="rounded border p-3 space-y-1 text-sm">
                 <p><span className="text-muted-foreground">Patient:</span> {approveTarget.patient_name}</p>
                 <p><span className="text-muted-foreground">IC:</span> {formatIC(approveTarget.no_ic)}</p>
-                <p><span className="text-muted-foreground">Drug:</span> {(approveTarget.drugs as any)?.drug_name}</p>
+                <p><span className="text-muted-foreground">Drug:</span> {approveTarget.drugs?.drug_name}</p>
                 <p><span className="text-muted-foreground">Quantity:</span> {approveTarget.quantity}</p>
               </div>
               {isQuotaExhausted && (
                 <>
                   <Alert variant="destructive">
                     <AlertDescription>
-                      Quota exhausted: {approveUsedCount}/{approveQuotaLimit} patients for {(approveTarget?.drugs as any)?.drug_name} this year. Approval will exceed the annual patient quota.
+                      Quota exhausted: {approveUsedCount}/{approveQuotaLimit} patients for {approveTarget?.drugs?.drug_name} this year. Approval will exceed the annual patient quota.
                     </AlertDescription>
                   </Alert>
                   <div className="space-y-2">
@@ -604,7 +612,7 @@ export default function SpecialistDashboard() {
             <div className="space-y-4">
               <div className="rounded border p-3 space-y-1 text-sm">
                 <p><span className="text-muted-foreground">Patient:</span> {rejectTarget.patient_name}</p>
-                <p><span className="text-muted-foreground">Drug:</span> {(rejectTarget.drugs as any)?.drug_name}</p>
+                <p><span className="text-muted-foreground">Drug:</span> {rejectTarget.drugs?.drug_name}</p>
               </div>
               <div className="space-y-2">
                 <Label>Rejection Reason *</Label>

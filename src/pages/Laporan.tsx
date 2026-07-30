@@ -38,7 +38,7 @@ function txDateStr(tx: TxRow): string {
 }
 
 function drugNameOf(tx: TxRow): string {
-  return (tx.drugs as any)?.drug_name ?? "—";
+  return tx.drugs?.drug_name ?? "—";
 }
 
 function DatePickerField({ label, date, onSelect }: { label: string; date?: Date; onSelect: (d?: Date) => void }) {

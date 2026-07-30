@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { formatDistanceToNow, startOfDay, format } from "date-fns";
@@ -30,14 +31,27 @@ function formatIC(ic: string) {
   return ic;
 }
 
+// Rows as this page queries them: dispensing requests join the drug columns the
+// fulfilment flow needs; antibiotic forms come straight off the table.
+type FulfilmentRow = Tables<"dispensing_requests"> & {
+  drugs: {
+    id: string;
+    drug_name: string;
+    unit_pengukuran: string;
+    stok_min: number | null;
+    perlu_kelulusan_pakar: boolean;
+  } | null;
+};
+type AbFormRow = Tables<"antibiotic_forms">;
+
 export default function PharmacistFulfilment() {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
-  const [fulfillTarget, setFulfillTarget] = useState<any>(null);
-  const [rejectTarget, setRejectTarget] = useState<any>(null);
+  const [fulfillTarget, setFulfillTarget] = useState<FulfilmentRow | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<FulfilmentRow | null>(null);
   const [rejectReason, setRejectReason] = useState("");
-  const [abViewTarget, setAbViewTarget] = useState<any>(null);
-  const [abAckTarget, setAbAckTarget] = useState<any>(null);
+  const [abViewTarget, setAbViewTarget] = useState<AbFormRow | null>(null);
+  const [abAckTarget, setAbAckTarget] = useState<AbFormRow | null>(null);
 
   // --- Controlled Drug ---
   const { data: requests = [] } = useQuery({
@@ -50,7 +64,7 @@ export default function PharmacistFulfilment() {
         .in("status", ["pending_pharmacy", "fulfilled"])
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data;
+      return data as FulfilmentRow[];
     },
   });
 
@@ -77,25 +91,25 @@ export default function PharmacistFulfilment() {
     refetchInterval: 15000,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("antibiotic_forms" as any)
+        .from("antibiotic_forms")
         .select("*")
         .in("status", ["approved"])
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data as any[];
+      return data;
     },
   });
 
-  const abPendingAck = useMemo(() => abForms.filter((f: any) => !f.acknowledged_at), [abForms]);
+  const abPendingAck = useMemo(() => abForms.filter((f) => !f.acknowledged_at), [abForms]);
   const abAckedToday = useMemo(() =>
-    abForms.filter((f: any) => f.acknowledged_at && f.acknowledged_at >= todayStart),
+    abForms.filter((f) => f.acknowledged_at && f.acknowledged_at >= todayStart),
     [abForms, todayStart]);
 
   // --- Mutations ---
   const fulfillMutation = useMutation({
     mutationFn: async () => {
-      const req = fulfillTarget;
-      const drug = req.drugs as any;
+      const req = fulfillTarget!;
+      const drug = req.drugs;
       const { error: reqErr } = await supabase
         .from("dispensing_requests")
         .update({ status: "fulfilled", fulfilled_by: user?.id, fulfilled_at: new Date().toISOString() })
@@ -161,9 +175,9 @@ export default function PharmacistFulfilment() {
   const abAckMutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase
-        .from("antibiotic_forms" as any)
-        .update({ acknowledged_by: user?.id, acknowledged_at: new Date().toISOString() } as any)
-        .eq("id", abAckTarget.id);
+        .from("antibiotic_forms")
+        .update({ acknowledged_by: user?.id, acknowledged_at: new Date().toISOString() })
+        .eq("id", abAckTarget!.id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -198,7 +212,7 @@ export default function PharmacistFulfilment() {
           {pending.length === 0 ? (
             <Card><CardContent className="py-12 text-center text-muted-foreground">No pending requests</CardContent></Card>
           ) : pending.map(req => {
-            const drug = req.drugs as any;
+            const drug = req.drugs;
             const currentStock = stockMap.get(req.drug_id) ?? 0;
             const afterStock = currentStock - req.quantity;
             const belowMin = afterStock < (drug?.stok_min ?? 0);
@@ -269,7 +283,7 @@ export default function PharmacistFulfilment() {
                       <TableCell className="text-xs">{r.fulfilled_at ? formatDistanceToNow(new Date(r.fulfilled_at), { addSuffix: true }) : "—"}</TableCell>
                       <TableCell>{r.patient_name}</TableCell>
                       <TableCell className="text-xs">{formatIC(r.no_ic)}</TableCell>
-                      <TableCell>{(r.drugs as any)?.drug_name}</TableCell>
+                      <TableCell>{r.drugs?.drug_name}</TableCell>
                       <TableCell>{r.quantity}</TableCell>
                       <TableCell>—</TableCell>
                       <TableCell className="text-xs">—</TableCell>
@@ -292,7 +306,7 @@ export default function PharmacistFulfilment() {
             <TabsContent value="pending-ack" className="space-y-4 mt-4">
               {abPendingAck.length === 0 ? (
                 <Card><CardContent className="py-12 text-center text-muted-foreground">No antibiotic forms awaiting confirmation</CardContent></Card>
-              ) : abPendingAck.map((f: any) => (
+              ) : abPendingAck.map((f) => (
                 <Card key={f.id} className="overflow-hidden" style={{ borderLeft: "4px solid #0891B2" }}>
                   <CardHeader className="pb-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
@@ -332,7 +346,7 @@ export default function PharmacistFulfilment() {
                     <TableBody>
                       {abAckedToday.length === 0 ? (
                         <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No forms confirmed today</TableCell></TableRow>
-                      ) : abAckedToday.map((f: any) => (
+                      ) : abAckedToday.map((f) => (
                         <TableRow key={f.id}>
                           <TableCell className="text-xs">{f.acknowledged_at ? formatDistanceToNow(new Date(f.acknowledged_at), { addSuffix: true }) : "—"}</TableCell>
                           <TableCell>{f.patient_name}</TableCell>
@@ -356,8 +370,8 @@ export default function PharmacistFulfilment() {
           <DialogHeader><DialogTitle>Confirm Dispensing</DialogTitle></DialogHeader>
           {fulfillTarget && (
             <p className="text-sm">
-              Confirm dispensing <strong>{fulfillTarget.quantity} {(fulfillTarget.drugs as any)?.unit_pengukuran}</strong>{" "}
-              <strong>{(fulfillTarget.drugs as any)?.drug_name}</strong> for <strong>{fulfillTarget.patient_name}</strong>?
+              Confirm dispensing <strong>{fulfillTarget.quantity} {fulfillTarget.drugs?.unit_pengukuran}</strong>{" "}
+              <strong>{fulfillTarget.drugs?.drug_name}</strong> for <strong>{fulfillTarget.patient_name}</strong>?
             </p>
           )}
           <DialogFooter>

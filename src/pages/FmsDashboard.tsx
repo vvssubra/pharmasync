@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import type { Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,10 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+// Antibiotic forms as this page queries them, decorated with the submitting
+// MO's profile name.
+type FmsAbFormRow = Tables<"antibiotic_forms"> & { mo_name: string };
 
 type FmsPendingRequest = {
   id: string;
@@ -88,10 +93,10 @@ export default function FmsDashboard() {
   const [stockFilter, setStockFilter] = useState<"critical" | "low" | null>(null);
   const pendingApprovalsRef = useRef<HTMLDivElement>(null);
   const [approveTarget, setApproveTarget] = useState<FmsPendingRequest | null>(null);
-  const [rejectTarget, setRejectTarget] = useState<any>(null);
+  const [rejectTarget, setRejectTarget] = useState<FmsPendingRequest | null>(null);
   const [rejectReason, setRejectReason] = useState("");
-  const [abApproveTarget, setAbApproveTarget] = useState<any>(null);
-  const [abRejectTarget, setAbRejectTarget] = useState<any>(null);
+  const [abApproveTarget, setAbApproveTarget] = useState<FmsAbFormRow | null>(null);
+  const [abRejectTarget, setAbRejectTarget] = useState<FmsAbFormRow | null>(null);
   const [abRejectReason, setAbRejectReason] = useState("");
 
   const approveMutation = useMutation({
@@ -134,7 +139,7 @@ export default function FmsDashboard() {
       const id = abApproveTarget?.id;
       if (!id) throw new Error("No approval target");
       const { error } = await supabase
-        .from("antibiotic_forms" as any)
+        .from("antibiotic_forms")
         .update({ status: "approved", specialist_id: user?.id, specialist_action_at: new Date().toISOString() })
         .eq("id", id);
       if (error) throw error;
@@ -150,7 +155,7 @@ export default function FmsDashboard() {
   const abRejectMutation = useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
       const { error } = await supabase
-        .from("antibiotic_forms" as any)
+        .from("antibiotic_forms")
         .update({ status: "rejected", specialist_id: user?.id, specialist_action_at: new Date().toISOString(), specialist_notes: reason })
         .eq("id", id);
       if (error) throw error;
@@ -220,12 +225,12 @@ export default function FmsDashboard() {
     refetchInterval: 15000,
     queryFn: async () => {
       const { data: forms } = await supabase
-        .from("antibiotic_forms" as any)
+        .from("antibiotic_forms")
         .select("*")
         .eq("status", "pending_specialist")
         .order("created_at", { ascending: false });
 
-      const ids = [...new Set((forms ?? []).map((f: any) => f.submitted_by).filter(Boolean))];
+      const ids = [...new Set((forms ?? []).map((f) => f.submitted_by).filter(Boolean))];
       const profileMap: Record<string, string> = {};
       if (ids.length > 0) {
         const { data: profiles } = await supabase
@@ -235,10 +240,10 @@ export default function FmsDashboard() {
         for (const p of profiles ?? []) profileMap[p.user_id] = p.full_name;
       }
 
-      return (forms ?? []).map((f: any) => ({
+      return (forms ?? []).map((f): FmsAbFormRow => ({
         ...f,
-        mo_name: profileMap[f.submitted_by] ?? "Unknown MO",
-      })) as any[];
+        mo_name: (f.submitted_by && profileMap[f.submitted_by]) || "Unknown MO",
+      }));
     },
   });
 
@@ -496,9 +501,9 @@ export default function FmsDashboard() {
                       <TableRow key={r.id}>
                         <TableCell className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(r.created_at), { addSuffix: true })}</TableCell>
                         <TableCell className="font-medium text-sm">{r.patient_name}</TableCell>
-                        <TableCell className="text-sm">{(r.drugs as any)?.drug_name}</TableCell>
-                        <TableCell className="text-sm">{r.quantity} {(r.drugs as any)?.unit_pengukuran}</TableCell>
-                        <TableCell className="text-sm font-medium">{(r as any).mo_name}</TableCell>
+                        <TableCell className="text-sm">{r.drugs?.drug_name}</TableCell>
+                        <TableCell className="text-sm">{r.quantity} {r.drugs?.unit_pengukuran}</TableCell>
+                        <TableCell className="text-sm font-medium">{r.mo_name}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex flex-wrap gap-2 justify-end">
                             <Button
@@ -547,7 +552,7 @@ export default function FmsDashboard() {
                   <TableBody>
                     {pendingAntibiotic.length === 0 ? (
                       <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">No antibiotic forms pending</TableCell></TableRow>
-                    ) : pendingAntibiotic.map((f: any) => (
+                    ) : pendingAntibiotic.map((f) => (
                       <TableRow key={f.id}>
                         <TableCell className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(f.created_at), { addSuffix: true })}</TableCell>
                         <TableCell className="font-medium text-sm">{f.patient_name}</TableCell>
@@ -649,9 +654,9 @@ export default function FmsDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {drugStock.filter(d => (d as any).perlu_kelulusan_pakar).length === 0 ? (
+                {drugStock.filter(d => d.perlu_kelulusan_pakar).length === 0 ? (
                   <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">No controlled drugs found</TableCell></TableRow>
-                ) : drugStock.filter(d => (d as any).perlu_kelulusan_pakar).map(d => {
+                ) : drugStock.filter(d => d.perlu_kelulusan_pakar).map(d => {
                   const quotaRow = quotaUsageByDrug.get(d.id);
                   const quota = quotaRow ? quotaRow.quota_limit : null;
                   const served = quotaRow?.used ?? 0;
@@ -739,7 +744,7 @@ export default function FmsDashboard() {
             {rejectTarget && (
               <p className="text-sm text-muted-foreground">
                 Patient: <span className="font-medium text-foreground">{rejectTarget.patient_name}</span> —{" "}
-                {(rejectTarget.drugs as any)?.drug_name} × {rejectTarget.quantity}
+                {rejectTarget.drugs?.drug_name} × {rejectTarget.quantity}
               </p>
             )}
             <div className="space-y-1.5">
@@ -852,7 +857,7 @@ export default function FmsDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {drugStock.filter(d => !(d as any).perlu_kelulusan_pakar).map(d => {
+                {drugStock.filter(d => !d.perlu_kelulusan_pakar).map(d => {
                   const avgDaily = ((usage30 as Record<string,number>)[d.id] ?? 0) / 30;
                   const days = daysRemaining(d.current_stock, avgDaily);
                   const fStatus = forecastStatus(days);

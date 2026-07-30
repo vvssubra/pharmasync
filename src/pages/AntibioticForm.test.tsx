@@ -72,7 +72,10 @@ describe("AntibioticForm assigned FMS", () => {
     await waitFor(() => expect(rpc).toHaveBeenCalledWith("get_fms_list"));
 
     fireEvent.keyDown(screen.getByText("Select FMS"), { key: "Enter" });
-    await waitFor(() => expect(screen.getByText("Dr Norlaila Najwa")).toBeInTheDocument());
+    // Generous timeout: the dropdown opens as soon as the rpc is *called*, but
+    // the names only render once the promise resolves and React Query commits.
+    // Under a fully parallel suite the default 1s ceiling flakes.
+    expect(await screen.findByText("Dr Norlaila Najwa", {}, { timeout: 10_000 })).toBeInTheDocument();
     expect(screen.getByText("Dr Rahim")).toBeInTheDocument();
     expect(screen.queryByText("Dr Amelia")).toBeNull();
     expect(screen.queryByText("Dr Muslim")).toBeNull();
@@ -84,6 +87,6 @@ describe("AntibioticForm assigned FMS", () => {
     await waitFor(() => expect(rpc).toHaveBeenCalledWith("get_fms_list"));
 
     fireEvent.keyDown(screen.getByText("Select FMS"), { key: "Enter" });
-    await waitFor(() => expect(screen.getByText(/Tiada FMS berdaftar/)).toBeInTheDocument());
+    expect(await screen.findByText(/Tiada FMS berdaftar/, {}, { timeout: 10_000 })).toBeInTheDocument();
   });
 });

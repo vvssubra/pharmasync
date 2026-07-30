@@ -86,12 +86,12 @@ export function AppSidebar() {
             .select("*", { count: "exact", head: true })
             .eq("status", "pending_specialist"),
           supabase
-            .from("antibiotic_forms" as any)
+            .from("antibiotic_forms")
             .select("id")
             .eq("status", "pending_specialist"),
         ]);
       if (drugError && abError) return 0;
-      return (drugCount ?? 0) + ((abData as any[])?.length ?? 0);
+      return (drugCount ?? 0) + (abData?.length ?? 0);
     },
   });
 

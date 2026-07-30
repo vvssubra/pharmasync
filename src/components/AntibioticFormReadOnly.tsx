@@ -1,12 +1,40 @@
 import { Check, Minus } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import type { ChecklistState } from "@/lib/doseQuery";
 import { Separator } from "@/components/ui/separator";
 
+// checklist_data lands in the DB as Json; when present it has the shape the
+// form writes (ChecklistState plus the computed Centor total). Every access
+// below is defensive anyway, because archived rows can predate fields.
+type StoredChecklist = Partial<{
+  [S in keyof ChecklistState]: Partial<ChecklistState[S]>;
+}> & { pharyngitis?: Partial<ChecklistState["pharyngitis"] & { total_score: number }> };
+
+// Structural on purpose: the three callers pass different projections of an
+// antibiotic_forms row (full table row on the dashboards, a narrower archive
+// select), sometimes decorated with a submitter name. This is the exact set of
+// fields the viewer reads.
 interface AntibioticFormViewerProps {
-  form: any;
+  form: {
+    tarikh: string;
+    patient_name: string;
+    patient_ic: string;
+    patient_weight_kg?: number | null;
+    diagnosis: string;
+    prescription_unit?: string | null;
+    assigned_fms?: string | null;
+    drug_allergy?: boolean | null;
+    drug_allergy_detail?: string | null;
+    antibiotic_regimen?: string | null;
+    fms_code?: string | null;
+    health_ed_compliance?: boolean | null;
+    health_ed_sideeffect?: boolean | null;
+    health_ed_tca?: boolean | null;
+    checklist_data?: unknown;
+    prescriber_notes?: string | null;
+  };
 }
 
-function CheckDisplay({ checked }: { checked: boolean }) {
+function CheckDisplay({ checked }: { checked?: boolean }) {
   return (
     <span className={checked ? "text-green-600 inline-flex" : "text-muted-foreground inline-flex"}>
       {checked ? <Check className="h-4 w-4" aria-hidden /> : <Minus className="h-4 w-4" aria-hidden />}
@@ -15,13 +43,13 @@ function CheckDisplay({ checked }: { checked: boolean }) {
 }
 
 export function AntibioticFormReadOnly({ form }: AntibioticFormViewerProps) {
-  const c = form.checklist_data || {};
-  const pn = c.pneumonia || {};
-  const aom = c.aom || {};
-  const ph = c.pharyngitis || {};
-  const rs = c.rhinosinusitis || {};
-  const ssti = c.ssti || {};
-  const uti = c.uti || {};
+  const c = (form.checklist_data ?? {}) as StoredChecklist;
+  const pn = c.pneumonia ?? {};
+  const aom = c.aom ?? {};
+  const ph = c.pharyngitis ?? {};
+  const rs = c.rhinosinusitis ?? {};
+  const ssti = c.ssti ?? {};
+  const uti = c.uti ?? {};
 
   return (
     <div className="space-y-4 text-sm max-h-[60vh] overflow-y-auto pr-2">
@@ -131,7 +159,7 @@ export function AntibioticFormReadOnly({ form }: AntibioticFormViewerProps) {
   );
 }
 
-function Field({ label, value }: { label: string; value: any }) {
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
       <span className="text-muted-foreground">{label}: </span>
@@ -140,7 +168,7 @@ function Field({ label, value }: { label: string; value: any }) {
   );
 }
 
-function Row({ label, checked }: { label: string; checked: boolean }) {
+function Row({ label, checked }: { label: string; checked?: boolean }) {
   return (
     <div className="flex justify-between">
       <span className="text-muted-foreground">{label}</span>

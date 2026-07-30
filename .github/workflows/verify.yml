@@ -5,8 +5,6 @@
 # into an outage for a live clinic, so `build` stays a bare `vite build` and the
 # gate lives here instead.
 #
-# `lint` is reported but not enforced: the repo carries ~91 pre-existing
-# no-explicit-any errors. Once those are cleared, drop `continue-on-error`.
 name: verify
 
 on:
@@ -29,9 +27,9 @@ jobs:
       # deploy configs.
       - run: npm ci
 
-      - name: Typecheck and test
+      # typecheck + lint + test. Lint is enforced — the error count is zero as
+      # of the fix that cleared the no-explicit-any backlog; only the 8
+      # react-refresh warnings in shadcn ui files remain, and warnings do not
+      # fail eslint's exit code.
+      - name: Verify
         run: npm run verify
-
-      - name: Lint (advisory)
-        run: npm run lint
-        continue-on-error: true
