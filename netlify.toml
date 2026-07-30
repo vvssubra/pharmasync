@@ -9,3 +9,15 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# The service worker must never be cached, or clients pin themselves to a dead
+# worker that no redeploy can reach.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Cache-Control = "no-cache"

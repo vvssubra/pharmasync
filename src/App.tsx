@@ -5,6 +5,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AppLayout } from "@/components/AppLayout";
+import { PwaUpdatePrompt } from "@/components/PwaUpdatePrompt";
+import { IosInstallPrompt } from "@/components/IosInstallPrompt";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Index";
 import FmsDashboard from "@/pages/FmsDashboard";
@@ -39,6 +41,10 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
+      {/* Above AuthProvider on purpose: both work on the login screen, before
+          anyone has signed in. */}
+      <PwaUpdatePrompt />
+      <IosInstallPrompt />
       <AuthProvider>
         <BrowserRouter>
           <Routes>
