@@ -34,12 +34,14 @@ function renderWidget() {
 }
 
 function jsonResponse(body: unknown, status = 200) {
-  return Promise.resolve({
-    ok: status >= 200 && status < 300,
-    status,
-    headers: { get: () => "application/json" },
-    json: () => Promise.resolve(body),
-  } as Response);
+  // A real Response rather than a hand-rolled stand-in: the previous object was
+  // missing 12 members and only compiled behind a cast.
+  return Promise.resolve(
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { "Content-Type": "application/json" },
+    })
+  );
 }
 
 async function openAndAsk(question: string) {

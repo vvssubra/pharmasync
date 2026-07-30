@@ -1,28 +1,56 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Index from "./Index";
 
-// Mock Supabase — return real drugs/transactions so computed stock runs
-// The component falls back to generateMockDrugs() when drugs query returns empty/undefined,
-// and that mock data includes KRITIKAL, RENDAH, LEBIHAN statuses (uppercase Malay).
+// Drugs chosen so getStatus() (Index.tsx) yields one of each status we assert:
+// baki < min -> CRITICAL, baki < reorder -> LOW, baki > max -> EXCESS.
+const DRUGS = [
+  { id: "d-critical", drug_name: "Amoxicillin 250mg", unit_pengukuran: "tablet", stok_min: 100, stok_reorder: 150, stok_max: 500, perlu_kelulusan_pakar: false },
+  { id: "d-low",      drug_name: "Paracetamol 500mg", unit_pengukuran: "tablet", stok_min: 50,  stok_reorder: 200, stok_max: 800, perlu_kelulusan_pakar: false },
+  { id: "d-excess",   drug_name: "Metformin 500mg",   unit_pengukuran: "tablet", stok_min: 20,  stok_reorder: 40,  stok_max: 100, perlu_kelulusan_pakar: false },
+];
+
+const TRANSACTIONS = [
+  // baki 10 < min 100 -> CRITICAL
+  { drug_id: "d-critical", jenis: "terimaan", kuantiti: 10,  tarikh: "2026-07-01", created_at: "2026-07-01T00:00:00Z" },
+  // baki 120: >= min 50, < reorder 200 -> LOW
+  { drug_id: "d-low",      jenis: "terimaan", kuantiti: 120, tarikh: "2026-07-02", created_at: "2026-07-02T00:00:00Z" },
+  // baki 400 > max 100 -> EXCESS
+  { drug_id: "d-excess",   jenis: "terimaan", kuantiti: 400, tarikh: "2026-07-03", created_at: "2026-07-03T00:00:00Z" },
+];
+
+// Rows keyed by the table each query reads. Index.tsx awaits its builders at
+// different depths — .eq() terminally for drugs, .select() terminally for the
+// transactions ledger, .limit() for the two recent-activity lists — so the mock
+// builder has to be awaitable *and* chainable at every level. Returning a plain
+// object from .eq() (as this mock used to) makes `await` yield the builder
+// itself, so `data` is undefined and the dashboard renders zero rows.
+const ROWS: Record<string, unknown[]> = {
+  drugs: DRUGS,
+  transactions: TRANSACTIONS,
+  dispensing_requests: [],
+  antibiotic_forms: [],
+};
+
+function builder(data: unknown[]) {
+  const promise = Promise.resolve({ data, error: null, count: data.length });
+  return Object.assign(promise, {
+    select: () => builder(data),
+    eq: () => builder(data),
+    is: () => builder(data),
+    order: () => builder(data),
+    limit: () => builder(data),
+  });
+}
+
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          is: vi.fn(() => Promise.resolve({ data: [], error: null, count: 0 })),
-          order: vi.fn(() => ({
-            limit: vi.fn(() => Promise.resolve({ data: [], error: null })),
-          })),
-        })),
-        order: vi.fn(() => ({
-          limit: vi.fn(() => Promise.resolve({ data: [], error: null })),
-        })),
-        limit: vi.fn(() => Promise.resolve({ data: [], error: null })),
-      })),
-    })),
+    from: vi.fn((table: string) => builder(ROWS[table] ?? [])),
+    // useDrugQuotaUsage calls this; without it the hook throws and the whole
+    // dashboard suspends on an error boundary.
+    rpc: vi.fn(() => Promise.resolve({ data: [], error: null })),
     auth: {
       getSession: vi.fn(() => Promise.resolve({ data: { session: null }, error: null })),
       onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
@@ -50,36 +78,34 @@ function renderIndex() {
 describe("Index dashboard English text", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("renders status badge 'CRITICAL' (currently 'KRITIKAL')", () => {
+  // These assertions await: React Query resolves on a microtask, so the badges
+  // are not in the DOM on the first synchronous pass.
+  it("renders status badge 'CRITICAL'", async () => {
     renderIndex();
-    // Mock data generates drugs with status "KRITIKAL" — FAILS until ENGL-03 translation
-    const criticalBadges = screen.getAllByText("CRITICAL");
-    expect(criticalBadges.length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getAllByText("CRITICAL").length).toBeGreaterThan(0));
   });
 
-  it("renders status badge 'LOW' (currently 'RENDAH')", () => {
+  it("renders status badge 'LOW'", async () => {
     renderIndex();
-    // Mock data generates drugs with status "RENDAH" — FAILS until ENGL-03 translation
-    const lowBadges = screen.getAllByText("LOW");
-    expect(lowBadges.length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getAllByText("LOW").length).toBeGreaterThan(0));
   });
 
-  it("renders status badge 'EXCESS' (currently 'LEBIHAN')", () => {
+  it("renders status badge 'EXCESS'", async () => {
     renderIndex();
-    // Mock data generates drugs with status "LEBIHAN" — FAILS until ENGL-03 translation
-    const excessBadges = screen.getAllByText("EXCESS");
-    expect(excessBadges.length).toBeGreaterThan(0);
+    await waitFor(() => expect(screen.getAllByText("EXCESS").length).toBeGreaterThan(0));
   });
 
-  it("renders column header 'Drug Name' (currently 'Nama Ubat')", () => {
+  it("renders column header 'Drug Name'", async () => {
     renderIndex();
-    // Table header — FAILS until ENGL-03 translation
-    expect(screen.getByRole("columnheader", { name: "Drug Name" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("columnheader", { name: "Drug Name" })).toBeInTheDocument()
+    );
   });
 
-  it("renders column header 'Actions' (currently 'Tindakan')", () => {
+  it("renders column header 'Actions'", async () => {
     renderIndex();
-    // Table header — FAILS until ENGL-03 translation
-    expect(screen.getByRole("columnheader", { name: "Actions" })).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole("columnheader", { name: "Actions" })).toBeInTheDocument()
+    );
   });
 });

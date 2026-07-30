@@ -131,17 +131,30 @@ describe("DoctorRequest Pesara checkbox", () => {
     const insertMock = vi.fn((_payload: Record<string, unknown>) =>
       Promise.resolve({ data: null, error: null })
     );
+    // The drug select needs at least one option, or drug_id can never be set
+    // and the insert below is never reached.
+    const DRUG = { id: "drug-1", drug_name: "Amoxicillin 250mg", unit_pengukuran: "tablet", perlu_kelulusan_pakar: false };
     (supabase.from as ReturnType<typeof vi.fn>).mockImplementation((table: string) => {
       if (table === "dispensing_requests") {
-        return { insert: insertMock };
+        return {
+          insert: insertMock,
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+              maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
+            })),
+            order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+          })),
+        };
       }
+      const rows = table === "drugs" ? [DRUG] : [];
       return {
         select: vi.fn(() => ({
           eq: vi.fn(() => ({
-            order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+            order: vi.fn(() => Promise.resolve({ data: rows, error: null })),
             maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
           })),
-          order: vi.fn(() => Promise.resolve({ data: [], error: null })),
+          order: vi.fn(() => Promise.resolve({ data: rows, error: null })),
         })),
         insert: vi.fn(() => Promise.resolve({ data: null, error: null })),
       };
@@ -149,18 +162,21 @@ describe("DoctorRequest Pesara checkbox", () => {
 
     renderDoctorRequest();
 
-    // Fill in required fields
     fireEvent.change(screen.getByPlaceholderText("Patient full name"), { target: { value: "AHMAD BIN ALI" } });
     fireEvent.change(screen.getByPlaceholderText("000000-00-0000"), { target: { value: "900101010001" } });
 
-    const submitButton = screen.getByRole("button", { name: /submit request/i });
-    fireEvent.click(submitButton);
+    // Pick the drug through the combobox, then set a quantity that satisfies
+    // the schema's .min(1) (the field defaults to 0).
+    fireEvent.click(await screen.findByRole("combobox"));
+    fireEvent.click(await screen.findByText("Amoxicillin 250mg"));
+    fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "5" } });
 
-    await waitFor(() => {
-      if (insertMock.mock.calls.length > 0) {
-        const payload = insertMock.mock.calls[0][0];
-        expect(payload).toHaveProperty("is_pesara", false);
-      }
-    });
+    fireEvent.click(screen.getByRole("button", { name: /submit request/i }));
+
+    // Asserted outside the waitFor: the previous version wrapped the assertion
+    // in `if (calls.length > 0)`, so it passed even when insert was never
+    // called — which it never was, because the form could not be completed.
+    await waitFor(() => expect(insertMock).toHaveBeenCalledTimes(1));
+    expect(insertMock.mock.calls[0][0]).toHaveProperty("is_pesara", false);
   });
 });

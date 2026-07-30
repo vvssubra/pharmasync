@@ -6,6 +6,12 @@ vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
+// Survey calls watch() with no arguments (Survey.tsx), which subscribes to all
+// 19 fields, so every one of the 13 Likert clicks below re-renders the entire
+// form. In jsdom that costs ~5s for a full pass, which is why the two
+// submit-path tests declare an explicit timeout instead of the 5000ms default.
+const SLOW_FORM_TIMEOUT = 20_000;
+
 function fillLikert(index: number, point: number) {
   const groups = screen.getAllByRole("radiogroup");
   const group = groups[index];
@@ -109,7 +115,7 @@ describe("Survey page", () => {
     await waitFor(() => {
       expect(screen.getByText("Thank you")).toBeInTheDocument();
     });
-  });
+  }, SLOW_FORM_TIMEOUT);
 
   it("allows submit with all Likert questions answered and open questions left blank (optional)", async () => {
     render(<Survey />);
@@ -130,5 +136,5 @@ describe("Survey page", () => {
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledTimes(1);
     });
-  });
+  }, SLOW_FORM_TIMEOUT);
 });

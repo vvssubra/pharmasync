@@ -1,0 +1,37 @@
+# Gates merges, deliberately not deploys.
+#
+# Production builds run through Dockerfile -> `npm run build` on Coolify, which
+# auto-builds on push. Wiring the typecheck into `build` would turn a type error
+# into an outage for a live clinic, so `build` stays a bare `vite build` and the
+# gate lives here instead.
+#
+# `lint` is reported but not enforced: the repo carries ~91 pre-existing
+# no-explicit-any errors. Once those are cleared, drop `continue-on-error`.
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # .npmrc sets legacy-peer-deps=true, matching Dockerfile and the other
+      # deploy configs.
+      - run: npm ci
+
+      - name: Typecheck and test
+        run: npm run verify
+
+      - name: Lint (advisory)
+        run: npm run lint
+        continue-on-error: true

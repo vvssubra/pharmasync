@@ -100,9 +100,11 @@ describe("AppSidebar navigation labels", () => {
     expect(screen.queryByText("Role Management")).not.toBeInTheDocument();
   });
 
-  it("does not render 'Approvals' nav label for fms", () => {
+  it("renders 'Approvals' nav label for fms", () => {
     renderSidebar("fms");
-    expect(screen.queryByText("Approvals")).not.toBeInTheDocument();
+    // FMS is an antibiotic approver: AppSidebar gates Approvals to
+    // ["admin", "fms"], matching /specialist in ProtectedRoute.
+    expect(screen.getByText("Approvals")).toBeInTheDocument();
   });
 });
 

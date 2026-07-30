@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildDataFacts, classifyIntent, buildSystemPrompt } from "../../supabase/functions/ai-query/context";
 import { projectedExhaustion } from "../../supabase/functions/_shared/quotaHelpers";
 
@@ -14,7 +15,16 @@ interface MockBuilder {
 // A minimal fluent Supabase-like mock: routes by table name, ignores filter
 // chaining (RLS/filtering behaviour belongs to Supabase itself — this only
 // exercises buildDataFacts's own aggregation/formatting logic).
-function mockSupabase(tables: Record<string, unknown[]>, rpcResults: Record<string, unknown[]>) {
+// The return is widened to the real SupabaseClient because buildDataFacts is
+// typed against it. Before src/types/deno-remote-modules.d.ts existed, the
+// https:// import in context.ts failed to resolve and SupabaseClient silently
+// degraded to `any`, so this mismatch went unreported. The mock is
+// intentionally partial — see the note above — hence the cast rather than a
+// fuller stub.
+function mockSupabase(
+  tables: Record<string, unknown[]>,
+  rpcResults: Record<string, unknown[]>
+): SupabaseClient {
   return {
     from(table: string): MockBuilder {
       const data = tables[table] ?? [];
@@ -31,7 +41,7 @@ function mockSupabase(tables: Record<string, unknown[]>, rpcResults: Record<stri
     rpc(name: string) {
       return Promise.resolve({ data: rpcResults[name] ?? [], error: null });
     },
-  };
+  } as unknown as SupabaseClient;
 }
 
 describe("classifyIntent", () => {

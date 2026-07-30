@@ -116,7 +116,10 @@ export default function AntibioticForm() {
     diagnosis,
     antibiotic: antibioticRegimen,
     indication: prescriberNotes,
-    checklist: checklist as Record<string, unknown>,
+    // ChecklistState is a fixed-field interface (see src/lib/doseQuery.ts, mirrored
+// into the edge bundle), so it has no index signature. Widening it here rather
+// than adding one keeps the shared type strict for everyone else.
+checklist: checklist as unknown as Record<string, unknown>,
     allergy_status: drugAllergy ? drugAllergyDetail : undefined,
     patient_age: age ?? undefined,
   }, { enabled: PATHWAY_CHECK_ENABLED && canUseAiSuggest });
@@ -127,7 +130,7 @@ export default function AntibioticForm() {
     enabled: KNOWLEDGE_ENABLED,
   });
 
-  const updateChecklist = <S extends keyof ChecklistState>(section: S, field: keyof ChecklistState[S], value: any) => {
+  const updateChecklist = <S extends keyof ChecklistState, F extends keyof ChecklistState[S]>(section: S, field: F, value: ChecklistState[S][F]) => {
     setChecklist(prev => ({ ...prev, [section]: { ...prev[section], [field]: value } }));
   };
 
@@ -148,7 +151,10 @@ export default function AntibioticForm() {
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
           body: JSON.stringify({
             diagnosis,
-            checklist: checklist as Record<string, unknown>,
+            // ChecklistState is a fixed-field interface (see src/lib/doseQuery.ts, mirrored
+// into the edge bundle), so it has no index signature. Widening it here rather
+// than adding one keeps the shared type strict for everyone else.
+checklist: checklist as unknown as Record<string, unknown>,
             patient_age: age ?? undefined,
             allergy_status: drugAllergy ? drugAllergyDetail || "Yes (unspecified)" : undefined,
             patient_weight_kg: showWeight && patientWeight ? parseFloat(patientWeight) : undefined,
@@ -183,7 +189,7 @@ export default function AntibioticForm() {
     }
     setSubmitting(true);
     try {
-      const { error } = await supabase.from("antibiotic_forms" as any).insert({
+      const { error } = await supabase.from("antibiotic_forms").insert({
         tarikh,
         patient_name: patientName,
         patient_ic: patientIC,
@@ -203,7 +209,7 @@ export default function AntibioticForm() {
         pathway_check_result: pathwayVerdict ?? "unavailable",
         status: "pending_specialist",
         submitted_by: user?.id,
-      } as any);
+      });
       if (error) throw error;
       setSubmitted({ patient_name: patientName, patient_ic: patientIC, diagnosis });
     } catch (error) {
