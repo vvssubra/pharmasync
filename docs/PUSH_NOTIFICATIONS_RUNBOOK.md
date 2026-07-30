@@ -28,12 +28,26 @@ curl -sSL https://raw.githubusercontent.com/vvssubra/pharmasync/main/supabase/mi
 
 ### 2. Set the DB settings (values typed only on the VPS — repo is public)
 
+Must run as `supabase_admin` — the `postgres` role in this stack is not a
+superuser and gets "permission denied to set parameter" (learned the hard way
+on first deploy):
+
 ```sh
-docker exec -i supabase-db-l8dsa2iokodt3yafiwcmfkvi psql -U postgres -d postgres <<'SQL'
+docker exec -i supabase-db-l8dsa2iokodt3yafiwcmfkvi psql -U supabase_admin -d postgres <<'SQL'
 ALTER DATABASE postgres SET app.push_kong_url       = 'http://supabase-kong:8000';
 ALTER DATABASE postgres SET app.push_anon_key       = '<ANON_KEY from Coolify supabase env>';
 ALTER DATABASE postgres SET app.push_webhook_secret = '<output of: openssl rand -hex 32>';
 SQL
+```
+
+The secret in the DB setting and PUSH_WEBHOOK_SECRET in the Coolify env MUST be
+the same value — a mismatch means triggers get 401 and no notification is ever
+sent. Verify:
+
+```sh
+SEC=$(docker exec supabase-edge-functions-l8dsa2iokodt3yafiwcmfkvi printenv PUSH_WEBHOOK_SECRET)
+DBSEC=$(docker exec supabase-db-l8dsa2iokodt3yafiwcmfkvi psql -U supabase_admin -d postgres -tAc "show app.push_webhook_secret")
+[ "$SEC" = "$DBSEC" ] && echo MATCH || echo MISMATCH
 ```
 
 New settings apply to new connections. PostgREST holds a pool — restart the
