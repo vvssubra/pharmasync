@@ -16,16 +16,21 @@ export default function ResetPassword() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // The hash must be captured synchronously at mount: supabase-js consumes and
+  // strips it while establishing the session from the link.
+  const [isInviteLink] = useState(() => window.location.hash.includes("type=invite"));
+
   useEffect(() => {
-    // Supabase fires PASSWORD_RECOVERY when the user clicks the reset link.
-    // This gives us a valid session to call updateUser on.
+    // Recovery links fire PASSWORD_RECOVERY. Invite links (admin-created
+    // accounts) establish a session and fire SIGNED_IN instead, so those are
+    // recognised by the type=invite marker captured from the URL hash.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
+      if (event === "PASSWORD_RECOVERY" || (event === "SIGNED_IN" && isInviteLink)) {
         setReady(true);
       }
     });
     return () => subscription.unsubscribe();
-  }, []);
+  }, [isInviteLink]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
