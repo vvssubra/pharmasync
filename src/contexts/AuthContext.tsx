@@ -32,6 +32,26 @@ function isAllowedEmail(email: string | null | undefined) {
   return !!email && email.toLowerCase().endsWith(`@${ALLOWED_EMAIL_DOMAIN}`);
 }
 
+// Whether THIS session was authenticated via OAuth, read from the JWT's amr
+// (authentication method reference; most recent method first). The account's
+// app_metadata.provider is wrong for this check: it names the provider that
+// created the account, so a user who once tried Google sign-in but now logs
+// in with an admin-set password would be blocked forever.
+function sessionUsedOAuth(sess: Session): boolean {
+  try {
+    const payload = JSON.parse(atob(sess.access_token.split(".")[1]));
+    const amr = payload?.amr;
+    if (Array.isArray(amr) && amr.length > 0) {
+      return amr[0]?.method === "oauth";
+    }
+  } catch {
+    // fall through to the provider check below
+  }
+  // No amr claim (older GoTrue) or unparseable token: fall back to the
+  // account-level provider so the domain block fails closed, not open.
+  return sess.user?.app_metadata?.provider === "google";
+}
+
 async function loadProfileAndRole(
   userId: string,
   setProfile: (p: Profile | null) => void,
@@ -85,7 +105,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     function handleSession(sess: Session | null) {
-      if (sess?.user?.app_metadata?.provider === "google" && !isAllowedEmail(sess.user.email)) {
+      if (sess?.user && sessionUsedOAuth(sess) && !isAllowedEmail(sess.user.email)) {
         setAuthError(`Only @${ALLOWED_EMAIL_DOMAIN} Google accounts are allowed.`);
         setSession(null);
         setUser(null);
