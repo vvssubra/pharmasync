@@ -14,6 +14,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { getErrorMessage } from "@/lib/errors";
 
 const ADMIN_MGMT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-user-mgmt`;
@@ -68,6 +69,7 @@ export default function RoleManagement() {
   const [newRole, setNewRole] = useState<string>("mo");
   const [newClinicId, setNewClinicId] = useState("");
   const [addUserError, setAddUserError] = useState<string | null>(null);
+  const [deliveryMode, setDeliveryMode] = useState<"invite" | "manual">("invite");
 
   // Clinic picker — only shown/required for super_admin (a plain admin can
   // only create users for their own clinic, resolved server-side).
@@ -145,6 +147,40 @@ export default function RoleManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["all-users-with-roles"] });
       toast.success("User created successfully.");
+      setAddUserOpen(false);
+      setNewName(""); setNewEmail(""); setNewPassword(""); setNewRole("mo"); setNewClinicId("");
+      setAddUserError(null);
+    },
+    onError: (err: Error) => {
+      setAddUserError(err.message);
+    },
+  });
+
+  const inviteUser = useMutation({
+    mutationFn: async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(ADMIN_MGMT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          action: "invite_user",
+          full_name: newName.trim(),
+          email: newEmail.trim(),
+          role: newRole,
+          redirect_to: window.location.origin,
+          ...(isSuperAdmin ? { clinic_id: newClinicId } : {}),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed to send invite");
+      return json;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all-users-with-roles"] });
+      toast.success("Invite sent. User will set their password by email.");
       setAddUserOpen(false);
       setNewName(""); setNewEmail(""); setNewPassword(""); setNewRole("mo"); setNewClinicId("");
       setAddUserError(null);
@@ -463,15 +499,36 @@ export default function RoleManagement() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={addUserOpen} onOpenChange={(open) => { setAddUserOpen(open); if (!open) setAddUserError(null); }}>
+      <Dialog open={addUserOpen} onOpenChange={(open) => { setAddUserOpen(open); if (!open) { setAddUserError(null); setDeliveryMode("invite"); } }}>
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Add New User</DialogTitle>
           </DialogHeader>
           <form
-            onSubmit={(e) => { e.preventDefault(); createUser.mutate(); }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (deliveryMode === "invite") inviteUser.mutate();
+              else createUser.mutate();
+            }}
             className="space-y-4"
           >
+            <div className="space-y-2">
+              <Label>Login details</Label>
+              <RadioGroup
+                value={deliveryMode}
+                onValueChange={(v) => setDeliveryMode(v as "invite" | "manual")}
+                className="flex gap-4"
+              >
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="invite" id="mode-invite" />
+                  <Label htmlFor="mode-invite" className="font-normal">Send email invite</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RadioGroupItem value="manual" id="mode-manual" />
+                  <Label htmlFor="mode-manual" className="font-normal">Set password manually</Label>
+                </div>
+              </RadioGroup>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="add-name">Full Name</Label>
               <Input
@@ -493,18 +550,20 @@ export default function RoleManagement() {
                 placeholder="ahmad@example.gov.my"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="add-password">Password</Label>
-              <Input
-                id="add-password"
-                type="password"
-                value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-                required
-                minLength={6}
-                placeholder="Min 6 characters"
-              />
-            </div>
+            {deliveryMode === "manual" && (
+              <div className="space-y-2">
+                <Label htmlFor="add-password">Password</Label>
+                <Input
+                  id="add-password"
+                  type="password"
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  placeholder="Min 6 characters"
+                />
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="add-role">Role</Label>
               <Select value={newRole} onValueChange={setNewRole}>
@@ -540,8 +599,10 @@ export default function RoleManagement() {
               <Button type="button" variant="outline" onClick={() => setAddUserOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" disabled={createUser.isPending || (isSuperAdmin && !newClinicId)}>
-                {createUser.isPending ? "Creating…" : "Create User"}
+              <Button type="submit" disabled={createUser.isPending || inviteUser.isPending || (isSuperAdmin && !newClinicId)}>
+                {createUser.isPending || inviteUser.isPending
+                  ? (deliveryMode === "invite" ? "Sending…" : "Creating…")
+                  : (deliveryMode === "invite" ? "Send Invite" : "Create User")}
               </Button>
             </DialogFooter>
           </form>

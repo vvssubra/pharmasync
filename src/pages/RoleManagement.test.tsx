@@ -86,8 +86,16 @@ function pendingCard() {
   return screen.getByTestId("pending-approval-card");
 }
 
+const fetchMock = vi.fn(() =>
+  Promise.resolve({
+    ok: true,
+    json: () => Promise.resolve({ user_id: "new-1", email: "x@y.z" }),
+  })
+);
+
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.stubGlobal("fetch", fetchMock);
   mockUsers = [APPROVED, PENDING, ORPHAN];
   rpc.mockImplementation((fn: string) => {
     if (fn === "get_all_users_with_roles") return Promise.resolve({ data: mockUsers, error: null });
@@ -194,5 +202,63 @@ describe("RoleManagement pending approval", () => {
     renderPage("super_admin");
     await waitFor(() => expect(within(pendingCard()).getByText("Dr Baru")).toBeTruthy());
     expect(screen.getByTestId("clinic-pending-1")).toBeTruthy();
+  });
+});
+
+async function openAddUserDialog() {
+  await waitFor(() => expect(screen.getByTestId("all-users-card")).toBeTruthy());
+  fireEvent.click(screen.getByRole("button", { name: /add user/i }));
+  await screen.findByText("Add New User");
+}
+
+function lastFetchBody(): Record<string, unknown> {
+  const call = fetchMock.mock.calls[fetchMock.mock.calls.length - 1] as unknown as [
+    string,
+    { body: string },
+  ];
+  return JSON.parse(call[1].body);
+}
+
+describe("Add New User — invite mode", () => {
+  it("defaults to invite mode with no password field", async () => {
+    renderPage();
+    await openAddUserDialog();
+
+    expect(screen.getByRole("radio", { name: /send email invite/i }))
+      .toHaveAttribute("aria-checked", "true");
+    expect(screen.queryByLabelText(/^password$/i)).toBeNull();
+  });
+
+  it("sends invite_user payload without password", async () => {
+    renderPage();
+    await openAddUserDialog();
+
+    fireEvent.change(screen.getByLabelText(/full name/i), { target: { value: "Staff One" } });
+    fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: "staff@gmail.com" } });
+    fireEvent.click(screen.getByRole("button", { name: /send invite/i }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = lastFetchBody();
+    expect(body.action).toBe("invite_user");
+    expect(body).not.toHaveProperty("password");
+    expect(body.redirect_to).toBe(window.location.origin);
+    expect(body.full_name).toBe("Staff One");
+    expect(body.email).toBe("staff@gmail.com");
+  });
+
+  it("manual mode still sends create_user with password", async () => {
+    renderPage();
+    await openAddUserDialog();
+
+    fireEvent.click(screen.getByRole("radio", { name: /set password manually/i }));
+    fireEvent.change(screen.getByLabelText(/full name/i), { target: { value: "Staff Two" } });
+    fireEvent.change(screen.getByLabelText(/^email$/i), { target: { value: "staff2@moh.gov.my" } });
+    fireEvent.change(screen.getByLabelText(/^password$/i), { target: { value: "secret123" } });
+    fireEvent.click(screen.getByRole("button", { name: /create user/i }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = lastFetchBody();
+    expect(body.action).toBe("create_user");
+    expect(body.password).toBe("secret123");
   });
 });
