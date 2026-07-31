@@ -21,6 +21,18 @@ const CreateUserSchema = z.object({
   clinic_id: z.string().uuid().optional(),
 });
 
+const InviteUserSchema = z.object({
+  action: z.literal("invite_user"),
+  full_name: z.string().min(1).max(100),
+  email: z.string().email(),
+  role: z.enum(ALLOWED_ROLES),
+  // Same clinic rules as create_user: honoured only for super_admin.
+  clinic_id: z.string().uuid().optional(),
+  // Origin the invite link redirects back to; validated as URL and only the
+  // /reset-password path of it is used.
+  redirect_to: z.string().url().optional(),
+});
+
 const ResetPasswordSchema = z.object({
   action: z.literal("reset_password"),
   user_id: z.string().uuid(),
@@ -127,6 +139,84 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ success: true }),
       { status: 200, headers: { ...cors, "Content-Type": "application/json" } },
+    );
+  }
+
+  // ── Invite user ───────────────────────────────────────────────────────────
+  if (action === "invite_user") {
+    const parsed = InviteUserSchema.safeParse(body);
+    if (!parsed.success) {
+      return new Response(
+        JSON.stringify({ error: "Validation failed", details: parsed.error.flatten() }),
+        { status: 400, headers: { ...cors, "Content-Type": "application/json" } },
+      );
+    }
+    const { full_name, email, role, clinic_id, redirect_to } = parsed.data;
+    const supabase = adminClient();
+
+    // Same clinic resolution as create_user: plain admin is pinned to their
+    // own clinic; super_admin must say which clinic explicitly.
+    let targetClinicId: string;
+    if (callerRole === "super_admin") {
+      if (!clinic_id) {
+        return new Response(
+          JSON.stringify({ error: "clinic_id is required for super_admin" }),
+          { status: 400, headers: { ...cors, "Content-Type": "application/json" } },
+        );
+      }
+      targetClinicId = clinic_id;
+    } else {
+      const { data: callerProfile, error: profileError } = await supabase
+        .from("profiles")
+        .select("clinic_id")
+        .eq("user_id", userId!)
+        .single();
+      if (profileError || !callerProfile?.clinic_id) {
+        return new Response(
+          JSON.stringify({ error: "Could not resolve caller's clinic" }),
+          { status: 500, headers: { ...cors, "Content-Type": "application/json" } },
+        );
+      }
+      targetClinicId = callerProfile.clinic_id as string;
+    }
+
+    // Only the origin of redirect_to is trusted; path is forced to
+    // /reset-password so a crafted body can't send invitees elsewhere.
+    const redirectTo = redirect_to
+      ? new URL("/reset-password", redirect_to).toString()
+      : undefined;
+
+    const { data: invited, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
+      email,
+      {
+        data: { full_name, clinic_id: targetClinicId },
+        ...(redirectTo ? { redirectTo } : {}),
+      },
+    );
+
+    if (inviteError) {
+      const status = inviteError.message.includes("already registered") ? 409 : 500;
+      return new Response(
+        JSON.stringify({ error: inviteError.message }),
+        { status, headers: { ...cors, "Content-Type": "application/json" } },
+      );
+    }
+
+    const { error: roleError } = await supabase
+      .from("user_roles")
+      .upsert({ user_id: invited.user.id, role }, { onConflict: "user_id" });
+
+    if (roleError) {
+      await supabase.auth.admin.deleteUser(invited.user.id);
+      return new Response(
+        JSON.stringify({ error: "Failed to assign role. Invite rolled back." }),
+        { status: 500, headers: { ...cors, "Content-Type": "application/json" } },
+      );
+    }
+
+    return new Response(
+      JSON.stringify({ user_id: invited.user.id, email: invited.user.email }),
+      { status: 201, headers: { ...cors, "Content-Type": "application/json" } },
     );
   }
 
