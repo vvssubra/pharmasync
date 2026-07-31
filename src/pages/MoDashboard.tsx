@@ -50,6 +50,34 @@ const REQUEST_STATUS_LABEL: Record<string, string> = {
   fulfilled:          "Fulfilled",
 };
 
+// Antibiotic forms go to the FMS, not the pharmacist, so their statuses read
+// differently from drug requests even where the raw values coincide.
+const ANTIBIOTIC_STATUS_LABEL: Record<string, string> = {
+  pending_specialist: "Awaiting FMS Review",
+  approved:           "Approved",
+  rejected:           "Returned for correction",
+};
+
+interface MyAntibioticRow {
+  id: string;
+  created_at: string;
+  patient_name: string;
+  diagnosis: string;
+  status: string;
+}
+
+// One row of the merged "My Recent Submissions" list: either a drug request
+// or an antibiotic form, unified for a single time-sorted table.
+interface RecentSubmission {
+  id: string;
+  created_at: string;
+  patient_name: string;
+  type: "request" | "antibiotic";
+  detail: string;
+  statusLabel: string;
+  statusBadge: string;
+}
+
 export default function MoDashboard() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
@@ -111,6 +139,23 @@ export default function MoDashboard() {
     },
   });
 
+  // My submitted antibiotic forms. MOs mostly submit these (not drug
+  // requests), so the recent list must include them or it sits empty while
+  // the MO's actual work is invisible.
+  const { data: myForms = [], isLoading: formsLoading } = useQuery({
+    queryKey: ["mo-my-antibiotic-forms", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("antibiotic_forms")
+        .select("id, created_at, patient_name, diagnosis, status")
+        .eq("submitted_by", user!.id)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      return (data ?? []) as MyAntibioticRow[];
+    },
+  });
+
   // Forms the FMS sent back for correction. 15s poll matches the other queue
   // badges; the push notification is the fast path, this is the reliable one.
   const { data: rejectedForms = [] } = useQuery({
@@ -129,6 +174,30 @@ export default function MoDashboard() {
   });
 
   const availableDrugs = drugStock.filter(d => d.status !== "critical");
+
+  const recentSubmissions: RecentSubmission[] = useMemo(() => {
+    const reqs: RecentSubmission[] = myRequests.map(r => ({
+      id: r.id,
+      created_at: r.created_at,
+      patient_name: r.patient_name,
+      type: "request",
+      detail: `${r.drugs?.drug_name ?? ""} — ${r.quantity} ${r.drugs?.unit_pengukuran ?? ""}`,
+      statusLabel: REQUEST_STATUS_LABEL[r.status] ?? r.status,
+      statusBadge: REQUEST_STATUS_BADGE[r.status] ?? "",
+    }));
+    const forms: RecentSubmission[] = myForms.map(f => ({
+      id: f.id,
+      created_at: f.created_at,
+      patient_name: f.patient_name,
+      type: "antibiotic",
+      detail: f.diagnosis,
+      statusLabel: ANTIBIOTIC_STATUS_LABEL[f.status] ?? f.status,
+      statusBadge: REQUEST_STATUS_BADGE[f.status] ?? "",
+    }));
+    return [...reqs, ...forms]
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      .slice(0, 10);
+  }, [myRequests, myForms]);
 
   return (
     <div className="space-y-6">
@@ -329,7 +398,7 @@ export default function MoDashboard() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {reqLoading ? (
+          {reqLoading || formsLoading ? (
             <div className="p-4 space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
           ) : (
             <Table>
@@ -337,27 +406,27 @@ export default function MoDashboard() {
                 <TableRow>
                   <TableHead>Time</TableHead>
                   <TableHead>Patient</TableHead>
-                  <TableHead>Drug</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Detail</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {myRequests.length === 0 ? (
+                {recentSubmissions.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      No requests yet. Use the buttons above to submit a drug request.
+                      No submissions yet. Use the buttons above to submit a drug request or antibiotic form.
                     </TableCell>
                   </TableRow>
-                ) : myRequests.map(r => (
-                  <TableRow key={r.id}>
+                ) : recentSubmissions.map(r => (
+                  <TableRow key={`${r.type}-${r.id}`}>
                     <TableCell className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(r.created_at), { addSuffix: true })}</TableCell>
                     <TableCell className="font-medium text-sm">{r.patient_name}</TableCell>
-                    <TableCell className="text-sm">{r.drugs?.drug_name}</TableCell>
-                    <TableCell className="text-right text-sm">{r.quantity} {r.drugs?.unit_pengukuran}</TableCell>
+                    <TableCell className="text-sm">{r.type === "antibiotic" ? "Antibiotic Form" : "Drug Request"}</TableCell>
+                    <TableCell className="text-sm">{r.detail}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={`text-[10px] ${REQUEST_STATUS_BADGE[r.status] ?? ""}`}>
-                        {REQUEST_STATUS_LABEL[r.status] ?? r.status}
+                      <Badge variant="outline" className={`text-[10px] ${r.statusBadge}`}>
+                        {r.statusLabel}
                       </Badge>
                     </TableCell>
                   </TableRow>

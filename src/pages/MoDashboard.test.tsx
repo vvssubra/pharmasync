@@ -63,15 +63,35 @@ describe("MoDashboard", () => {
     expect(header).toBeInTheDocument();
   });
 
+  // The antibiotic_forms table serves two queries on this page: the
+  // rejected-forms banner (second .eq is ("status","rejected"), ends at
+  // .order) and the recent-submissions list (single .eq, ends at .limit).
+  // This mock routes on that difference.
+  function mockAntibioticForms(rejectedRows: unknown[], recentRows: unknown[]) {
+    const chain: Record<string, unknown> = {};
+    let statusFiltered = false;
+    chain.select = vi.fn(() => chain);
+    chain.eq = vi.fn((col: string) => {
+      if (col === "status") statusFiltered = true;
+      return chain;
+    });
+    chain.order = vi.fn(() => {
+      if (statusFiltered) return resolved(rejectedRows);
+      const tail: Record<string, unknown> = {
+        limit: vi.fn(() => resolved(recentRows)),
+      };
+      tail.then = (res: (v: unknown) => unknown) => resolved(rejectedRows).then(res);
+      return tail;
+    });
+    return chain;
+  }
+
   it("lists antibiotic forms returned by the FMS with the rejection reason", async () => {
     const { supabase } = await import("@/integrations/supabase/client");
     vi.mocked(supabase.from).mockImplementation(((table: string) => {
       if (table === "antibiotic_forms") {
-        const chain: Record<string, unknown> = {};
-        chain.select = vi.fn(() => chain);
-        chain.eq = vi.fn(() => chain);
-        chain.order = vi.fn(() =>
-          resolved([
+        return mockAntibioticForms(
+          [
             {
               id: "form-9",
               patient_name: "Aminah binti Yusof",
@@ -79,9 +99,9 @@ describe("MoDashboard", () => {
               specialist_notes: "Dose does not match weight — recalculate",
               specialist_action_at: new Date().toISOString(),
             },
-          ]),
+          ],
+          [],
         );
-        return chain;
       }
       return mockChain();
     }) as never);
@@ -98,5 +118,38 @@ describe("MoDashboard", () => {
     expect(screen.getByText("Aminah binti Yusof")).toBeInTheDocument();
     expect(screen.getByText(/Dose does not match weight/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /Correct & resubmit/i })).toBeInTheDocument();
+  });
+
+  it("shows the MO's submitted antibiotic forms in the recent list", async () => {
+    const { supabase } = await import("@/integrations/supabase/client");
+    vi.mocked(supabase.from).mockImplementation(((table: string) => {
+      if (table === "antibiotic_forms") {
+        return mockAntibioticForms(
+          [],
+          [
+            {
+              id: "form-1",
+              created_at: new Date().toISOString(),
+              patient_name: "Ali bin Abu",
+              diagnosis: "UTI",
+              status: "pending_specialist",
+            },
+          ],
+        );
+      }
+      return mockChain();
+    }) as never);
+
+    render(
+      <MemoryRouter>
+        <QueryClientProvider client={makeQC()}>
+          <MoDashboard />
+        </QueryClientProvider>
+      </MemoryRouter>
+    );
+
+    expect(await screen.findByText("Ali bin Abu")).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "Antibiotic Form" })).toBeInTheDocument();
+    expect(screen.getByText(/Awaiting FMS Review/i)).toBeInTheDocument();
   });
 });
