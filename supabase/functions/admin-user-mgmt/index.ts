@@ -28,8 +28,9 @@ const InviteUserSchema = z.object({
   role: z.enum(ALLOWED_ROLES),
   // Same clinic rules as create_user: honoured only for super_admin.
   clinic_id: z.string().uuid().optional(),
-  // Origin the invite link redirects back to; validated as URL and only the
-  // /reset-password path of it is used.
+  // Origin the invite link redirects back to. Advisory only: the server
+  // accepts it solely if its origin is on the same allowlist CORS uses
+  // (APP_ORIGIN + localhost dev ports), otherwise falls back to APP_ORIGIN.
   redirect_to: z.string().url().optional(),
 });
 
@@ -180,10 +181,26 @@ Deno.serve(async (req) => {
       targetClinicId = callerProfile.clinic_id as string;
     }
 
-    // Only the origin of redirect_to is trusted; path is forced to
-    // /reset-password so a crafted body can't send invitees elsewhere.
-    const redirectTo = redirect_to
-      ? new URL("/reset-password", redirect_to).toString()
+    // The invite link's tokens are delivered to whatever origin GoTrue
+    // redirects to, so a hostile origin here is account takeover of the
+    // invitee. Never trust the body: only an allowlisted origin (the same
+    // set CORS accepts) is honoured, anything else — including unparseable
+    // or non-http schemes — falls back to APP_ORIGIN. Path is always forced
+    // to /reset-password. GoTrue's own URI allowlist is the second layer.
+    const appOrigin = Deno.env.get("APP_ORIGIN") ?? "";
+    const allowedOrigins = [appOrigin, "http://localhost:8080", "http://localhost:5173"];
+    let redirectOrigin = "";
+    if (redirect_to) {
+      try {
+        const candidate = new URL(redirect_to).origin;
+        if (allowedOrigins.includes(candidate)) redirectOrigin = candidate;
+      } catch {
+        // fall through to appOrigin
+      }
+    }
+    if (!redirectOrigin) redirectOrigin = appOrigin;
+    const redirectTo = redirectOrigin
+      ? new URL("/reset-password", redirectOrigin).toString()
       : undefined;
 
     const { data: invited, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
