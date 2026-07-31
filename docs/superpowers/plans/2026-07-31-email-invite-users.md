@@ -39,7 +39,7 @@
 
 There is no Deno test harness in this repo — this task is implementation + typecheck only; behavior is covered by the frontend contract tests in Task 2 and manual smoke testing after SMTP config.
 
-- [ ] **Step 1: Add the schema**
+- [x] **Step 1: Add the schema**
 
 After `CreateUserSchema` (below line 22), add:
 
@@ -57,7 +57,7 @@ const InviteUserSchema = z.object({
 });
 ```
 
-- [ ] **Step 2: Add the action branch**
+- [x] **Step 2: Add the action branch**
 
 After the `reset_password` block (after line 131), before the `create_user` parse, add:
 
@@ -141,12 +141,12 @@ After the `reset_password` block (after line 131), before the `create_user` pars
   }
 ```
 
-- [ ] **Step 3: Typecheck the function**
+- [x] **Step 3: Typecheck the function**
 
 Run: `deno check supabase/functions/admin-user-mgmt/index.ts` (if `deno` is installed; if not, skip — the file follows the same patterns that already deploy).
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add supabase/functions/admin-user-mgmt/index.ts
@@ -169,11 +169,11 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 
 Existing state (lines 64–70): `addUserOpen, newName, newEmail, newPassword, newRole, newClinicId, addUserError`. Existing mutation `createUser` (lines 123–155). Dialog UI at lines 466–549.
 
-- [ ] **Step 1: Read the existing test file**
+- [x] **Step 1: Read the existing test file**
 
 Read `src/pages/RoleManagement.test.tsx` fully to reuse its render helpers, auth/query mocks, and fetch-mock pattern. The tests below must follow its existing conventions (adjust selectors/mocks to match — the intent of each test is fixed, the plumbing follows the file's style).
 
-- [ ] **Step 2: Write failing tests**
+- [x] **Step 2: Write failing tests**
 
 Add to `src/pages/RoleManagement.test.tsx` (adapt setup to the file's existing helpers):
 
@@ -201,12 +201,12 @@ describe("Add New User — invite mode", () => {
 });
 ```
 
-- [ ] **Step 3: Run tests to verify they fail**
+- [x] **Step 3: Run tests to verify they fail**
 
 Run: `npx vitest run src/pages/RoleManagement.test.tsx`
 Expected: the three new tests FAIL (no toggle exists yet); pre-existing tests PASS.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 In `src/pages/RoleManagement.tsx`:
 
@@ -291,12 +291,12 @@ const inviteUser = useMutation({
 
    - Reset `deliveryMode` to `"invite"` when the dialog closes (in the existing `onOpenChange` handler).
 
-- [ ] **Step 5: Run tests to verify they pass**
+- [x] **Step 5: Run tests to verify they pass**
 
 Run: `npx vitest run src/pages/RoleManagement.test.tsx`
 Expected: all PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/pages/RoleManagement.tsx src/pages/RoleManagement.test.tsx
@@ -317,7 +317,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: supabase-js auth events. Recovery links fire `PASSWORD_RECOVERY`; invite links land with `#...type=invite...` in the URL hash and fire `SIGNED_IN`.
 - Produces: page shows the set-password form for both link types.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
 
 Create `src/pages/ResetPassword.test.tsx`. Mock `@/integrations/supabase/client` following the mocking style used in `src/pages/RoleManagement.test.tsx` (read it first). Capture the `onAuthStateChange` callback so tests can fire events:
 
@@ -373,12 +373,12 @@ describe("ResetPassword readiness", () => {
 
 Note: if `authCallback("...")` doesn't trigger a re-render, wrap the call in `act(...)` from `@testing-library/react`.
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [x] **Step 2: Run tests to verify they fail**
 
 Run: `npx vitest run src/pages/ResetPassword.test.tsx`
 Expected: test 2 FAILS (invite hash not handled); tests 1 and 3 may already pass.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `src/pages/ResetPassword.tsx`, replace the `useEffect` (lines 19–28) with:
 
@@ -402,17 +402,17 @@ In `src/pages/ResetPassword.tsx`, replace the `useEffect` (lines 19–28) with:
 
 Also update the page copy so invitees aren't confused: change the `CardTitle`/`CardDescription` only if trivial — otherwise leave as "Set New Password", which already fits both flows. (Leave it. YAGNI.)
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 Run: `npx vitest run src/pages/ResetPassword.test.tsx`
 Expected: all 3 PASS.
 
-- [ ] **Step 5: Run the full suite**
+- [x] **Step 5: Run the full suite**
 
 Run: `npx vitest run`
 Expected: no new failures (note: `AntibioticForm.test.tsx` has a known flake under parallel load — rerun that file solo if it fails).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/pages/ResetPassword.tsx src/pages/ResetPassword.test.tsx
@@ -430,7 +430,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 
 **Interfaces:** none — operator documentation.
 
-- [ ] **Step 1: Write the runbook**
+- [x] **Step 1: Write the runbook**
 
 Create `docs/smtp-setup.md`:
 
@@ -479,7 +479,7 @@ names it forwards, and set the ones it uses.
    link opens `/reset-password`, password can be set, login works.
 ```
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add docs/smtp-setup.md
