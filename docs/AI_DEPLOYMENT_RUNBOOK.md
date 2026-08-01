@@ -118,9 +118,16 @@ rm -rf /tmp/ps && mkdir -p /tmp/ps \
            /tmp/ps/supabase/functions/ai-query \
            /tmp/ps/supabase/functions/antibiotic-suggest \
            /tmp/ps/supabase/functions/pathway-check \
-           /tmp/ps/supabase/functions/admin-user-mgmt $FN/
+           /tmp/ps/supabase/functions/admin-user-mgmt \
+           /tmp/ps/supabase/functions/push-notify $FN/
 docker restart supabase-edge-functions-l8dsa2iokodt3yafiwcmfkvi
 ```
+
+This list must name **every** function under `supabase/functions/` — anything
+omitted keeps running its old code with no error anywhere. `push-notify` was
+missing from this command for two days after it shipped, so rejection
+notifications silently never fired. Check the repo directory against this list
+whenever a function is added.
 
 **Re-run this after every merge to `main` that touches `supabase/functions/`** —
 nothing does it automatically. The frontend *does* auto-build on push (Coolify
