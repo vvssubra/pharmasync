@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evaluate, toMl, formatAmount, ageToMonths, roundMl, roundMg, type DoseOutcome } from "./paedsDose";
+import { evaluate, formatAmount, ageToMonths, roundMl, roundMg, type DoseOutcome } from "./paedsDose";
 import { PAEDS_DRUGS } from "./paedsDoses";
 
 function drug(id: string) {
@@ -127,31 +127,54 @@ describe("volume-dosed entries", () => {
   });
 });
 
-describe("mg to mL conversion", () => {
-  it("converts against the selected strength", () => {
-    const outcome = dose("paracetamol", "mims", 2, 0, 12); // 180 mg
-    const [low, high] = drug("paracetamol").preparations;
-    expect(toMl(outcome, low)).toEqual({ min: 7.5, max: undefined });   // 120mg/5ml
-    expect(toMl(outcome, high)).toEqual({ min: 3.6, max: undefined });  // 250mg/5ml
+// Doses are reported in the unit the source publishes. Nothing is converted:
+// a mg figure stays mg, and the two entries published as volumes stay mL.
+describe("units follow the source", () => {
+  it("reports milligrams for a mg/kg drug", () => {
+    const outcome = dose("paracetamol", "shann", 2, 0, 10);
+    expect(outcome.kind).toBe("dose");
+    if (outcome.kind === "dose") expect(outcome.unit).toBe("mg");
+    expect(amount(outcome)).toBe("150 mg");
   });
 
-  it("converts both ends of a range", () => {
-    const outcome = dose("ibuprofen", "mims", 3, 0, 14); // 70-140 mg
-    expect(toMl(outcome, drug("ibuprofen").preparations[0])).toEqual({ min: 3.5, max: 7 });
+  it("reports millilitres only where the source printed millilitres", () => {
+    const lactulose = dose("lactulose", "mims", 3, 0, 14);
+    if (lactulose.kind === "dose") expect(lactulose.unit).toBe("ml");
+    const triprolidine = dose("triprolidine", "shann", 3, 0, 14);
+    if (triprolidine.kind === "dose") expect(triprolidine.unit).toBe("ml");
+  });
+});
+
+describe("shown working", () => {
+  it("states the mg/kg basis behind a per-kg dose", () => {
+    const outcome = dose("chlorpheniramine", "shann", 3, 0, 10);
+    expect(amount(outcome)).toBe("1 mg");
+    if (outcome.kind === "dose") expect(outcome.basis).toBe("0.1 mg/kg × 10 kg");
   });
 
-  it("passes a mL dose through untouched", () => {
+  it("states both ends of a per-kg range", () => {
+    const outcome = dose("ibuprofen", "mims", 3, 0, 14);
+    if (outcome.kind === "dose") expect(outcome.basis).toBe("5–10 mg/kg × 14 kg");
+  });
+
+  it("states the mL/kg basis for lactulose", () => {
     const outcome = dose("lactulose", "shann", 4, 0, 16);
-    expect(toMl(outcome, drug("lactulose").preparations[0])).toEqual({ min: 8, max: undefined });
+    if (outcome.kind === "dose") expect(outcome.basis).toBe("0.5 mL/kg × 16 kg");
   });
 
-  it("offers no volume when the strength is unknown", () => {
+  it("leaves a fixed-band dose without a basis — there is no arithmetic", () => {
     const outcome = dose("paracetamol", "mims", 2, 0, 12);
-    expect(toMl(outcome, { label: "unconfirmed", mgPerMl: null })).toBeNull();
+    if (outcome.kind === "dose") expect(outcome.basis).toBeUndefined();
   });
+});
 
-  it("offers no volume for an outcome that is not a dose", () => {
-    expect(toMl({ kind: "outOfBand" }, { label: "x", mgPerMl: 1 })).toBeNull();
+describe("frequently used", () => {
+  it("flags exactly the six the clinic reaches for", () => {
+    const flagged = PAEDS_DRUGS.filter(d => d.frequentlyUsed).map(d => d.id).sort();
+    expect(flagged).toEqual([
+      "bromhexine", "chlorpheniramine", "diphenhydramine",
+      "lactulose", "paracetamol", "salbutamol",
+    ]);
   });
 });
 

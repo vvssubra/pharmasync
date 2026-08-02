@@ -24,25 +24,27 @@ describe("PaedsDoseCalculator", () => {
     expect(screen.queryByText(/enter an age and a weight/i)).not.toBeInTheDocument();
   });
 
-  it("shows mg and mL side by side for both sources", () => {
+  it("shows both sources in mg, with no volume conversion", () => {
     enterPatient({ years: "2", months: "0", weight: "12" });
     const paracetamol = drugCard("paracetamol");
     // MIMS 2-3 years = 180mg, and Frank Shann's 15mg/kg on 12kg lands on the
-    // same figure — both lines read 180 mg, and 120mg/5ml is 24mg/ml → 7.5 mL.
+    // same figure, so both lines read 180 mg.
     expect(paracetamol.getAllByText(/180 mg/)).toHaveLength(2);
-    expect(paracetamol.getAllByText(/7\.5 mL/)).toHaveLength(2);
+    expect(paracetamol.queryByText(/mL/)).not.toBeInTheDocument();
   });
 
-  it("recalculates when the preparation is changed", () => {
-    enterPatient({ years: "2", months: "0", weight: "12" });
+  // The user's own worked example: 15 mg/kg at 10 kg is 150 mg.
+  it("shows the arithmetic behind a per-kg dose", () => {
+    enterPatient({ years: "2", months: "0", weight: "10" });
     const paracetamol = drugCard("paracetamol");
-    expect(paracetamol.getAllByText(/7\.5 mL/).length).toBeGreaterThan(0);
+    expect(paracetamol.getByText("150 mg")).toBeInTheDocument();
+    expect(paracetamol.getByText("15 mg/kg × 10 kg")).toBeInTheDocument();
+  });
 
-    // 250mg/5ml is 50mg/ml, so the same 180mg becomes 3.6 mL.
-    fireEvent.keyDown(screen.getByLabelText(/preparation for Paracetamol/i), { key: "Enter" });
-    const option = screen.getByRole("option", { name: "250mg/5ml" });
-    fireEvent.click(option);
-    expect(drugCard("paracetamol").getAllByText(/3\.6 mL/).length).toBeGreaterThan(0);
+  it("keeps millilitres where the source itself publishes them", () => {
+    enterPatient({ years: "4", months: "0", weight: "16" });
+    // Frank Shann lactulose is 0.5 mL/kg — there is no mg figure to show.
+    expect(drugCard("lactulose").getByText("8 mL")).toBeInTheDocument();
   });
 
   // The whole point of the contraindication rule: no number to misread.
@@ -78,6 +80,20 @@ describe("PaedsDoseCalculator", () => {
 
   it("always renders the disclaimer", () => {
     expect(screen.getByText(/should not be used for diagnosing/i)).toBeInTheDocument();
+  });
+
+  it("marks the frequently-used drugs and can filter to just them", () => {
+    enterPatient({ years: "5", months: "0", weight: "18" });
+    expect(within(screen.getByTestId("drug-paracetamol")).getByLabelText(/frequently used/i))
+      .toBeInTheDocument();
+    expect(screen.getByTestId("drug-ibuprofen")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText(/frequently used only/i));
+
+    expect(screen.getByTestId("drug-paracetamol")).toBeInTheDocument();
+    expect(screen.queryByTestId("drug-ibuprofen")).not.toBeInTheDocument();
+    // Decongestants have no starred drug, so that heading goes with them.
+    expect(screen.queryByText("Decongestant")).not.toBeInTheDocument();
   });
 
   it("groups drugs under their indication, fever first", () => {

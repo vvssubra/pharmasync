@@ -10,11 +10,9 @@
 export type DoseSource = "mims" | "shann";
 
 export interface Preparation {
-  /** As printed on the bottle, e.g. "120mg/5ml". */
+  /** As printed on the bottle, e.g. "120mg/5ml". Shown for reference only —
+   *  the calculator does not convert a dose into a volume. */
   label: string;
-  /** Null for preparations dosed by volume alone (lactulose) or where the
-   *  strength has not been confirmed — both suppress the mL calculation. */
-  mgPerMl: number | null;
 }
 
 interface AgeBand {
@@ -49,6 +47,9 @@ export interface Drug {
   /** Shown under the drug name when something about the entry needs saying —
    *  an unconfirmed strength, a gap or overlap in the source bands. */
   caution?: string;
+  /** Reached for often enough at this clinic to be worth finding without
+   *  reading the list. Marked on the card and offered as a filter. */
+  frequentlyUsed?: boolean;
 }
 
 export type CategoryId =
@@ -74,8 +75,10 @@ export const CATEGORY_ORDER: CategoryId[] = [
 ];
 
 export type DoseOutcome =
-  /** A dose was resolved. amount is mg unless unit is "ml". */
-  | { kind: "dose"; min: number; max?: number; unit: "mg" | "ml"; freq: string; note?: string }
+  /** A dose was resolved. amount is mg unless unit is "ml" — which happens
+   *  only where the source itself publishes a volume (lactulose, and Frank
+   *  Shann's triprolidine). Nothing is converted between the two. */
+  | { kind: "dose"; min: number; max?: number; unit: "mg" | "ml"; freq: string; note?: string; basis?: string }
   /** The drug is contraindicated at this age; no number is offered. */
   | { kind: "notRecommended"; note: string }
   /** The source publishes no dose for this drug/indication at all. */
@@ -130,7 +133,13 @@ export function evaluate(rules: Rule[], patient: Patient): DoseOutcome {
           const max = rule.mgPerKgMax === undefined
             ? undefined
             : cap(rule.mgPerKgMax * patient.weightKg, rule.maxMg);
-          return { kind: "dose", min, max, unit: "mg", freq: rule.freq, note: rule.note };
+          const perKg = rule.mgPerKgMax === undefined
+            ? `${rule.mgPerKgMin}`
+            : `${rule.mgPerKgMin}–${rule.mgPerKgMax}`;
+          return {
+            kind: "dose", min, max, unit: "mg", freq: rule.freq, note: rule.note,
+            basis: `${perKg} mg/kg × ${patient.weightKg} kg`,
+          };
         }
         break;
 
@@ -142,7 +151,10 @@ export function evaluate(rules: Rule[], patient: Patient): DoseOutcome {
 
       case "mlPerKg":
         if (inAgeBand(rule, patient.ageMonths)) {
-          return { kind: "dose", min: rule.mlPerKg * patient.weightKg, unit: "ml", freq: rule.freq, note: rule.note };
+          return {
+            kind: "dose", min: rule.mlPerKg * patient.weightKg, unit: "ml", freq: rule.freq, note: rule.note,
+            basis: `${rule.mlPerKg} mL/kg × ${patient.weightKg} kg`,
+          };
         }
         break;
     }
@@ -170,21 +182,6 @@ export function roundMl(value: number): number {
  */
 export function roundMg(value: number): number {
   return Math.round(value * 1000) / 1000;
-}
-
-/**
- * Volume to draw up for a resolved dose, or null when it cannot be computed —
- * an unconfirmed strength, a non-liquid preparation, or a dose that is already
- * expressed in mL.
- */
-export function toMl(outcome: DoseOutcome, prep: Preparation): { min: number; max?: number } | null {
-  if (outcome.kind !== "dose") return null;
-  if (outcome.unit === "ml") return { min: roundMl(outcome.min), max: outcome.max === undefined ? undefined : roundMl(outcome.max) };
-  if (prep.mgPerMl === null) return null;
-  return {
-    min: roundMl(outcome.min / prep.mgPerMl),
-    max: outcome.max === undefined ? undefined : roundMl(outcome.max / prep.mgPerMl),
-  };
 }
 
 /** "180 mg" or "60–120 mg". Precision follows the unit — see roundMg. */

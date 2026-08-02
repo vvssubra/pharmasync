@@ -25,11 +25,12 @@ export const PAEDS_DRUGS: Drug[] = [
     //       8-9 years: 360-375mg / 10-11 years: 480-500mg  (all Q4H-Q6H)
     // Shann 15mg/kg QID
     id: "paracetamol",
+    frequentlyUsed: true,
     name: "Paracetamol",
     category: "fever",
     preparations: [
-      { label: "120mg/5ml", mgPerMl: 24 },
-      { label: "250mg/5ml", mgPerMl: 50 },
+      { label: "120mg/5ml" },
+      { label: "250mg/5ml" },
     ],
     mims: [
       { kind: "fixed", minMonths: 3, maxMonths: 6, mgMin: 60, freq: "Q4H–Q6H" },
@@ -48,7 +49,7 @@ export const PAEDS_DRUGS: Drug[] = [
     id: "ibuprofen",
     name: "Ibuprofen",
     category: "fever",
-    preparations: [{ label: "100mg/5ml", mgPerMl: 20 }],
+    preparations: [{ label: "100mg/5ml" }],
     mims: [{ kind: "perKg", minMonths: 6, mgPerKgMin: 5, mgPerKgMax: 10, freq: "TDS or QID" }],
     shann: [{ kind: "perKg", mgPerKgMin: 10, freq: "Q4H–Q8H" }],
   },
@@ -61,7 +62,7 @@ export const PAEDS_DRUGS: Drug[] = [
     id: "fexofenadine",
     name: "Fexofenadine",
     category: "antihistamine",
-    preparations: [{ label: "30mg/5ml", mgPerMl: 6 }],
+    preparations: [{ label: "30mg/5ml" }],
     mims: [
       { kind: "fixed", minMonths: 6, maxMonths: 24, mgMin: 15, freq: "BD" },
       { kind: "fixed", minMonths: 24, maxMonths: 144, mgMin: 30, freq: "BD" },
@@ -78,7 +79,7 @@ export const PAEDS_DRUGS: Drug[] = [
     id: "desloratadine",
     name: "Desloratadine",
     category: "antihistamine",
-    preparations: [{ label: "2.5mg/5ml", mgPerMl: 0.5 }],
+    preparations: [{ label: "2.5mg/5ml" }],
     mims: [
       { kind: "fixed", minMonths: 12, maxMonths: 72, mgMin: 1.25, freq: "OD" },
       { kind: "fixed", minMonths: 72, maxMonths: 144, mgMin: 2.5, freq: "OD" },
@@ -92,7 +93,7 @@ export const PAEDS_DRUGS: Drug[] = [
     id: "loratadine",
     name: "Loratadine",
     category: "antihistamine",
-    preparations: [{ label: "5mg/5ml", mgPerMl: 1 }],
+    preparations: [{ label: "5mg/5ml" }],
     caution: "MIMS gives the under-30kg band as 2–12 years but the over-30kg band as 2–11; reproduced as published.",
     mims: [
       { kind: "fixed", minMonths: 24, maxMonths: 156, maxKg: 30, mgMin: 5, freq: "OD" },
@@ -109,7 +110,7 @@ export const PAEDS_DRUGS: Drug[] = [
     id: "cetirizine",
     name: "Cetirizine",
     category: "antihistamine",
-    preparations: [{ label: "5mg/5ml", mgPerMl: 1 }],
+    preparations: [{ label: "5mg/5ml" }],
     caution: "MIMS bands overlap at 6 years; the younger band is applied.",
     mims: [
       { kind: "fixed", minMonths: 24, maxMonths: 84, mgMin: 2.5, freq: "BD" },
@@ -125,9 +126,10 @@ export const PAEDS_DRUGS: Drug[] = [
     // MIMS  2-5 years: 1mg q4-6h / 6-12 years: 2mg q4-6h
     // Shann 0.1mg/kg TDS or QID
     id: "chlorpheniramine",
+    frequentlyUsed: true,
     name: "Chlorpheniramine",
     category: "antihistamine",
-    preparations: [{ label: "2mg/5ml", mgPerMl: 0.4 }],
+    preparations: [{ label: "2mg/5ml" }],
     mims: [
       { kind: "fixed", minMonths: 24, maxMonths: 72, mgMin: 1, freq: "Q4H–Q6H" },
       { kind: "fixed", minMonths: 72, maxMonths: 156, mgMin: 2, freq: "Q4H–Q6H" },
@@ -140,7 +142,7 @@ export const PAEDS_DRUGS: Drug[] = [
     id: "promethazine",
     name: "Promethazine",
     category: "antihistamine",
-    preparations: [{ label: "5mg/5ml", mgPerMl: 1 }],
+    preparations: [{ label: "5mg/5ml" }],
     mims: [
       { kind: "fixed", minMonths: 24, maxMonths: 72, mgMin: 5, freq: "TDS" },
       { kind: "fixed", minMonths: 72, maxMonths: 132, mgMin: 10, freq: "BD" },
@@ -155,7 +157,7 @@ export const PAEDS_DRUGS: Drug[] = [
     id: "triprolidine",
     name: "Triprolidine",
     category: "antihistamine",
-    preparations: [{ label: "1.25mg/5ml", mgPerMl: 0.25 }],
+    preparations: [{ label: "1.25mg/5ml" }],
     caution: "Frank Shann publishes this one in mL, not mg/kg — the volume is used as printed.",
     mims: [
       { kind: "fixed", minMonths: 4, maxMonths: 24, mgMin: 0.313, freq: "QID" },
@@ -177,7 +179,7 @@ export const PAEDS_DRUGS: Drug[] = [
     id: "pseudoephedrine",
     name: "Pseudoephedrine",
     category: "decongestant",
-    preparations: [{ label: "30mg/5ml", mgPerMl: 6 }],
+    preparations: [{ label: "30mg/5ml" }],
     mims: [{ kind: "notRecommended", belowMonths: 144, note: "Not recommended under 12 years" }],
     shann: [
       { kind: "notRecommended", belowMonths: 144, note: "Not recommended under 12 years (MIMS)" },
@@ -190,7 +192,7 @@ export const PAEDS_DRUGS: Drug[] = [
     id: "phenylephrine",
     name: "Phenylephrine",
     category: "decongestant",
-    preparations: [{ label: "5mg/5ml", mgPerMl: 1 }],
+    preparations: [{ label: "5mg/5ml" }],
     mims: [{ kind: "notRecommended", belowMonths: 144, note: "Not recommended under 12 years" }],
     shann: [
       { kind: "notRecommended", belowMonths: 144, note: "Not recommended under 12 years (MIMS)" },
@@ -203,9 +205,10 @@ export const PAEDS_DRUGS: Drug[] = [
     // MIMS  2-5 years: 4mg BD / 6-11 years: 8mg TDS
     // Shann 0.3mg/kg
     id: "bromhexine",
+    frequentlyUsed: true,
     name: "Bromhexine",
     category: "wetCough",
-    preparations: [{ label: "4mg/5ml", mgPerMl: 0.8 }],
+    preparations: [{ label: "4mg/5ml" }],
     mims: [
       { kind: "fixed", minMonths: 24, maxMonths: 72, mgMin: 4, freq: "BD" },
       { kind: "fixed", minMonths: 72, maxMonths: 144, mgMin: 8, freq: "TDS" },
@@ -219,7 +222,7 @@ export const PAEDS_DRUGS: Drug[] = [
     id: "carbocisteine",
     name: "Carbocisteine",
     category: "wetCough",
-    preparations: [{ label: "100mg/5ml", mgPerMl: 20 }],
+    preparations: [{ label: "100mg/5ml" }],
     mims: [
       { kind: "fixed", minMonths: 24, maxMonths: 72, mgMin: 100, freq: "BD" },
       { kind: "fixed", minMonths: 72, maxMonths: 156, mgMin: 100, freq: "TDS", note: "or 250 mg TDS" },
@@ -233,7 +236,7 @@ export const PAEDS_DRUGS: Drug[] = [
     id: "ambroxol",
     name: "Ambroxol",
     category: "wetCough",
-    preparations: [{ label: "3mg/ml", mgPerMl: 3 }],
+    preparations: [{ label: "3mg/ml" }],
     caution: "MIMS jumps from \"<6 months\" to \"7-11 months\"; infants of exactly 6 months fall in no published band.",
     mims: [
       { kind: "fixed", maxMonths: 6, mgMin: 3, freq: "BD" },
@@ -250,7 +253,7 @@ export const PAEDS_DRUGS: Drug[] = [
     id: "guaifenesin",
     name: "Guaifenesin",
     category: "wetCough",
-    preparations: [{ label: "50mg/5ml", mgPerMl: 10 }],
+    preparations: [{ label: "50mg/5ml" }],
     mims: [{ kind: "fixed", minMonths: 72, maxMonths: 156, mgMin: 100, freq: "QID" }],
     shann: [{ kind: "perKg", mgPerKgMin: 4, mgPerKgMax: 8, freq: "Q4H" }],
   },
@@ -259,11 +262,12 @@ export const PAEDS_DRUGS: Drug[] = [
     //       >12 years: 25-50mg TDS or QID
     // Shann 1-2mg/kg TDS or QID
     id: "diphenhydramine",
+    frequentlyUsed: true,
     name: "Diphenhydramine",
     category: "wetCough",
     preparations: [
-      { label: "12.5mg/5ml", mgPerMl: 2.5 },
-      { label: "14mg/5ml", mgPerMl: 2.8 },
+      { label: "12.5mg/5ml" },
+      { label: "14mg/5ml" },
     ],
     caution: "MIMS runs to 11 years then resumes above 12; 12-year-olds fall in no published band.",
     mims: [
@@ -281,7 +285,7 @@ export const PAEDS_DRUGS: Drug[] = [
     id: "dextromethorphan",
     name: "Dextromethorphan",
     category: "dryCough",
-    preparations: [{ label: "15mg/5ml", mgPerMl: 3 }],
+    preparations: [{ label: "15mg/5ml" }],
     mims: [{ kind: "notRecommended", belowMonths: 144, note: "Not recommended under 12 years" }],
     shann: [
       { kind: "notRecommended", belowMonths: 144, note: "Not recommended under 12 years (MIMS)" },
@@ -294,7 +298,7 @@ export const PAEDS_DRUGS: Drug[] = [
     id: "pholcodine",
     name: "Pholcodine",
     category: "dryCough",
-    preparations: [{ label: "10mg/5ml", mgPerMl: 2 }],
+    preparations: [{ label: "10mg/5ml" }],
     mims: [{ kind: "fixed", minMonths: 72, maxMonths: 156, mgMin: 2, mgMax: 5, freq: "TDS or QID" }],
     shann: [{ kind: "fixed", minMonths: 72, maxMonths: 156, mgMin: 2.5, mgMax: 5, freq: "TDS or QID" }],
   },
@@ -304,9 +308,10 @@ export const PAEDS_DRUGS: Drug[] = [
     // MIMS  2-6 years: 1-2mg TDS or QID / >6-12 years: 2mg TDS or QID
     // Shann 0.1-0.15mg/kg QID
     id: "salbutamol",
+    frequentlyUsed: true,
     name: "Salbutamol",
     category: "misc",
-    preparations: [{ label: "2mg/5ml", mgPerMl: 0.4 }],
+    preparations: [{ label: "2mg/5ml" }],
     mims: [
       { kind: "fixed", minMonths: 24, maxMonths: 84, mgMin: 1, mgMax: 2, freq: "TDS or QID" },
       { kind: "fixed", minMonths: 84, maxMonths: 156, mgMin: 2, freq: "TDS or QID" },
@@ -318,10 +323,11 @@ export const PAEDS_DRUGS: Drug[] = [
     //       7-14 years: 10-15ml daily
     // Shann 0.5ml/kg BD
     id: "lactulose",
+    frequentlyUsed: true,
     name: "Lactulose",
     category: "misc",
     // Dosed by volume in both sources, so no mg conversion is offered.
-    preparations: [{ label: "3.335g/5ml", mgPerMl: null }],
+    preparations: [{ label: "3.335g/5ml" }],
     mims: [
       { kind: "volume", maxMonths: 12, mlMin: 5, freq: "daily", note: "up to" },
       { kind: "volume", minMonths: 12, maxMonths: 84, mlMin: 5, mlMax: 10, freq: "daily" },
