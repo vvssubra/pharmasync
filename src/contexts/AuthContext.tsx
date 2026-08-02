@@ -20,6 +20,11 @@ interface AuthContextValue {
   role: AppRole | null;
   loading: boolean;
   authError: string | null;
+  // The account's password was set by an admin (create_user / reset_password
+  // stamp user_metadata.must_change_password). ProtectedRoute holds the user on
+  // /change-password until they replace it. A first-login prompt, not a
+  // security boundary: user_metadata is writable by its own user.
+  mustChangePassword: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -157,8 +162,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await loadProfileAndRole(user.id, setProfile, setRole, setLoading);
   };
 
+  const mustChangePassword = user?.user_metadata?.must_change_password === true;
+
   return (
-    <AuthContext.Provider value={{ user, session, profile, role, loading, authError, signOut, refreshProfile }}>
+    <AuthContext.Provider
+      value={{ user, session, profile, role, loading, authError, mustChangePassword, signOut, refreshProfile }}
+    >
       {children}
     </AuthContext.Provider>
   );

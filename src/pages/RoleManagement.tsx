@@ -146,7 +146,7 @@ export default function RoleManagement() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["all-users-with-roles"] });
-      toast.success("User created successfully.");
+      toast.success("User created. They will be asked to change this password at first login.");
       setAddUserOpen(false);
       setNewName(""); setNewEmail(""); setNewPassword(""); setNewRole("mo"); setNewClinicId("");
       setAddUserError(null);
@@ -206,7 +206,7 @@ export default function RoleManagement() {
       return json;
     },
     onSuccess: () => {
-      toast.success("Kata laluan berjaya ditukar.");
+      toast.success("Kata laluan berjaya ditukar. User will be asked to change it at next login.");
       setResetOpen(false);
       setResetPassword("");
       setResetError(null);

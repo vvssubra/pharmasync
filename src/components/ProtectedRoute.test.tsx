@@ -34,6 +34,7 @@ function renderWithRouter(
     role: AppRole | null;
     loading: boolean;
     profile?: MockProfile | null;
+    mustChangePassword?: boolean;
   }
 ) {
   (useAuth as ReturnType<typeof vi.fn>).mockReturnValue(auth);
@@ -45,6 +46,7 @@ function renderWithRouter(
         <Route path="/request"         element={<ProtectedRoute><div>Doctor Request page</div></ProtectedRoute>} />
         <Route path="/role-management" element={<ProtectedRoute><div>Role Management page</div></ProtectedRoute>} />
         <Route path="/drugs"           element={<ProtectedRoute><div>Drugs page</div></ProtectedRoute>} />
+        <Route path="/change-password" element={<ProtectedRoute><div>Change Password page</div></ProtectedRoute>} />
         <Route path="/"                element={<div>Dashboard</div>} />
         <Route path="/login"           element={<div>Login page</div>} />
       </Routes>
@@ -148,6 +150,56 @@ describe("ProtectedRoute", () => {
     it("shows skeleton while loading", () => {
       renderWithRouter("/drugs", { user: null, role: null, loading: true });
       expect(screen.getByText("Loading skeleton")).toBeInTheDocument();
+    });
+  });
+
+  // Admin-created accounts share one temporary password, so the app is closed
+  // to them until they set their own.
+  describe("user who must change their password", () => {
+    const approved: MockProfile = {
+      full_name: "Dr Ada", clinic_id: "clinic-1", clinic_name: "KK Kempas", pending_clinic_id: null,
+    };
+
+    it("redirects to /change-password from any page", () => {
+      renderWithRouter("/request", {
+        user: { id: "1" }, role: "mo", loading: false, profile: approved, mustChangePassword: true,
+      });
+      expect(screen.getByText("Change Password page")).toBeInTheDocument();
+    });
+
+    it("renders /change-password itself instead of looping", () => {
+      renderWithRouter("/change-password", {
+        user: { id: "1" }, role: "mo", loading: false, profile: approved, mustChangePassword: true,
+      });
+      expect(screen.getByText("Change Password page")).toBeInTheDocument();
+    });
+
+    // The gate runs ahead of the clinic and role gates: a temporary password is
+    // worth replacing even on an account that is still waiting for approval.
+    it("wins over the pending-approval and clinic gates", () => {
+      renderWithRouter("/drugs", {
+        user: { id: "1" }, role: null, loading: false,
+        profile: { full_name: "Dr Ada", clinic_id: null, clinic_name: "", pending_clinic_id: null },
+        mustChangePassword: true,
+      });
+      expect(screen.getByText("Change Password page")).toBeInTheDocument();
+    });
+
+    // /change-password short-circuits ROUTE_PERMISSIONS; left to the table it
+    // would fall through to the admin/pharmacist default and mo would meet
+    // NoPermission on the one page they are being forced onto.
+    it("lets a mo open /change-password voluntarily", () => {
+      renderWithRouter("/change-password", {
+        user: { id: "1" }, role: "mo", loading: false, profile: approved, mustChangePassword: false,
+      });
+      expect(screen.getByText("Change Password page")).toBeInTheDocument();
+    });
+
+    it("does not redirect once the flag is clear", () => {
+      renderWithRouter("/request", {
+        user: { id: "1" }, role: "mo", loading: false, profile: approved, mustChangePassword: false,
+      });
+      expect(screen.getByText("Doctor Request page")).toBeInTheDocument();
     });
   });
 

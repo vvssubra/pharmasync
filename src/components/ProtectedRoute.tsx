@@ -21,6 +21,8 @@ const ROUTE_PERMISSIONS: Array<{ prefix: string; roles: AppRole[] }> = [
   { prefix: "/pesakit",         roles: ["admin", "fms", "pharmacist", "super_admin"] },
   { prefix: "/laporan",         roles: ["admin", "fms", "pharmacist", "super_admin"] },
   { prefix: "/",                roles: ["admin", "fms", "mo", "pharmacist", "super_admin"] },
+  // NB /change-password is deliberately absent: it is open to every signed-in
+  // user and short-circuits before this table is consulted (see below).
 ];
 
 function getAllowedRoles(pathname: string): AppRole[] {
@@ -33,7 +35,7 @@ function getAllowedRoles(pathname: string): AppRole[] {
 }
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, role, loading, profile } = useAuth();
+  const { user, role, loading, profile, mustChangePassword } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -46,6 +48,22 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Ahead of the clinic and role gates on purpose: an admin-created account
+  // arrives with a shared temporary password, and that has to be replaced
+  // before the account is worth anything — including before it is told to wait
+  // for approval. Navigating away from /change-password lands back here.
+  if (mustChangePassword && location.pathname !== "/change-password") {
+    return <Navigate to="/change-password" replace />;
+  }
+
+  // Changing your own password reads and writes nothing clinic-scoped, so the
+  // clinic and role gates below do not apply. Without this, a user held here by
+  // must_change_password but not yet approved into a clinic would be shown
+  // ClinicRequest and could never reach the form they were sent to.
+  if (location.pathname === "/change-password") {
+    return <>{children}</>;
   }
 
   // No clinic → nothing in the app works: every clinic-scoped insert raises in

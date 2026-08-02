@@ -25,6 +25,7 @@ import AntibioticArchive from "@/pages/AntibioticArchive";
 import PatientRegistry from "@/pages/PatientRegistry";
 import RoleManagement from "@/pages/RoleManagement";
 import ResetPassword from "@/pages/ResetPassword";
+import ChangePassword from "@/pages/ChangePassword";
 import Survey from "@/pages/Survey";
 import NotFound from "@/pages/NotFound";
 
@@ -57,6 +58,9 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/survey" element={<Survey />} />
+            {/* Every role: reachable from the navbar, and the only page a user
+                with must_change_password can open. */}
+            <Route path="/change-password" element={<ProtectedRoute><AppLayout><ChangePassword /></AppLayout></ProtectedRoute>} />
             {/* MO routes */}
             <Route path="/request" element={<ProtectedRoute><AppLayout><DoctorLanding /></AppLayout></ProtectedRoute>} />
             <Route path="/request/ubat" element={<ProtectedRoute><AppLayout><DoctorRequest /></AppLayout></ProtectedRoute>} />

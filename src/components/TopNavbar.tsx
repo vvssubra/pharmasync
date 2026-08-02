@@ -1,4 +1,5 @@
-import { LogOut } from "lucide-react";
+import { KeyRound, LogOut } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { SidebarTrigger } from "@/components/ui/sidebar";
@@ -6,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export function TopNavbar() {
   const { profile, role, signOut } = useAuth();
+  const navigate = useNavigate();
 
   const initials = profile?.full_name
     ? profile.full_name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase()
@@ -42,6 +44,15 @@ export function TopNavbar() {
             </div>
           </div>
         )}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => navigate("/change-password")}
+          aria-label="Change password"
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <KeyRound className="h-4 w-4" />
+        </Button>
         <Button
           variant="ghost"
           size="icon"

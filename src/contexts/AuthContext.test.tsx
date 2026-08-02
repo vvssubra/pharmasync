@@ -13,6 +13,7 @@ function fakeSession(opts: {
   email: string;
   amr?: { method: string }[];
   provider?: string;
+  userMetadata?: Record<string, unknown>;
 }) {
   const payload = opts.amr !== undefined ? { amr: opts.amr } : {};
   return {
@@ -21,6 +22,7 @@ function fakeSession(opts: {
       id: "00000000-0000-0000-0000-00000000abcd",
       email: opts.email,
       app_metadata: opts.provider ? { provider: opts.provider } : {},
+      user_metadata: opts.userMetadata ?? {},
     },
   };
 }
@@ -49,11 +51,12 @@ vi.mock("@/integrations/supabase/client", () => ({
 }));
 
 function Probe() {
-  const { user, authError } = useAuth();
+  const { user, authError, mustChangePassword } = useAuth();
   return (
     <div>
       <span data-testid="error">{authError ?? "none"}</span>
       <span data-testid="user">{user?.email ?? "none"}</span>
+      <span data-testid="must-change">{String(mustChangePassword)}</span>
     </div>
   );
 }
@@ -104,5 +107,44 @@ describe("AuthContext Google-domain gate", () => {
     );
     expect(await screen.findByText(/only @moh\.gov\.my/i)).toBeInTheDocument();
     expect(signOut).toHaveBeenCalled();
+  });
+});
+
+describe("AuthContext mustChangePassword", () => {
+  beforeEach(() => {
+    signOut.mockClear();
+  });
+
+  it("is true when the admin stamped the flag", async () => {
+    renderWithSession(
+      fakeSession({
+        email: "doctor@gmail.com",
+        amr: [{ method: "password" }],
+        userMetadata: { full_name: "Dr Ada", must_change_password: true },
+      }),
+    );
+    expect(await screen.findByText("doctor@gmail.com")).toBeInTheDocument();
+    expect(screen.getByTestId("must-change")).toHaveTextContent("true");
+  });
+
+  it("is false once the flag has been cleared", async () => {
+    renderWithSession(
+      fakeSession({
+        email: "doctor@gmail.com",
+        amr: [{ method: "password" }],
+        userMetadata: { full_name: "Dr Ada", must_change_password: false },
+      }),
+    );
+    expect(await screen.findByText("doctor@gmail.com")).toBeInTheDocument();
+    expect(screen.getByTestId("must-change")).toHaveTextContent("false");
+  });
+
+  // Accounts that predate the flag carry no metadata key at all.
+  it("is false when the flag was never set", async () => {
+    renderWithSession(
+      fakeSession({ email: "doctor@moh.gov.my", amr: [{ method: "password" }] }),
+    );
+    expect(await screen.findByText("doctor@moh.gov.my")).toBeInTheDocument();
+    expect(screen.getByTestId("must-change")).toHaveTextContent("false");
   });
 });

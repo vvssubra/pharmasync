@@ -47,6 +47,17 @@ function adminClient() {
   );
 }
 
+// A client that acts *as the caller*, not as service_role. Needed for
+// approve_clinic_member(): its gate is is_admin() or is_super_admin(), both of
+// which read auth.uid(), and a service-role request carries none.
+function callerClient(authorization: string) {
+  return createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_ANON_KEY")!,
+    { global: { headers: { Authorization: authorization } } },
+  );
+}
+
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
   const cors = corsHeaders(origin);
@@ -130,7 +141,17 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { error } = await supabase.auth.admin.updateUserById(user_id, { password });
+    // An admin-set password is a temporary one, so re-arm the first-login
+    // change prompt. updateUserById replaces user_metadata wholesale — read
+    // and merge, or full_name and clinic_id are lost.
+    const { data: existing } = await supabase.auth.admin.getUserById(user_id);
+    const { error } = await supabase.auth.admin.updateUserById(user_id, {
+      password,
+      user_metadata: {
+        ...(existing?.user?.user_metadata ?? {}),
+        must_change_password: true,
+      },
+    });
     if (error) {
       return new Response(
         JSON.stringify({ error: error.message }),
@@ -282,7 +303,10 @@ Deno.serve(async (req) => {
     email,
     password,
     email_confirm: true,
-    user_metadata: { full_name, clinic_id: targetClinicId },
+    // must_change_password: the password above was chosen by an admin and is
+    // shared out of band, so ProtectedRoute forces /change-password on first
+    // login until the user replaces it.
+    user_metadata: { full_name, clinic_id: targetClinicId, must_change_password: true },
   });
 
   if (createError) {
@@ -293,15 +317,25 @@ Deno.serve(async (req) => {
     );
   }
 
-  // ── 6. Assign role ─────────────────────────────────────────────────────────
-  const { error: roleError } = await supabase
-    .from("user_roles")
-    .upsert({ user_id: newUser.user.id, role }, { onConflict: "user_id" });
+  // ── 6. Assign clinic + role ────────────────────────────────────────────────
+  // handle_new_user() deliberately parks the signup's clinic in
+  // pending_clinic_id and leaves clinic_id NULL, so a freshly created user
+  // would land on the Pending Approval screen. An admin creating an account
+  // *is* the approval, so run the same RPC the approve button uses: it sets
+  // profiles.clinic_id, clears pending_clinic_id and upserts user_roles in one
+  // statement. It has to run as the caller — service_role has no auth.uid()
+  // and would fail the RPC's own is_admin()/is_super_admin() gate.
+  const { error: assignError } = await callerClient(req.headers.get("authorization")!)
+    .rpc("approve_clinic_member", {
+      target_user: newUser.user.id,
+      target_role: role,
+      target_clinic: targetClinicId,
+    });
 
-  if (roleError) {
+  if (assignError) {
     await supabase.auth.admin.deleteUser(newUser.user.id);
     return new Response(
-      JSON.stringify({ error: "Failed to assign role. User creation rolled back." }),
+      JSON.stringify({ error: `Failed to assign clinic and role. User creation rolled back. ${assignError.message}` }),
       { status: 500, headers: { ...cors, "Content-Type": "application/json" } },
     );
   }
