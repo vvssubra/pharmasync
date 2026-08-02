@@ -1,4 +1,4 @@
-import { Home, Pill, PackagePlus, FileText, Bell, Users, Stethoscope, ShieldCheck, UserCog, BarChart2, ClipboardList, Archive, Baby } from "lucide-react";
+import { Home, Pill, PackagePlus, FileText, Bell, Users, Stethoscope, ShieldCheck, UserCog, BarChart2, ClipboardList, Archive, Baby, ShieldAlert } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,6 +37,7 @@ const items: NavItem[] = [
   { title: "Drug Request",    url: "/request/ubat",       icon: ClipboardList, roles: ["admin", "mo", "pharmacist"] },
   { title: "Antibiotic Form", url: "/request/antibiotik", icon: Pill,          roles: ["admin", "mo", "pharmacist"] },
   { title: "Paeds Dose",      url: "/dos-paediatrik",     icon: Baby,          roles: ["admin", "fms", "mo", "pharmacist"] },
+  { title: "G6PD",            url: "/g6pd",               icon: ShieldAlert,   roles: ["admin", "fms", "mo", "pharmacist"] },
   { title: "Arkib Antibiotik", url: "/arkib-antibiotik",   icon: Archive,       roles: ["admin", "fms", "pharmacist"] },
   { title: "Role Management", url: "/role-management",    icon: UserCog,       showBadge: true, roles: ["admin"] },
 ];

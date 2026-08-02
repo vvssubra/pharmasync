@@ -27,6 +27,7 @@ import RoleManagement from "@/pages/RoleManagement";
 import ResetPassword from "@/pages/ResetPassword";
 import ChangePassword from "@/pages/ChangePassword";
 import PaedsDoseCalculator from "@/pages/PaedsDoseCalculator";
+import G6pdDeficiency from "@/pages/G6pdDeficiency";
 import Survey from "@/pages/Survey";
 import NotFound from "@/pages/NotFound";
 
@@ -68,6 +69,7 @@ const App = () => (
             <Route path="/request/antibiotik" element={<ProtectedRoute><AppLayout><AntibioticForm /></AppLayout></ProtectedRoute>} />
             <Route path="/mo" element={<ProtectedRoute><AppLayout><MoDashboard /></AppLayout></ProtectedRoute>} />
             {/* Reference tool — read-only, no patient record is created. */}
+            <Route path="/g6pd" element={<ProtectedRoute><AppLayout><G6pdDeficiency /></AppLayout></ProtectedRoute>} />
             <Route path="/dos-paediatrik" element={<ProtectedRoute><AppLayout><PaedsDoseCalculator /></AppLayout></ProtectedRoute>} />
             {/* FMS + Approvals */}
             <Route path="/fms" element={<ProtectedRoute><AppLayout><FmsDashboard /></AppLayout></ProtectedRoute>} />
