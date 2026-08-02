@@ -38,6 +38,20 @@ const PAIRS: MirrorPair[] = [
     startMarker: "// <<<shared-dosequery",
     endMarker: "// shared-dosequery>>>",
   },
+  {
+    name: "abxDose",
+    srcPath: "../../../src/lib/abxDose.ts",
+    sharedPath: "./abxDose.ts",
+    startMarker: "// <<<shared-abxdose",
+    endMarker: "// shared-abxdose>>>",
+  },
+  {
+    name: "nagPathways",
+    srcPath: "../../../src/lib/nagPathways.ts",
+    sharedPath: "./nagPathways.ts",
+    startMarker: "// <<<shared-nagpathways",
+    endMarker: "// shared-nagpathways>>>",
+  },
 ];
 
 function extractMarked(fileUrl: URL, startMarker: string, endMarker: string): string {

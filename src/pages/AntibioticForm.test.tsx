@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import AntibioticForm from "./AntibioticForm";
@@ -103,6 +103,44 @@ describe("AntibioticForm assigned FMS", () => {
 
     fireEvent.keyDown(screen.getByText("Select FMS"), { key: "Enter" });
     expect(await screen.findByText(/Tiada FMS berdaftar/, {}, { timeout: 10_000 })).toBeInTheDocument();
+  });
+});
+
+describe("AntibioticForm weight-driven local dose card", () => {
+  it("shows the weight field even with no IC entered (regression: used to require an IC-derived age < 12)", async () => {
+    renderForm();
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("get_fms_list"));
+    expect(screen.getByPlaceholderText("kg")).toBeInTheDocument();
+  });
+
+  it("computes the AOM local dose with no network call and fills the regimen field on Use", async () => {
+    renderForm();
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("get_fms_list"));
+
+    fireEvent.click(within(screen.getByText("OTALGIA").closest("label")!).getByRole("checkbox"));
+    fireEvent.click(screen.getByLabelText("YES")); // AOM otoscopy finding
+    fireEvent.change(screen.getByPlaceholderText("kg"), { target: { value: "14" } });
+
+    expect(await screen.findByText("Amoxicillin 1120-1260 mg/day PO divided BD x 5-7 days")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Use" }));
+    expect(screen.getByPlaceholderText(/Amoxicillin 500mg TDS/i)).toHaveValue(
+      "Amoxicillin 1120-1260 mg/day PO divided BD x 5-7 days"
+    );
+  });
+
+  it("shows a hint instead of a card when the matched pathway has no local weight rule (CAP)", async () => {
+    renderForm();
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("get_fms_list"));
+
+    fireEvent.click(within(screen.getByText(/ACUTE COUGH \/ SPUTUM/).closest("label")!).getByRole("checkbox"));
+    fireEvent.click(within(screen.getByText("FEVER (>38°C)").closest("label")!).getByRole("checkbox"));
+    fireEvent.change(screen.getByPlaceholderText("kg"), { target: { value: "20" } });
+
+    expect(
+      await screen.findByText(/No local paediatric dose for this indication/i)
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/mg\/day PO/)).toBeNull();
   });
 });
 

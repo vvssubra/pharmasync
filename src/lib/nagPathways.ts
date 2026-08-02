@@ -1,13 +1,23 @@
-// supabase/functions/_shared/nagPathways.ts
-// Mirrored verbatim from src/lib/nagPathways.ts (parity-tested) because the
-// edge bundle cannot import outside supabase/functions/.
+// src/lib/nagPathways.ts
+// Seed data transcribed verbatim from knowledge-service/vault-sample/*.md
+// (NAG 2024 dosing notes already used by the local knowledge-service dose
+// lookup). Replaces the 500KB Storage-hosted nag-2024.txt document that
+// pathway-check and antibiotic-suggest previously fed whole into an LLM
+// prompt — no CPU-only model can afford that context, and this data is
+// small enough to evaluate with plain rules instead.
+//
+// Mirrored verbatim into supabase/functions/_shared/nagPathways.ts
+// (parity-tested) because the edge bundle cannot import outside
+// supabase/functions/. Lives here (not just in _shared) so the antibiotic
+// form can compute a weight-based dose locally, without a network call —
+// see resolveLocalDose() in src/lib/abxDose.ts.
 //
 // The import lines are deliberately outside the shared-nagpathways markers:
 // the two mirrored files resolve these modules differently (bundler-style
-// extensionless specifiers in src/lib vs Deno's required ".ts" here), so the
+// extensionless specifiers here vs Deno's required ".ts" in _shared), so the
 // parity test only checks byte-identity from the first export onward.
-import type { PatientGroup } from "./doseQuery.ts";
-import type { AbxWeightRule } from "./abxDose.ts";
+import type { PatientGroup } from "./doseQuery";
+import type { AbxWeightRule } from "./abxDose";
 
 // <<<shared-nagpathways
 export interface NagPathway {

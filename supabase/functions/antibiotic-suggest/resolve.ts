@@ -6,6 +6,7 @@
 
 import { derivePathwayIndication, type ChecklistState } from "../_shared/doseQuery.ts";
 import { matchPathwayDetailed, patientGroupFromAge, isStatedAllergy, identifyDrug, type NagPathway, type PathwayMatch } from "../_shared/nagPathways.ts";
+import { computeAbxDose } from "../_shared/abxDose.ts";
 
 /**
  * The resolved regimen already names an allowed drug (it's built from
@@ -86,8 +87,26 @@ export function resolveCase(input: ResolveInput): ResolvedCase {
   }
 
   const hasAllergy = isStatedAllergy(input.allergy_status);
+  const patientGroup = patientGroupFromAge(input.patient_age);
+
   if (hasAllergy && pathway.alternatives.length > 0) {
     const alt = pathway.alternatives[0];
+    // The allergy alternative itself is weight-based (e.g. paediatric
+    // azithromycin) — compute it through the same math the antibiotic
+    // form's local dose card uses, rather than handing back the fixed
+    // adult-shaped alternative text to a child.
+    if (patientGroup === "Paediatric" && pathway.allergyWeightBased && input.patient_weight_kg != null) {
+      const dose = computeAbxDose(pathway.allergyWeightBased, input.patient_weight_kg);
+      if (dose) {
+        return {
+          pathway,
+          regimenText: dose.text,
+          rationale: `NAG ${pathway.indication} allergy alternative, weight-based dosing: ${dose.basis}.`,
+          warning: `Allergy noted (${input.allergy_status}) — this is the NAG alternative regimen, confirm before prescribing.${dose.capped ? " Dose capped at label maximum." : ""}`,
+          needsLlmPhrasing: true,
+        };
+      }
+    }
     return {
       pathway,
       regimenText: alt.regimen,
@@ -97,19 +116,17 @@ export function resolveCase(input: ResolveInput): ResolvedCase {
     };
   }
 
-  const patientGroup = patientGroupFromAge(input.patient_age);
   if (patientGroup === "Paediatric" && pathway.weightBased && input.patient_weight_kg != null) {
-    const { drug, mgPerKgPerDayRange: [lo, hi], frequency, durationDaysRange: [dMin, dMax] } = pathway.weightBased;
-    const doseLow = Math.round(input.patient_weight_kg * lo);
-    const doseHigh = Math.round(input.patient_weight_kg * hi);
-    const regimenText = `${drug} ${doseLow}-${doseHigh} mg/day PO ${frequency} x ${dMin}-${dMax} days`;
-    return {
-      pathway,
-      regimenText,
-      rationale: `Weight-based dosing per NAG ${pathway.indication}: ${lo}-${hi} mg/kg/day for a ${input.patient_weight_kg}kg patient.`,
-      warning: null,
-      needsLlmPhrasing: true,
-    };
+    const dose = computeAbxDose(pathway.weightBased, input.patient_weight_kg);
+    if (dose) {
+      return {
+        pathway,
+        regimenText: dose.text,
+        rationale: `Weight-based dosing per NAG ${pathway.indication}: ${dose.basis}.`,
+        warning: dose.capped ? "Dose capped at label maximum." : null,
+        needsLlmPhrasing: true,
+      };
+    }
   }
 
   // No allergy, and either not weight-based or no weight given to compute

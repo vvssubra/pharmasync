@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,6 +11,8 @@ import { useDoseSuggestion } from "@/hooks/useDoseSuggestion";
 import PathwayCheckBanner from "@/components/PathwayCheckBanner";
 import { AI_ENABLED, AI_SUGGEST_ROLES, PATHWAY_CHECK_ENABLED, KNOWLEDGE_ENABLED } from "@/lib/featureFlags";
 import { deriveDoseQuery, type ChecklistState } from "@/lib/doseQuery";
+import { resolveLocalDose } from "@/lib/abxDose";
+import AbxDoseCard from "@/components/AbxDoseCard";
 import { exampleDoseFor } from "@/lib/knowledgeClient";
 
 import { Button } from "@/components/ui/button";
@@ -172,7 +174,26 @@ export default function AntibioticForm() {
   }, [editable, editForm?.id]);
 
   const age = getAgeFromIC(patientIC);
-  const showWeight = age !== null && age < 12;
+
+  // Weight is always optional and always collected — it used to only render
+  // for an IC-derived age < 12, so a mistyped/foreign IC silently dropped
+  // the field entirely. Parsed once here; a non-empty value that isn't a
+  // sane weight (matches the antibiotic-suggest edge zod: 0 < kg <= 300)
+  // shows an inline hint but never blocks submission.
+  const weightRaw = patientWeight.trim();
+  const weightParsed = weightRaw === "" ? null : parseFloat(weightRaw);
+  const weightValid = weightParsed != null && Number.isFinite(weightParsed) && weightParsed > 0 && weightParsed <= 300;
+  const weightInvalid = weightRaw !== "" && !weightValid;
+  const weightKg = weightValid ? weightParsed : null;
+
+  // Deterministic, local, no network call — computed from the same NAG data
+  // and math the antibiotic-suggest edge function uses server-side, so this
+  // card and the AI fallback below never disagree.
+  const localDose = useMemo(
+    () => resolveLocalDose({ checklist, diagnosis, age, weightKg, hasAllergy: drugAllergy }),
+    [checklist, diagnosis, age, weightKg, drugAllergy]
+  );
+  const hasLocalDose = "result" in localDose;
 
   const { verdict: pathwayVerdict, explanation: pathwayExplanation, status: pathwayStatus } = usePathwayCheck({
     diagnosis,
@@ -219,7 +240,7 @@ checklist: checklist as unknown as Record<string, unknown>,
 checklist: checklist as unknown as Record<string, unknown>,
             patient_age: age ?? undefined,
             allergy_status: drugAllergy ? drugAllergyDetail || "Yes (unspecified)" : undefined,
-            patient_weight_kg: showWeight && patientWeight ? parseFloat(patientWeight) : undefined,
+            patient_weight_kg: weightKg ?? undefined,
           }),
         }
       );
@@ -255,7 +276,7 @@ checklist: checklist as unknown as Record<string, unknown>,
         tarikh,
         patient_name: patientName,
         patient_ic: patientIC,
-        patient_weight_kg: showWeight && patientWeight ? parseFloat(patientWeight) : null,
+        patient_weight_kg: weightKg,
         diagnosis,
         prescription_unit: prescriptionUnit || null,
         drug_allergy: drugAllergy,
@@ -381,12 +402,13 @@ checklist: checklist as unknown as Record<string, unknown>,
                 <Label>3. Patient IC No. *</Label>
                 <Input value={patientIC} onChange={e => setPatientIC(formatIC(e.target.value))} placeholder="000000-00-0000" inputMode="numeric" />
               </div>
-              {showWeight && (
-                <div className="space-y-2">
-                  <Label>4. Body Weight (kg) <span className="text-xs text-muted-foreground">(Required if patient &lt; 12 years old)</span></Label>
-                  <Input type="number" value={patientWeight} onChange={e => setPatientWeight(e.target.value)} placeholder="kg" />
-                </div>
-              )}
+              <div className="space-y-2">
+                <Label>4. Body Weight (kg) <span className="text-xs text-muted-foreground">(optional — needed for paediatric dosing)</span></Label>
+                <Input type="number" value={patientWeight} onChange={e => setPatientWeight(e.target.value)} placeholder="kg" />
+                {weightInvalid && (
+                  <p className="text-xs text-destructive">Enter a weight between 0 and 300 kg.</p>
+                )}
+              </div>
               <div className="space-y-2">
                 <Label>5. Diagnosis *</Label>
                 <Textarea value={diagnosis} onChange={e => setDiagnosis(e.target.value)} placeholder="Diagnosis" />
@@ -455,10 +477,18 @@ checklist: checklist as unknown as Record<string, unknown>,
                       className="gap-1.5 text-xs h-7 border-primary/40 text-primary hover:bg-primary/5"
                     >
                       <Sparkles className="h-3 w-3" />
-                      {aiSuggesting ? "Suggesting..." : "Suggest Antibiotic (AI)"}
+                      {aiSuggesting ? "Suggesting..." : hasLocalDose ? "Ask AI instead" : "Suggest Antibiotic (AI)"}
                     </Button>
                   )}
                 </div>
+                {hasLocalDose && (
+                  <AbxDoseCard match={localDose} onUse={(text) => setAntibioticRegimen(text)} />
+                )}
+                {!hasLocalDose && "unavailable" in localDose && localDose.unavailable === "noRule" && (
+                  <p className="text-xs text-muted-foreground">
+                    No local paediatric dose for this indication — use AI Suggest or NAG Section B.
+                  </p>
+                )}
                 {AI_ENABLED && aiSuggestion && (
                   <div className={`rounded-md border p-3 space-y-2 text-sm ${aiSuggestion.source === "refer" ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
                     <div className="flex items-start justify-between gap-2">
