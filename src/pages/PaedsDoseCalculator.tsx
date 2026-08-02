@@ -49,7 +49,7 @@ function Outcome({ outcome, prep }: { outcome: DoseOutcome; prep: Preparation })
   );
 }
 
-function DrugRow({ drug, patient }: { drug: Drug; patient: Patient }) {
+function DrugCard({ drug, patient }: { drug: Drug; patient: Patient }) {
   const [prepIndex, setPrepIndex] = useState(0);
   const prep = drug.preparations[prepIndex] ?? drug.preparations[0];
 
@@ -57,13 +57,13 @@ function DrugRow({ drug, patient }: { drug: Drug; patient: Patient }) {
   const shann = evaluate(drug.shann, patient);
 
   return (
-    <div className="py-3">
+    <div data-testid={`drug-${drug.id}`} className="flex flex-col rounded-lg border bg-card p-4">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 className="text-sm font-semibold">{drug.name}</h3>
         {drug.preparations.length > 1 ? (
           <Select value={String(prepIndex)} onValueChange={(v) => setPrepIndex(Number(v))}>
             <SelectTrigger
-              className="h-7 w-36 text-xs"
+              className="h-7 w-32 text-xs"
               aria-label={`Preparation for ${drug.name}`}
             >
               <SelectValue />
@@ -80,15 +80,15 @@ function DrugRow({ drug, patient }: { drug: Drug; patient: Patient }) {
       </div>
 
       {drug.caution && (
-        <p className="mt-0.5 text-xs italic text-muted-foreground">{drug.caution}</p>
+        <p className="mt-1 text-xs italic text-muted-foreground">{drug.caution}</p>
       )}
 
-      <div className="mt-2 grid gap-2 sm:grid-cols-2 sm:gap-6">
+      <div className="mt-3 space-y-3">
         <div>
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">MIMS</p>
           <Outcome outcome={mims} prep={prep} />
         </div>
-        <div>
+        <div className="border-t pt-3">
           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Frank Shann</p>
           <Outcome outcome={shann} prep={prep} />
         </div>
@@ -190,9 +190,12 @@ export default function PaedsDoseCalculator() {
                 >
                   {CATEGORY_LABELS[category]}
                 </h2>
-                <div className="divide-y rounded-lg border bg-card px-4">
+                {/* auto-fit rather than fixed breakpoints: the card count per
+                    row follows the space available, including when the sidebar
+                    is open. */}
+                <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))]">
                   {drugs.map(d => (
-                    <DrugRow key={d.id} drug={d} patient={patient} />
+                    <DrugCard key={d.id} drug={d} patient={patient} />
                   ))}
                 </div>
               </section>

@@ -8,12 +8,9 @@ function enterPatient({ years = "", months = "", weight = "" }) {
   if (weight !== "") fireEvent.change(screen.getByLabelText(/weight/i), { target: { value: weight } });
 }
 
-/** The block of text under a drug heading, both sources included. */
-function drugSection(name: string) {
-  const heading = screen.getByRole("heading", { name, level: 3 });
-  const section = heading.closest("div")?.parentElement;
-  if (!section) throw new Error(`No section for ${name}`);
-  return within(section);
+/** One drug's card, both sources included. */
+function drugCard(id: string) {
+  return within(screen.getByTestId(`drug-${id}`));
 }
 
 describe("PaedsDoseCalculator", () => {
@@ -29,7 +26,7 @@ describe("PaedsDoseCalculator", () => {
 
   it("shows mg and mL side by side for both sources", () => {
     enterPatient({ years: "2", months: "0", weight: "12" });
-    const paracetamol = drugSection("Paracetamol");
+    const paracetamol = drugCard("paracetamol");
     // MIMS 2-3 years = 180mg, and Frank Shann's 15mg/kg on 12kg lands on the
     // same figure — both lines read 180 mg, and 120mg/5ml is 24mg/ml → 7.5 mL.
     expect(paracetamol.getAllByText(/180 mg/)).toHaveLength(2);
@@ -38,20 +35,20 @@ describe("PaedsDoseCalculator", () => {
 
   it("recalculates when the preparation is changed", () => {
     enterPatient({ years: "2", months: "0", weight: "12" });
-    const paracetamol = drugSection("Paracetamol");
+    const paracetamol = drugCard("paracetamol");
     expect(paracetamol.getAllByText(/7\.5 mL/).length).toBeGreaterThan(0);
 
     // 250mg/5ml is 50mg/ml, so the same 180mg becomes 3.6 mL.
     fireEvent.keyDown(screen.getByLabelText(/preparation for Paracetamol/i), { key: "Enter" });
     const option = screen.getByRole("option", { name: "250mg/5ml" });
     fireEvent.click(option);
-    expect(drugSection("Paracetamol").getAllByText(/3\.6 mL/).length).toBeGreaterThan(0);
+    expect(drugCard("paracetamol").getAllByText(/3\.6 mL/).length).toBeGreaterThan(0);
   });
 
   // The whole point of the contraindication rule: no number to misread.
   it("shows the contraindication and no dose for a 6-year-old on dextromethorphan", () => {
     enterPatient({ years: "6", months: "0", weight: "20" });
-    const section = drugSection("Dextromethorphan");
+    const section = drugCard("dextromethorphan");
     expect(section.getAllByText(/not recommended under 12/i)).toHaveLength(2);
     // A dose reads "8–16 mg · …"; the bottle label reads "15mg/5ml" with no
     // space, so the space is what separates a dose from a strength.
@@ -60,12 +57,12 @@ describe("PaedsDoseCalculator", () => {
 
   it("says when a source publishes no dose at all", () => {
     enterPatient({ years: "3", months: "0", weight: "14" });
-    expect(drugSection("Ambroxol").getByText("No data")).toBeInTheDocument();
+    expect(drugCard("ambroxol").getByText("No data")).toBeInTheDocument();
   });
 
   it("says when the age falls outside every published band", () => {
     enterPatient({ years: "0", months: "1", weight: "4" });
-    expect(drugSection("Paracetamol").getByText(/no band published/i)).toBeInTheDocument();
+    expect(drugCard("paracetamol").getByText(/no band published/i)).toBeInTheDocument();
   });
 
   it("rejects a months value of 12 or more", () => {
