@@ -40,6 +40,14 @@ const ResetPasswordSchema = z.object({
   password: z.string().min(6).max(72),
 });
 
+// GoTrue's wording is "A user with this email address has already been
+// registered" — an exact "already registered" test misses it and turns a
+// duplicate into a 500, which reads as a real outage to any caller looping
+// over a roster.
+function isDuplicateEmail(message: string) {
+  return /already\b.*\bregistered/i.test(message);
+}
+
 function adminClient() {
   return createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -233,7 +241,7 @@ Deno.serve(async (req) => {
     );
 
     if (inviteError) {
-      const status = inviteError.message.includes("already registered") ? 409 : 500;
+      const status = isDuplicateEmail(inviteError.message) ? 409 : 500;
       return new Response(
         JSON.stringify({ error: inviteError.message }),
         { status, headers: { ...cors, "Content-Type": "application/json" } },
@@ -310,7 +318,7 @@ Deno.serve(async (req) => {
   });
 
   if (createError) {
-    const status = createError.message.includes("already registered") ? 409 : 500;
+    const status = isDuplicateEmail(createError.message) ? 409 : 500;
     return new Response(
       JSON.stringify({ error: createError.message }),
       { status, headers: { ...cors, "Content-Type": "application/json" } },

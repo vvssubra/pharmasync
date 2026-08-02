@@ -125,9 +125,13 @@ async function main() {
 
   for (const user of roster) {
     const { status, body } = await createUser(token, user);
+    // The message test is not redundant with the 409: older deployments of the
+    // function matched GoTrue's duplicate wording too narrowly and returned
+    // 500 for an address that already exists.
+    const duplicate = status === 409 || /already\b.*\bregistered/i.test(body.error ?? "");
     let outcome;
     if (status === 201) outcome = "OK";
-    else if (status === 409) outcome = "SKIP (exists)";
+    else if (duplicate) outcome = "SKIP (exists)";
     else outcome = `FAIL ${status}: ${body.error ?? JSON.stringify(body)}`;
     results.push({ email: user.email, role: user.role, outcome });
     console.log(`  ${outcome.startsWith("FAIL") ? "✗" : "·"} ${user.email.padEnd(32)} ${outcome}`);

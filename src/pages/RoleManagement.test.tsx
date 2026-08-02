@@ -205,6 +205,90 @@ describe("RoleManagement pending approval", () => {
   });
 });
 
+const OTHER_MO: MockUser = {
+  user_id: "mo-1", email: "drnisha274@gmail.com", full_name: "NISHANTHINI A/P SUBRAMANIAM",
+  clinic_id: KEMPAS, clinic_name: "Klinik Kesihatan Kempas", role: "mo",
+  pending_clinic_id: null, pending_clinic_name: null,
+};
+
+const OTHER_CLINIC: MockUser = {
+  user_id: "hsa-1", email: "haliza@moh.gov.my", full_name: "HALIZA JALAL",
+  clinic_id: "00000000-0000-0000-0000-000000000002", clinic_name: "Hospital Sultanah Aminah",
+  role: "pharmacist", pending_clinic_id: null, pending_clinic_name: null,
+};
+
+function usersCard() {
+  return screen.getByTestId("all-users-card");
+}
+
+describe("RoleManagement user list", () => {
+  it("filters by name or email as you type", async () => {
+    mockUsers = [APPROVED, OTHER_MO];
+    renderPage();
+    await waitFor(() => expect(within(usersCard()).getByText("Dr Admin")).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText(/search users/i), { target: { value: "nisha" } });
+    expect(within(usersCard()).getByText(/NISHANTHINI/)).toBeTruthy();
+    expect(within(usersCard()).queryByText("Dr Admin")).toBeNull();
+
+    // Email is searched too, not just the display name.
+    fireEvent.change(screen.getByLabelText(/search users/i), { target: { value: "admin@kk" } });
+    expect(within(usersCard()).getByText("Dr Admin")).toBeTruthy();
+    expect(within(usersCard()).queryByText(/NISHANTHINI/)).toBeNull();
+  });
+
+  it("offers a way out when a search matches nobody", async () => {
+    mockUsers = [APPROVED, OTHER_MO];
+    renderPage();
+    await waitFor(() => expect(within(usersCard()).getByText("Dr Admin")).toBeTruthy());
+
+    fireEvent.change(screen.getByLabelText(/search users/i), { target: { value: "zzzz" } });
+    expect(screen.getByText(/no user matches/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /clear filters/i }));
+    expect(within(usersCard()).getByText("Dr Admin")).toBeTruthy();
+  });
+
+  // The clinic line was the same string on every row in a single-clinic
+  // deployment; it only carries information once the list spans clinics.
+  it("prints the clinic per row only when the list spans more than one", async () => {
+    mockUsers = [APPROVED, OTHER_MO];
+    const { unmount } = renderPage();
+    await waitFor(() => expect(within(usersCard()).getByText("Dr Admin")).toBeTruthy());
+    expect(within(usersCard()).queryByText("Klinik Kesihatan Kempas")).toBeNull();
+    unmount();
+
+    mockUsers = [APPROVED, OTHER_CLINIC];
+    renderPage();
+    await waitFor(() => expect(within(usersCard()).getByText("Dr Admin")).toBeTruthy());
+    expect(within(usersCard()).getByText("Klinik Kesihatan Kempas")).toBeTruthy();
+    expect(within(usersCard()).getByText("Hospital Sultanah Aminah")).toBeTruthy();
+  });
+
+  // Role commits on selection now — a per-row Save button spent a permanently
+  // disabled control on every row to guard a reversible one-field change.
+  it("has no per-row Save button", async () => {
+    mockUsers = [APPROVED, OTHER_MO];
+    renderPage();
+    await waitFor(() => expect(within(usersCard()).getByText("Dr Admin")).toBeTruthy());
+    expect(within(usersCard()).queryByRole("button", { name: /^save$/i })).toBeNull();
+  });
+
+  it("shows the role once per row, not as both a badge and a dropdown", async () => {
+    mockUsers = [OTHER_MO];
+    renderPage();
+    await waitFor(() => expect(within(usersCard()).getByText(/NISHANTHINI/)).toBeTruthy());
+    expect(within(usersCard()).getAllByText("Medical Officer")).toHaveLength(1);
+  });
+
+  it("labels the row action menu with the person it acts on", async () => {
+    mockUsers = [OTHER_MO];
+    renderPage();
+    await waitFor(() => expect(within(usersCard()).getByText(/NISHANTHINI/)).toBeTruthy());
+    expect(screen.getByRole("button", { name: /actions for NISHANTHINI/i })).toBeTruthy();
+  });
+});
+
 async function openAddUserDialog() {
   await waitFor(() => expect(screen.getByTestId("all-users-card")).toBeTruthy());
   fireEvent.click(screen.getByRole("button", { name: /add user/i }));

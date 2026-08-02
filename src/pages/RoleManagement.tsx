@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { UserCog, Users, Plus, KeyRound, UserPlus } from "lucide-react";
+import { UserCog, Users, Plus, KeyRound, UserPlus, Search, MoreHorizontal } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { getErrorMessage } from "@/lib/errors";
 
 const ADMIN_MGMT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-user-mgmt`;
@@ -37,6 +41,7 @@ const ROLE_LABELS: Record<string, string> = {
   fms: "FMS",
   mo: "Medical Officer",
   pharmacist: "Pharmacist",
+  super_admin: "Super Admin",
 };
 
 const ASSIGNABLE_ROLES = ["admin", "fms", "mo", "pharmacist"] as const;
@@ -49,18 +54,28 @@ function isAssignableRole(value: string): value is AssignableRole {
   return (ASSIGNABLE_ROLES as readonly string[]).includes(value);
 }
 
-const ROLE_BADGE_CLASSES: Record<string, string> = {
-  admin:      "bg-purple-100 text-purple-700 border-purple-300",
-  fms:        "bg-blue-100 text-blue-700 border-blue-300",
-  mo:         "bg-teal-100 text-teal-700 border-teal-300",
-  pharmacist: "bg-green-100 text-green-700 border-green-300",
-};
+// Role is a category, not a state. Four saturated pastels repeated down a
+// 30-row list made every row shout equally and none of them readable; finding
+// a role is the filter's job now. Colour is spent only where it means
+// "this account can change other accounts".
+const PRIVILEGED_BADGE = "bg-amber-50 text-amber-800 border-amber-300";
+const PLAIN_BADGE = "bg-muted/50 text-foreground/80 border-border";
+
+function roleBadgeClass(role: string) {
+  return role === "admin" || role === "super_admin" ? PRIVILEGED_BADGE : PLAIN_BADGE;
+}
+
+const ROLE_FILTER_ALL = "all";
 
 export default function RoleManagement() {
   const { user: currentUser, role: currentRole } = useAuth();
   const isSuperAdmin = currentRole === "super_admin";
   const queryClient = useQueryClient();
-  const [pendingRole, setPendingRole] = useState<Record<string, string>>({});
+
+  // The list outgrew scrolling once several clinics shared it, so it is
+  // searched and filtered rather than read top to bottom.
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState<string>(ROLE_FILTER_ALL);
 
   const [addUserOpen, setAddUserOpen] = useState(false);
   const [newName, setNewName] = useState("");
@@ -101,8 +116,11 @@ export default function RoleManagement() {
     },
   });
 
+  // Commits on selection — there is no Save button. A row-level save button
+  // spends a permanently-disabled control on every row to guard a one-field
+  // change that is trivially reversible, so the guard is an Undo instead.
   const assignRole = useMutation({
-    mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
+    mutationFn: async ({ userId, role }: { userId: string; role: string; previousRole?: string; isUndo?: boolean }) => {
       if (role === "unassigned") {
         const { error } = await supabase.from("user_roles").delete().eq("user_id", userId);
         if (error) throw error;
@@ -114,10 +132,22 @@ export default function RoleManagement() {
         if (error) throw error;
       }
     },
-    onSuccess: (_data, { userId }) => {
+    onSuccess: (_data, { userId, role, previousRole, isUndo }) => {
       queryClient.invalidateQueries({ queryKey: ["all-users-with-roles"] });
-      setPendingRole(prev => { const next = { ...prev }; delete next[userId]; return next; });
-      toast.success("Role updated successfully.");
+      if (isUndo) {
+        toast.success("Change reverted.");
+        return;
+      }
+      const label = role === "unassigned" ? "Unassigned" : ROLE_LABELS[role] ?? role;
+      toast.success(`Role set to ${label}.`, {
+        action: previousRole
+          ? {
+              label: "Undo",
+              onClick: () =>
+                assignRole.mutate({ userId, role: previousRole, isUndo: true }),
+            }
+          : undefined,
+      });
     },
     onError: () => toast.error("Failed to update role."),
   });
@@ -221,6 +251,26 @@ export default function RoleManagement() {
   // super_admin is the exception: no clinic by design, never pending.
   const pendingUsers = users.filter(u => u.clinic_id === null && u.role !== "super_admin");
   const activeUsers = users.filter(u => u.clinic_id !== null || u.role === "super_admin");
+
+  // One clinic on screen means the clinic line is the same string on every
+  // row — noise. It earns its place only when the list actually spans clinics,
+  // which is the super_admin view.
+  const showClinic = new Set(activeUsers.map(u => u.clinic_name).filter(Boolean)).size > 1;
+
+  const term = search.trim().toLowerCase();
+  const visibleUsers = activeUsers.filter(u => {
+    const matchesRole =
+      roleFilter === ROLE_FILTER_ALL ||
+      (roleFilter === "unassigned" ? !u.role : u.role === roleFilter);
+    if (!matchesRole) return false;
+    if (!term) return true;
+    return (
+      u.full_name?.toLowerCase().includes(term) ||
+      u.email?.toLowerCase().includes(term) ||
+      (u.clinic_name?.toLowerCase().includes(term) ?? false)
+    );
+  });
+  const isFiltered = term !== "" || roleFilter !== ROLE_FILTER_ALL;
 
   const approveMember = useMutation({
     mutationFn: async ({ userId, role, clinicId }: { userId: string; role: string; clinicId: string | null }) => {
@@ -353,18 +403,47 @@ export default function RoleManagement() {
       )}
 
       <Card data-testid="all-users-card">
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Users className="h-4 w-4 text-muted-foreground" />
-            All Users
-            {!isLoading && (
-              <Badge variant="secondary" className="ml-1">{activeUsers.length}</Badge>
-            )}
-          </CardTitle>
-          <Button size="sm" className="h-8 text-xs gap-1" onClick={() => setAddUserOpen(true)}>
-            <Plus className="h-3.5 w-3.5" />
-            Add User
-          </Button>
+        <CardHeader className="space-y-3">
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              All Users
+              {!isLoading && (
+                <Badge variant="secondary" className="ml-1">
+                  {isFiltered ? `${visibleUsers.length} of ${activeUsers.length}` : activeUsers.length}
+                </Badge>
+              )}
+            </CardTitle>
+            <Button size="sm" className="h-8 text-xs gap-1" onClick={() => setAddUserOpen(true)}>
+              <Plus className="h-3.5 w-3.5" />
+              Add User
+            </Button>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search name or email"
+                aria-label="Search users"
+                className="h-8 pl-8 text-xs"
+              />
+            </div>
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="h-8 w-full text-xs sm:w-44" aria-label="Filter by role">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ROLE_FILTER_ALL} className="text-xs">All roles</SelectItem>
+                {ASSIGNABLE_ROLES.map((r) => (
+                  <SelectItem key={r} value={r} className="text-xs">{ROLE_LABELS[r]}</SelectItem>
+                ))}
+                <SelectItem value="unassigned" className="text-xs">Unassigned</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
@@ -382,82 +461,96 @@ export default function RoleManagement() {
             </div>
           ) : activeUsers.length === 0 ? (
             <p className="text-sm text-muted-foreground">No users found.</p>
+          ) : visibleUsers.length === 0 ? (
+            <div className="space-y-2 py-2">
+              <p className="text-sm text-muted-foreground">
+                No user matches {term ? <span className="font-medium text-foreground">“{search.trim()}”</span> : "this filter"}.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 text-xs"
+                onClick={() => { setSearch(""); setRoleFilter(ROLE_FILTER_ALL); }}
+              >
+                Clear filters
+              </Button>
+            </div>
           ) : (
             <div className="divide-y">
-              {activeUsers.map((u) => {
-                const selectedRole = pendingRole[u.user_id] ?? u.role ?? "unassigned";
-                const hasChange = pendingRole[u.user_id] !== undefined &&
-                  pendingRole[u.user_id] !== (u.role ?? "unassigned");
+              {visibleUsers.map((u) => {
+                const currentRoleValue = u.role ?? "unassigned";
+                const self = isSelf(u.user_id);
 
                 return (
-                  <div key={u.user_id} className="flex flex-wrap items-center justify-between py-3 gap-4">
+                  <div key={u.user_id} className="flex items-center gap-3 py-2.5">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{u.full_name || "—"}</p>
-                      <p className="text-xs text-muted-foreground truncate">{u.email}</p>
-                      {u.clinic_name && (
-                        <p className="text-xs text-muted-foreground">{u.clinic_name}</p>
+                      <div className="flex flex-wrap items-baseline gap-x-2">
+                        <span className="text-sm font-medium">{u.full_name || "—"}</span>
+                        <span className="min-w-0 truncate text-xs text-muted-foreground">{u.email}</span>
+                        {self && <span className="text-xs italic text-muted-foreground">you</span>}
+                      </div>
+                      {showClinic && u.clinic_name && (
+                        <p className="truncate text-xs text-muted-foreground">{u.clinic_name}</p>
                       )}
                     </div>
 
-                    <div className="flex w-full flex-wrap items-center gap-3 sm:w-auto sm:shrink-0">
-                      {u.role && ROLE_BADGE_CLASSES[u.role] && (
-                        <Badge variant="outline" className={`text-[11px] ${ROLE_BADGE_CLASSES[u.role]}`}>
-                          {ROLE_LABELS[u.role] ?? u.role}
-                        </Badge>
-                      )}
+                    <Badge
+                      variant="outline"
+                      className={`shrink-0 text-[11px] font-normal ${u.role ? roleBadgeClass(u.role) : "border-dashed text-muted-foreground"}`}
+                    >
+                      {u.role ? ROLE_LABELS[u.role] ?? u.role : "Unassigned"}
+                    </Badge>
 
-                      <Select
-                        value={selectedRole}
-                        onValueChange={(val) =>
-                          setPendingRole(prev => ({ ...prev, [u.user_id]: val }))
-                        }
-                        disabled={isSelf(u.user_id)}
-                      >
-                        <SelectTrigger className="w-full sm:w-40 h-8 text-xs">
-                          <SelectValue placeholder="Select role" />
-                        </SelectTrigger>
-                        <SelectContent>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 shrink-0 p-0"
+                          aria-label={`Actions for ${u.full_name || u.email}`}
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                          {self ? "You cannot change your own role" : "Change role"}
+                        </DropdownMenuLabel>
+                        <DropdownMenuRadioGroup
+                          value={currentRoleValue}
+                          onValueChange={(val) => {
+                            if (val === currentRoleValue) return;
+                            assignRole.mutate({
+                              userId: u.user_id,
+                              role: val,
+                              previousRole: currentRoleValue,
+                            });
+                          }}
+                        >
                           {ASSIGNABLE_ROLES.map((r) => (
-                            <SelectItem key={r} value={r} className="text-xs">
+                            <DropdownMenuRadioItem key={r} value={r} className="text-xs" disabled={self}>
                               {ROLE_LABELS[r]}
-                            </SelectItem>
+                            </DropdownMenuRadioItem>
                           ))}
-                          <SelectItem value="unassigned" className="text-xs text-muted-foreground">
+                          <DropdownMenuRadioItem value="unassigned" className="text-xs" disabled={self}>
                             Unassigned
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-
-                      <Button
-                        size="sm"
-                        className="h-8 text-xs"
-                        disabled={!hasChange || assignRole.isPending || isSelf(u.user_id)}
-                        onClick={() =>
-                          assignRole.mutate({ userId: u.user_id, role: selectedRole })
-                        }
-                      >
-                        Save
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 w-8 p-0"
-                        title="Set password"
-                        onClick={() => {
-                          setResetTarget({ id: u.user_id, email: u.email });
-                          setResetPassword("");
-                          setResetError(null);
-                          setResetOpen(true);
-                        }}
-                      >
-                        <KeyRound className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-
-                    {isSelf(u.user_id) && (
-                      <span className="text-xs text-muted-foreground italic shrink-0">you</span>
-                    )}
+                          </DropdownMenuRadioItem>
+                        </DropdownMenuRadioGroup>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          className="text-xs"
+                          onSelect={() => {
+                            setResetTarget({ id: u.user_id, email: u.email });
+                            setResetPassword("");
+                            setResetError(null);
+                            setResetOpen(true);
+                          }}
+                        >
+                          <KeyRound className="mr-2 h-3.5 w-3.5" />
+                          Set password
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 );
               })}
