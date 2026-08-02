@@ -1,0 +1,337 @@
+// src/lib/paedsDoses.ts
+//
+// The paediatric dose table. THIS FILE IS CLINICAL DATA, NOT LOGIC — every
+// entry carries the source text verbatim above it so it can be checked line by
+// line against MIMS and Frank Shann without reading any code.
+//
+// Conventions:
+//  - Age bands are whole months, minMonths inclusive, maxMonths exclusive.
+//    "2-5 years" means aged 2 up to the 6th birthday → [24, 72).
+//  - Rules are matched in the order listed, so where the published bands
+//    overlap the first (younger) one wins.
+//  - Where a source publishes a gap, it is reproduced rather than filled; the
+//    calculator then reports "no band published" instead of inventing a dose.
+//
+// Dexchlorpheniramine and acetylcysteine are deliberately absent: the source
+// paste did not carry a usable concentration for either.
+
+import type { Drug } from "./paedsDose";
+
+export const PAEDS_DRUGS: Drug[] = [
+  // ── FEVER ────────────────────────────────────────────────────────────────
+  {
+    // MIMS  3-5 months: 60mg Q4H-Q6H / 6-23 months: 120mg Q4H-Q6H /
+    //       2-3 years: 180mg / 4-5 years: 240mg / 6-7 years: 240-250mg /
+    //       8-9 years: 360-375mg / 10-11 years: 480-500mg  (all Q4H-Q6H)
+    // Shann 15mg/kg QID
+    id: "paracetamol",
+    name: "Paracetamol",
+    category: "fever",
+    preparations: [
+      { label: "120mg/5ml", mgPerMl: 24 },
+      { label: "250mg/5ml", mgPerMl: 50 },
+    ],
+    mims: [
+      { kind: "fixed", minMonths: 3, maxMonths: 6, mgMin: 60, freq: "Q4H–Q6H" },
+      { kind: "fixed", minMonths: 6, maxMonths: 24, mgMin: 120, freq: "Q4H–Q6H" },
+      { kind: "fixed", minMonths: 24, maxMonths: 48, mgMin: 180, freq: "Q4H–Q6H" },
+      { kind: "fixed", minMonths: 48, maxMonths: 72, mgMin: 240, freq: "Q4H–Q6H" },
+      { kind: "fixed", minMonths: 72, maxMonths: 96, mgMin: 240, mgMax: 250, freq: "Q4H–Q6H" },
+      { kind: "fixed", minMonths: 96, maxMonths: 120, mgMin: 360, mgMax: 375, freq: "Q4H–Q6H" },
+      { kind: "fixed", minMonths: 120, maxMonths: 144, mgMin: 480, mgMax: 500, freq: "Q4H–Q6H" },
+    ],
+    shann: [{ kind: "perKg", mgPerKgMin: 15, freq: "QID" }],
+  },
+  {
+    // MIMS  >6 months: 5-10mg/kg TDS or QID
+    // Shann 10mg/kg Q4H-Q8H
+    id: "ibuprofen",
+    name: "Ibuprofen",
+    category: "fever",
+    preparations: [{ label: "100mg/5ml", mgPerMl: 20 }],
+    mims: [{ kind: "perKg", minMonths: 6, mgPerKgMin: 5, mgPerKgMax: 10, freq: "TDS or QID" }],
+    shann: [{ kind: "perKg", mgPerKgMin: 10, freq: "Q4H–Q8H" }],
+  },
+
+  // ── ANTIHISTAMINE ────────────────────────────────────────────────────────
+  {
+    // MIMS  0.5-2 years: 15mg BD / 2-11 years: 30mg BD /
+    //       ≥12 years: 60mg BD or 180mg OD
+    // Shann 6-11 years: 30mg BD / >11 years: 60mg BD or 180mg OD
+    id: "fexofenadine",
+    name: "Fexofenadine",
+    category: "antihistamine",
+    preparations: [{ label: "30mg/5ml", mgPerMl: 6 }],
+    mims: [
+      { kind: "fixed", minMonths: 6, maxMonths: 24, mgMin: 15, freq: "BD" },
+      { kind: "fixed", minMonths: 24, maxMonths: 144, mgMin: 30, freq: "BD" },
+      { kind: "fixed", minMonths: 144, mgMin: 60, freq: "BD", note: "or 180 mg OD" },
+    ],
+    shann: [
+      { kind: "fixed", minMonths: 72, maxMonths: 144, mgMin: 30, freq: "BD" },
+      { kind: "fixed", minMonths: 144, mgMin: 60, freq: "BD", note: "or 180 mg OD" },
+    ],
+  },
+  {
+    // MIMS  1-5 years: 1.25mg OD / 6-11 years: 2.5mg OD / ≥12 years: 5mg OD
+    // Shann 0.1mg/kg OD
+    id: "desloratadine",
+    name: "Desloratadine",
+    category: "antihistamine",
+    preparations: [{ label: "2.5mg/5ml", mgPerMl: 0.5 }],
+    mims: [
+      { kind: "fixed", minMonths: 12, maxMonths: 72, mgMin: 1.25, freq: "OD" },
+      { kind: "fixed", minMonths: 72, maxMonths: 144, mgMin: 2.5, freq: "OD" },
+      { kind: "fixed", minMonths: 144, mgMin: 5, freq: "OD" },
+    ],
+    shann: [{ kind: "perKg", mgPerKgMin: 0.1, freq: "OD" }],
+  },
+  {
+    // MIMS  2-12 years (<30kg): 5mg OD / 2-11 years (>30kg): 10mg OD
+    // Shann 1-12 years (12-30kg): 5mg OD / 1-12 years (>30kg): 10mg OD
+    id: "loratadine",
+    name: "Loratadine",
+    category: "antihistamine",
+    preparations: [{ label: "5mg/5ml", mgPerMl: 1 }],
+    caution: "MIMS gives the under-30kg band as 2–12 years but the over-30kg band as 2–11; reproduced as published.",
+    mims: [
+      { kind: "fixed", minMonths: 24, maxMonths: 156, maxKg: 30, mgMin: 5, freq: "OD" },
+      { kind: "fixed", minMonths: 24, maxMonths: 144, minKg: 30, mgMin: 10, freq: "OD" },
+    ],
+    shann: [
+      { kind: "fixed", minMonths: 12, maxMonths: 156, minKg: 12, maxKg: 30, mgMin: 5, freq: "OD" },
+      { kind: "fixed", minMonths: 12, maxMonths: 156, minKg: 30, mgMin: 10, freq: "OD" },
+    ],
+  },
+  {
+    // MIMS  2-6 years: 2.5mg BD / 6-12 years: 5mg BD
+    // Shann 0.5-2 years: 2.5mg OD / 2-5 years: 2.5-5mg OD / >5 years: 5-10mg OD
+    id: "cetirizine",
+    name: "Cetirizine",
+    category: "antihistamine",
+    preparations: [{ label: "5mg/5ml", mgPerMl: 1 }],
+    caution: "MIMS bands overlap at 6 years; the younger band is applied.",
+    mims: [
+      { kind: "fixed", minMonths: 24, maxMonths: 84, mgMin: 2.5, freq: "BD" },
+      { kind: "fixed", minMonths: 72, maxMonths: 156, mgMin: 5, freq: "BD" },
+    ],
+    shann: [
+      { kind: "fixed", minMonths: 6, maxMonths: 24, mgMin: 2.5, freq: "OD" },
+      { kind: "fixed", minMonths: 24, maxMonths: 72, mgMin: 2.5, mgMax: 5, freq: "OD" },
+      { kind: "fixed", minMonths: 72, mgMin: 5, mgMax: 10, freq: "OD" },
+    ],
+  },
+  {
+    // MIMS  2-5 years: 1mg q4-6h / 6-12 years: 2mg q4-6h
+    // Shann 0.1mg/kg TDS or QID
+    id: "chlorpheniramine",
+    name: "Chlorpheniramine",
+    category: "antihistamine",
+    preparations: [{ label: "2mg/5ml", mgPerMl: 0.4 }],
+    mims: [
+      { kind: "fixed", minMonths: 24, maxMonths: 72, mgMin: 1, freq: "Q4H–Q6H" },
+      { kind: "fixed", minMonths: 72, maxMonths: 156, mgMin: 2, freq: "Q4H–Q6H" },
+    ],
+    shann: [{ kind: "perKg", mgPerKgMin: 0.1, freq: "TDS or QID" }],
+  },
+  {
+    // MIMS  2-5 years: 5mg TDS / 6-10 years: 10mg BD / >10 years: 25mg OD or BD
+    // Shann 0.2-0.5mg/kg TDS
+    id: "promethazine",
+    name: "Promethazine",
+    category: "antihistamine",
+    preparations: [{ label: "5mg/5ml", mgPerMl: 1 }],
+    mims: [
+      { kind: "fixed", minMonths: 24, maxMonths: 72, mgMin: 5, freq: "TDS" },
+      { kind: "fixed", minMonths: 72, maxMonths: 132, mgMin: 10, freq: "BD" },
+      { kind: "fixed", minMonths: 132, mgMin: 25, freq: "OD or BD" },
+    ],
+    shann: [{ kind: "perKg", mgPerKgMin: 0.2, mgPerKgMax: 0.5, freq: "TDS" }],
+  },
+  {
+    // MIMS  4months-<2 years: 0.313mg QID / 2-<4 years: 0.625mg QID /
+    //       4-<6 years: 0.938mg QID / 6-<12 years: 1.25mg QID
+    // Shann <2 years: 2.5ml TDS / 2-5 years: 2.5-5ml TDS / 6-12 years: 5ml TDS
+    id: "triprolidine",
+    name: "Triprolidine",
+    category: "antihistamine",
+    preparations: [{ label: "1.25mg/5ml", mgPerMl: 0.25 }],
+    caution: "Frank Shann publishes this one in mL, not mg/kg — the volume is used as printed.",
+    mims: [
+      { kind: "fixed", minMonths: 4, maxMonths: 24, mgMin: 0.313, freq: "QID" },
+      { kind: "fixed", minMonths: 24, maxMonths: 48, mgMin: 0.625, freq: "QID" },
+      { kind: "fixed", minMonths: 48, maxMonths: 72, mgMin: 0.938, freq: "QID" },
+      { kind: "fixed", minMonths: 72, maxMonths: 144, mgMin: 1.25, freq: "QID" },
+    ],
+    shann: [
+      { kind: "volume", maxMonths: 24, mlMin: 2.5, freq: "TDS" },
+      { kind: "volume", minMonths: 24, maxMonths: 72, mlMin: 2.5, mlMax: 5, freq: "TDS" },
+      { kind: "volume", minMonths: 72, maxMonths: 156, mlMin: 5, freq: "TDS" },
+    ],
+  },
+
+  // ── DECONGESTANT ─────────────────────────────────────────────────────────
+  {
+    // MIMS  Not recommended < 12 years old
+    // Shann 1mg/kg TDS or QID
+    id: "pseudoephedrine",
+    name: "Pseudoephedrine",
+    category: "decongestant",
+    preparations: [{ label: "30mg/5ml", mgPerMl: 6 }],
+    mims: [{ kind: "notRecommended", belowMonths: 144, note: "Not recommended under 12 years" }],
+    shann: [
+      { kind: "notRecommended", belowMonths: 144, note: "Not recommended under 12 years (MIMS)" },
+      { kind: "perKg", mgPerKgMin: 1, freq: "TDS or QID" },
+    ],
+  },
+  {
+    // MIMS  Not recommended < 12 years old
+    // Shann 0.2mg/kg TDS or QID (max 10mg)
+    id: "phenylephrine",
+    name: "Phenylephrine",
+    category: "decongestant",
+    preparations: [{ label: "5mg/5ml", mgPerMl: 1 }],
+    mims: [{ kind: "notRecommended", belowMonths: 144, note: "Not recommended under 12 years" }],
+    shann: [
+      { kind: "notRecommended", belowMonths: 144, note: "Not recommended under 12 years (MIMS)" },
+      { kind: "perKg", mgPerKgMin: 0.2, maxMg: 10, freq: "TDS or QID", note: "max 10 mg" },
+    ],
+  },
+
+  // ── WET COUGH ────────────────────────────────────────────────────────────
+  {
+    // MIMS  2-5 years: 4mg BD / 6-11 years: 8mg TDS
+    // Shann 0.3mg/kg
+    id: "bromhexine",
+    name: "Bromhexine",
+    category: "wetCough",
+    preparations: [{ label: "4mg/5ml", mgPerMl: 0.8 }],
+    mims: [
+      { kind: "fixed", minMonths: 24, maxMonths: 72, mgMin: 4, freq: "BD" },
+      { kind: "fixed", minMonths: 72, maxMonths: 144, mgMin: 8, freq: "TDS" },
+    ],
+    // The source gives no frequency for the Frank Shann figure; none is invented.
+    shann: [{ kind: "perKg", mgPerKgMin: 0.3, freq: "frequency not stated" }],
+  },
+  {
+    // MIMS  2-5 years: 100mg BD / 6-12 years: 100mg or 250mg TDS
+    // Shann 10-15mg/kg TDS
+    id: "carbocisteine",
+    name: "Carbocisteine",
+    category: "wetCough",
+    preparations: [{ label: "100mg/5ml", mgPerMl: 20 }],
+    mims: [
+      { kind: "fixed", minMonths: 24, maxMonths: 72, mgMin: 100, freq: "BD" },
+      { kind: "fixed", minMonths: 72, maxMonths: 156, mgMin: 100, freq: "TDS", note: "or 250 mg TDS" },
+    ],
+    shann: [{ kind: "perKg", mgPerKgMin: 10, mgPerKgMax: 15, freq: "TDS" }],
+  },
+  {
+    // MIMS  <6 months: 3mg BD / 7-11 months: 6mg BD / 1-2 years: 7.5mg BD /
+    //       2-5 years: 7.5mg TDS / 6-11 years: 15mg TDS
+    // Shann No data
+    id: "ambroxol",
+    name: "Ambroxol",
+    category: "wetCough",
+    preparations: [{ label: "3mg/ml", mgPerMl: 3 }],
+    caution: "MIMS jumps from \"<6 months\" to \"7-11 months\"; infants of exactly 6 months fall in no published band.",
+    mims: [
+      { kind: "fixed", maxMonths: 6, mgMin: 3, freq: "BD" },
+      { kind: "fixed", minMonths: 7, maxMonths: 12, mgMin: 6, freq: "BD" },
+      { kind: "fixed", minMonths: 12, maxMonths: 24, mgMin: 7.5, freq: "BD" },
+      { kind: "fixed", minMonths: 24, maxMonths: 72, mgMin: 7.5, freq: "TDS" },
+      { kind: "fixed", minMonths: 72, maxMonths: 144, mgMin: 15, freq: "TDS" },
+    ],
+    shann: [{ kind: "noData", note: "No data" }],
+  },
+  {
+    // MIMS  6-12 years: 100mg QID
+    // Shann 4-8mg/kg Q4H
+    id: "guaifenesin",
+    name: "Guaifenesin",
+    category: "wetCough",
+    preparations: [{ label: "50mg/5ml", mgPerMl: 10 }],
+    mims: [{ kind: "fixed", minMonths: 72, maxMonths: 156, mgMin: 100, freq: "QID" }],
+    shann: [{ kind: "perKg", mgPerKgMin: 4, mgPerKgMax: 8, freq: "Q4H" }],
+  },
+  {
+    // MIMS  2-5 years: 6.25mg QID / 6-11 years: 12.5-25mg QID /
+    //       >12 years: 25-50mg TDS or QID
+    // Shann 1-2mg/kg TDS or QID
+    id: "diphenhydramine",
+    name: "Diphenhydramine",
+    category: "wetCough",
+    preparations: [
+      { label: "12.5mg/5ml", mgPerMl: 2.5 },
+      { label: "14mg/5ml", mgPerMl: 2.8 },
+    ],
+    caution: "MIMS runs to 11 years then resumes above 12; 12-year-olds fall in no published band.",
+    mims: [
+      { kind: "fixed", minMonths: 24, maxMonths: 72, mgMin: 6.25, freq: "QID" },
+      { kind: "fixed", minMonths: 72, maxMonths: 144, mgMin: 12.5, mgMax: 25, freq: "QID" },
+      { kind: "fixed", minMonths: 156, mgMin: 25, mgMax: 50, freq: "TDS or QID" },
+    ],
+    shann: [{ kind: "perKg", mgPerKgMin: 1, mgPerKgMax: 2, freq: "TDS or QID" }],
+  },
+
+  // ── DRY COUGH ────────────────────────────────────────────────────────────
+  {
+    // MIMS  Not recommended < 12 years old
+    // Shann 0.2-0.4mg/kg TDS or QID
+    id: "dextromethorphan",
+    name: "Dextromethorphan",
+    category: "dryCough",
+    preparations: [{ label: "15mg/5ml", mgPerMl: 3 }],
+    mims: [{ kind: "notRecommended", belowMonths: 144, note: "Not recommended under 12 years" }],
+    shann: [
+      { kind: "notRecommended", belowMonths: 144, note: "Not recommended under 12 years (MIMS)" },
+      { kind: "perKg", mgPerKgMin: 0.2, mgPerKgMax: 0.4, freq: "TDS or QID" },
+    ],
+  },
+  {
+    // MIMS  6-12 years: 2-5mg TDS or QID
+    // Shann 6-12 years: 2.5-5mg TDS or QID
+    id: "pholcodine",
+    name: "Pholcodine",
+    category: "dryCough",
+    preparations: [{ label: "10mg/5ml", mgPerMl: 2 }],
+    mims: [{ kind: "fixed", minMonths: 72, maxMonths: 156, mgMin: 2, mgMax: 5, freq: "TDS or QID" }],
+    shann: [{ kind: "fixed", minMonths: 72, maxMonths: 156, mgMin: 2.5, mgMax: 5, freq: "TDS or QID" }],
+  },
+
+  // ── MISCELLANEOUS ────────────────────────────────────────────────────────
+  {
+    // MIMS  2-6 years: 1-2mg TDS or QID / >6-12 years: 2mg TDS or QID
+    // Shann 0.1-0.15mg/kg QID
+    id: "salbutamol",
+    name: "Salbutamol",
+    category: "misc",
+    preparations: [{ label: "2mg/5ml", mgPerMl: 0.4 }],
+    mims: [
+      { kind: "fixed", minMonths: 24, maxMonths: 84, mgMin: 1, mgMax: 2, freq: "TDS or QID" },
+      { kind: "fixed", minMonths: 84, maxMonths: 156, mgMin: 2, freq: "TDS or QID" },
+    ],
+    shann: [{ kind: "perKg", mgPerKgMin: 0.1, mgPerKgMax: 0.15, freq: "QID" }],
+  },
+  {
+    // MIMS  <1 year: up to 5ml daily / 1-6 years: 5-10ml daily /
+    //       7-14 years: 10-15ml daily
+    // Shann 0.5ml/kg BD
+    id: "lactulose",
+    name: "Lactulose",
+    category: "misc",
+    // Dosed by volume in both sources, so no mg conversion is offered.
+    preparations: [{ label: "3.335g/5ml", mgPerMl: null }],
+    mims: [
+      { kind: "volume", maxMonths: 12, mlMin: 5, freq: "daily", note: "up to" },
+      { kind: "volume", minMonths: 12, maxMonths: 84, mlMin: 5, mlMax: 10, freq: "daily" },
+      { kind: "volume", minMonths: 84, maxMonths: 180, mlMin: 10, mlMax: 15, freq: "daily" },
+    ],
+    shann: [{ kind: "mlPerKg", mlPerKg: 0.5, freq: "BD" }],
+  },
+];
+
+export const DISCLAIMER =
+  "The information provided should not be used for diagnosing or treating a health problem or disease, " +
+  "and those seeking personal medical advice should consult with a licensed physician. Always seek the " +
+  "advice of your doctor or other qualified health provider regarding a medical condition.";
