@@ -154,9 +154,22 @@ function cap(value: number, maxMg?: number) {
   return maxMg === undefined ? value : Math.min(value, maxMg);
 }
 
-/** Doses are read off a syringe, so one decimal is the useful precision. */
-export function round1(value: number): number {
+/**
+ * Volumes are read off a syringe, so one decimal is the useful precision.
+ */
+export function roundMl(value: number): number {
   return Math.round(value * 10) / 10;
+}
+
+/**
+ * Milligrams keep three decimals. Rounding these to one decimal would print
+ * desloratadine's published 1.25 mg as "1.3 mg" and triprolidine's 0.313 mg as
+ * "0.3 mg" — a clinician checking the screen against the printed table would
+ * find figures that do not match, which is the fastest way to lose trust in
+ * the whole tool.
+ */
+export function roundMg(value: number): number {
+  return Math.round(value * 1000) / 1000;
 }
 
 /**
@@ -166,19 +179,20 @@ export function round1(value: number): number {
  */
 export function toMl(outcome: DoseOutcome, prep: Preparation): { min: number; max?: number } | null {
   if (outcome.kind !== "dose") return null;
-  if (outcome.unit === "ml") return { min: round1(outcome.min), max: outcome.max === undefined ? undefined : round1(outcome.max) };
+  if (outcome.unit === "ml") return { min: roundMl(outcome.min), max: outcome.max === undefined ? undefined : roundMl(outcome.max) };
   if (prep.mgPerMl === null) return null;
   return {
-    min: round1(outcome.min / prep.mgPerMl),
-    max: outcome.max === undefined ? undefined : round1(outcome.max / prep.mgPerMl),
+    min: roundMl(outcome.min / prep.mgPerMl),
+    max: outcome.max === undefined ? undefined : roundMl(outcome.max / prep.mgPerMl),
   };
 }
 
-/** "180 mg" or "60–120 mg", already rounded. */
+/** "180 mg" or "60–120 mg". Precision follows the unit — see roundMg. */
 export function formatAmount(min: number, max: number | undefined, unit: string): string {
-  const lo = round1(min);
+  const round = unit === "mg" ? roundMg : roundMl;
+  const lo = round(min);
   if (max === undefined) return `${lo} ${unit}`;
-  const hi = round1(max);
+  const hi = round(max);
   if (hi === lo) return `${lo} ${unit}`;
   return `${lo}–${hi} ${unit}`;
 }

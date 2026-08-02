@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { evaluate, toMl, formatAmount, ageToMonths, round1, type DoseOutcome } from "./paedsDose";
+import { evaluate, toMl, formatAmount, ageToMonths, roundMl, roundMg, type DoseOutcome } from "./paedsDose";
 import { PAEDS_DRUGS } from "./paedsDoses";
 
 function drug(id: string) {
@@ -156,13 +156,29 @@ describe("mg to mL conversion", () => {
 });
 
 describe("formatting", () => {
-  it("rounds to one decimal", () => {
-    expect(round1(3.649)).toBe(3.6);
-    expect(formatAmount(0.3125, undefined, "mg")).toBe("0.3 mg");
+  it("rounds volumes to one decimal — a syringe cannot do better", () => {
+    expect(roundMl(3.649)).toBe(3.6);
+    expect(formatAmount(3.649, undefined, "mL")).toBe("3.6 mL");
+  });
+
+  // Rounding mg to one decimal would print desloratadine's published 1.25 mg
+  // as 1.3 and triprolidine's 0.313 as 0.3, so the screen would disagree with
+  // the printed table a clinician is checking it against.
+  it("keeps the published precision on milligrams", () => {
+    expect(roundMg(1.25)).toBe(1.25);
+    expect(formatAmount(1.25, undefined, "mg")).toBe("1.25 mg");
+    expect(formatAmount(0.313, undefined, "mg")).toBe("0.313 mg");
+    expect(formatAmount(0.938, undefined, "mg")).toBe("0.938 mg");
+  });
+
+  it("renders the published small doses exactly as the source prints them", () => {
+    expect(amount(dose("desloratadine", "mims", 3, 0, 14))).toBe("1.25 mg");
+    expect(amount(dose("triprolidine", "mims", 1, 0, 10))).toBe("0.313 mg");
+    expect(amount(dose("diphenhydramine", "mims", 3, 0, 14))).toBe("6.25 mg");
   });
 
   it("collapses a range whose ends round to the same figure", () => {
-    expect(formatAmount(5.01, 5.02, "mg")).toBe("5 mg");
+    expect(formatAmount(5.0001, 5.0002, "mg")).toBe("5 mg");
   });
 });
 
