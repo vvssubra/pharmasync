@@ -1,10 +1,23 @@
 // src/lib/nagPathways.ts
-// Seed data transcribed verbatim from knowledge-service/vault-sample/*.md
-// (NAG 2024 dosing notes already used by the local knowledge-service dose
-// lookup). Replaces the 500KB Storage-hosted nag-2024.txt document that
-// pathway-check and antibiotic-suggest previously fed whole into an LLM
-// prompt — no CPU-only model can afford that context, and this data is
-// small enough to evaluate with plain rules instead.
+// Seed data transcribed from the official National Antimicrobial Guideline,
+// 4th Edition (2024) clinical pathway documents (Clinical Pathways for
+// Primary Care — one PDF per topic, each independently versioned; see the
+// `source` field per pathway for its date). Replaces the 500KB
+// Storage-hosted nag-2024.txt document that pathway-check and
+// antibiotic-suggest previously fed whole into an LLM prompt — no CPU-only
+// model can afford that context, and this data is small enough to evaluate
+// with plain rules instead.
+//
+// Each pathway models exactly two prescribable slots — firstLine (adult) and
+// alternatives[0] (adult allergy/alternative) — plus, where the source gives
+// real mg/kg-of-weight dosing, weightBased and allergyWeightBased for
+// children. Where the source lists further adult-only options (a
+// comorbidity combination regimen, a second equally-preferred drug), those
+// are noted in `cautions` as text rather than modelled as a third slot —
+// `allowedDrugs` stays exactly the set of drugs actually reachable through
+// firstLine/alternatives[0]/weightBased/allergyWeightBased, so
+// checkPathway()'s "not_supported" verdict stays accurate to what this file
+// can actually compute.
 //
 // Mirrored verbatim into supabase/functions/_shared/nagPathways.ts
 // (parity-tested) because the edge bundle cannot import outside
@@ -34,12 +47,12 @@ export interface NagPathway {
   allowedDrugs: string[];
   cautions: string[];
   source: string;
-  /** Only set when the first-line regimen is genuinely weight-based
-   *  (mg/kg math), as opposed to a fixed dose with a weight threshold
-   *  (e.g. pharyngitis's "250mg BD child <27kg" is NOT weight-based). */
+  /** The children's dosing row from the source table, when it gives
+   *  genuine mg/kg-of-weight math (as opposed to a fixed dose or a
+   *  weight-band lookup table). */
   weightBased?: AbxWeightRule;
-  /** Weight-based version of the allergy alternative, when the alternatives[]
-   *  regimen is itself dosed by weight (e.g. paediatric azithromycin). */
+  /** Weight-based version of the allergy alternative, when the source's
+   *  children's "Alternative" row is itself dosed by weight. */
   allergyWeightBased?: AbxWeightRule;
 }
 
@@ -47,93 +60,119 @@ export const NAG_PATHWAYS: NagPathway[] = [
   {
     id: "pharyngitis",
     indication: "Acute Pharyngitis",
-    aliases: ["pharyngitis", "acute pharyngitis", "centor", "sore throat", "tonsillitis"],
+    aliases: ["pharyngitis", "acute pharyngitis", "centor", "strep score", "sore throat", "tonsillitis"],
     patientGroup: "Any",
-    firstLine: "Penicillin V 500mg PO BD x 10 days (adult); 250mg PO BD x 10 days (child <27kg)",
+    firstLine: "Penicillin V 500mg PO q6h (or 1g PO q12h) x 5-10 days",
     alternatives: [
-      { when: "Penicillin allergy", regimen: "Azithromycin 12mg/kg (max 500mg) OD x 5 days" },
+      { when: "Alternative / penicillin allergy", regimen: "Erythromycin Ethylsuccinate 800mg PO q12h x 5-10 days" },
     ],
     durationDaysRange: [5, 10],
-    allowedDrugs: ["Penicillin V", "Azithromycin"],
-    cautions: ["Only treat if Centor score >= 3 — most sore throat is viral."],
-    source: "NAG 2024 — Acute Pharyngitis (Centor score >=3)",
-    allergyWeightBased: { kind: "mgPerKgPerDose", drug: "Azithromycin", mgPerKgPerDose: 12, maxMgPerDose: 500, frequency: "OD", durationDaysRange: [5, 5] },
+    allowedDrugs: ["Penicillin V", "Erythromycin Ethylsuccinate"],
+    cautions: [
+      "Only treat if Strep/Centor score >= 3 — most sore throat is viral.",
+      "Amoxicillin 500mg PO q8h x 5-10 days is an equally preferred adult alternative to Penicillin V.",
+      "Consider extending to 10 days where rheumatic fever prevalence is high, or in patients aged 3-21 with a personal history of rheumatic fever/rheumatic heart disease.",
+    ],
+    source: "NAG 2024 — Acute Pharyngitis (v09 Dec 2025)",
+    weightBased: { kind: "mgPerKgPerDay", drug: "Penicillin V", mgPerKgPerDayRange: [25, 50], frequency: "q6h", durationDaysRange: [10, 10], maxMgPerDay: 2000 },
+    allergyWeightBased: { kind: "mgPerKgPerDay", drug: "Erythromycin Ethylsuccinate", mgPerKgPerDayRange: [40, 50], frequency: "q12h", durationDaysRange: [10, 10], maxMgPerDay: 1600 },
   },
   {
     id: "cap",
     indication: "Community Acquired Pneumonia",
     aliases: ["community acquired pneumonia", "community-acquired pneumonia", "cap", "pneumonia"],
-    patientGroup: "Adult",
-    firstLine: "Amoxicillin 500mg-1g PO TDS x 5-7 days (mild, outpatient)",
+    patientGroup: "Any",
+    firstLine: "Amoxicillin 500-1000mg PO q8h x 5-7 days (mild, outpatient, no comorbidities)",
     alternatives: [
-      { when: "Penicillin allergy", regimen: "Doxycycline 100mg PO BD x 7 days" },
+      { when: "Penicillin allergy", regimen: "Doxycycline 100mg PO q12h x 5-7 days" },
     ],
     durationDaysRange: [5, 7],
-    allowedDrugs: ["Amoxicillin", "Doxycycline"],
-    cautions: ["For mild, outpatient CAP only — refer if severe or requiring hospitalisation."],
-    source: "NAG 2024 — Community-Acquired Pneumonia",
+    allowedDrugs: ["Amoxicillin", "Doxycycline", "Erythromycin Ethylsuccinate"],
+    cautions: [
+      "For mild, outpatient CAP only — refer if severe, hypoxic, or requiring hospitalisation (CRB-65 >= 2, or SpO2 < 95%).",
+      "With comorbidities (chronic heart/lung/liver/kidney disease, diabetes, alcoholism, malignancy, asplenia): use Amoxicillin/Clavulanate 625mg q8h, adding Azithromycin 500mg OD x3 days or Doxycycline if an atypical pathogen is suspected — not modelled here, use AI Suggest or the full guideline.",
+    ],
+    source: "NAG 2024 — Acute Bronchitis and Pneumonia, adult table (v30 Jan 2026)",
+    weightBased: { kind: "mgPerKgPerDay", drug: "Amoxicillin", mgPerKgPerDayRange: [80, 90], frequency: "q8-12h", durationDaysRange: [5, 5], maxMgPerDay: 3000 },
+    allergyWeightBased: { kind: "mgPerKgPerDay", drug: "Erythromycin Ethylsuccinate", mgPerKgPerDayRange: [40, 50], frequency: "q12h", durationDaysRange: [5, 5], maxMgPerDay: 1600 },
   },
   {
     id: "aom",
     indication: "Acute Otitis Media",
     aliases: ["acute otitis media", "aom", "otitis media", "ear infection"],
-    patientGroup: "Paediatric",
-    firstLine: "Amoxicillin 80-90 mg/kg/day PO divided BD x 5-7 days",
+    patientGroup: "Any",
+    firstLine: "Amoxicillin 500mg PO q8h x 5-7 days",
     alternatives: [
-      { when: "Penicillin allergy", regimen: "Azithromycin 10mg/kg OD day 1, then 5mg/kg OD days 2-5" },
+      { when: "Penicillin allergy", regimen: "Erythromycin Ethylsuccinate 400mg PO q6h OR 800mg PO q12h x 5-7 days" },
     ],
-    durationDaysRange: [5, 7],
-    allowedDrugs: ["Amoxicillin", "Azithromycin"],
-    cautions: ["Paediatric weight-based dosing — confirm current weight."],
-    source: "NAG 2024 — Acute Otitis Media",
-    weightBased: { kind: "mgPerKgPerDay", drug: "Amoxicillin", mgPerKgPerDayRange: [80, 90], frequency: "divided BD", durationDaysRange: [5, 7] },
-    allergyWeightBased: { kind: "loadTaper", drug: "Azithromycin", loadMgPerKg: 10, loadDays: 1, maintMgPerKg: 5, maintDays: 4, frequency: "OD" },
+    durationDaysRange: [5, 10],
+    allowedDrugs: ["Amoxicillin", "Erythromycin Ethylsuccinate"],
+    cautions: [
+      "Assess severity/perforation first — mild cases with an intact tympanic membrane may be observed 48-72h with paracetamol before starting antibiotics.",
+      "Amoxicillin/Clavulanate (14:1 formulation) is preferred over Amoxicillin if there was amoxicillin exposure within the last 30 days — not modelled here, use AI Suggest or the full guideline table.",
+      "Duration: <2 years old 7-10 days; >=2 years old 5-7 days.",
+      "Refer ENT for recurrent AOM, persistent otorrhea, suspected mastoiditis, or abnormal audiology.",
+    ],
+    source: "NAG 2024 — Acute Otitis Media (v16 Oct 2025)",
+    weightBased: { kind: "mgPerKgPerDay", drug: "Amoxicillin", mgPerKgPerDayRange: [80, 90], frequency: "q8-12h", durationDaysRange: [5, 10], maxMgPerDay: 3000 },
+    allergyWeightBased: { kind: "mgPerKgPerDay", drug: "Erythromycin Ethylsuccinate", mgPerKgPerDayRange: [40, 50], frequency: "q12h", durationDaysRange: [5, 10], maxMgPerDay: 1600 },
   },
   {
     id: "abrs",
     indication: "Acute Bacterial Rhinosinusitis",
     aliases: ["acute bacterial rhinosinusitis", "abrs", "rhinosinusitis", "sinusitis"],
-    patientGroup: "Adult",
-    firstLine: "Amoxicillin-Clavulanate 625mg PO TDS x 7 days",
+    patientGroup: "Any",
+    firstLine: "Amoxicillin 500-1000mg PO q8h x 5 days",
     alternatives: [
-      { when: "Penicillin allergy", regimen: "Doxycycline 100mg PO BD x 7 days" },
+      { when: "Penicillin allergy", regimen: "Doxycycline 100mg PO q12h x 5-7 days" },
     ],
-    durationDaysRange: [7, 7],
-    allowedDrugs: ["Amoxicillin-Clavulanate", "Doxycycline"],
+    durationDaysRange: [3, 7],
+    allowedDrugs: ["Amoxicillin", "Amoxicillin-Clavulanate", "Doxycycline", "Cefuroxime"],
     cautions: [
       "Reserve antibiotics for likely ABRS (>=3 of: fever, discoloured mucus, double sickening, severe local pain, raised ESR/CRP) — most acute rhinosinusitis is viral.",
+      "Amoxicillin/Clavulanate 625mg PO q8h x 5 days is an equally preferred adult alternative to Amoxicillin.",
+      "In pregnant patients with penicillin allergy, use Azithromycin 500mg PO q24h x 3 days instead of Doxycycline.",
+      "Cefuroxime and other cephalosporins carry a small cross-reactivity risk with severe (anaphylactic) penicillin allergy — avoid if there is a history of anaphylaxis, urticaria, or angioedema to penicillins.",
     ],
-    source: "NAG 2024 — Acute Bacterial Rhinosinusitis",
+    source: "NAG 2024 — Acute Rhinosinusitis (v10 Sept 2025)",
+    weightBased: { kind: "mgPerKgPerDay", drug: "Amoxicillin", mgPerKgPerDayRange: [80, 90], frequency: "q12h", durationDaysRange: [5, 5], maxMgPerDay: 2000 },
+    allergyWeightBased: { kind: "mgPerKgPerDay", drug: "Cefuroxime", mgPerKgPerDayRange: [30, 30], frequency: "q12h", durationDaysRange: [5, 5], maxMgPerDay: 1000 },
   },
   {
     id: "ssti",
     indication: "Skin and Soft Tissue Infection",
     aliases: ["skin and soft tissue infection", "ssti", "cellulitis", "skin infection", "impetigo"],
-    patientGroup: "Adult",
-    firstLine: "Cloxacillin 500mg PO QID x 5-7 days (cellulitis, no abscess)",
+    patientGroup: "Any",
+    firstLine: "Cephalexin 1000mg PO q12h x 5-10 days (cellulitis)",
     alternatives: [
-      { when: "Penicillin allergy", regimen: "Clindamycin 300mg PO TDS x 5-7 days" },
+      { when: "Antibiotic allergy", regimen: "Erythromycin Ethylsuccinate 800mg PO q12h x 5-7 days" },
     ],
-    durationDaysRange: [5, 7],
-    allowedDrugs: ["Cloxacillin", "Clindamycin"],
+    durationDaysRange: [5, 10],
+    allowedDrugs: ["Cephalexin", "Erythromycin Ethylsuccinate"],
     cautions: [
-      "Abscess: incision and drainage is first-line; add antibiotics only if extensive surrounding cellulitis, systemic signs, or comorbidity (diabetes, valvular heart disease).",
+      "Cloxacillin 500mg PO q6h x 5-10 days is an equally preferred alternative; Amoxicillin 500mg PO q8h x 5-10 days may also be used for cellulitis.",
+      "Abscess: incision & drainage is first-line; take pus for C&S before starting antibiotics; add antibiotics only if extensive surrounding cellulitis, inadequate drainage, diabetes mellitus, or valvular heart disease.",
+      "Localised impetigo: use topical 2% fusidic acid or 2% mupirocin, not oral antibiotics — reserve oral therapy for generalised impetigo or cellulitis.",
     ],
-    source: "NAG 2024 — Skin and Soft Tissue Infection",
+    source: "NAG 2024 — Skin and Soft Tissue Infection (v30 Jan 2026)",
+    weightBased: { kind: "mgPerKgPerDay", drug: "Cephalexin", mgPerKgPerDayRange: [25, 50], frequency: "q12h", durationDaysRange: [5, 7], maxMgPerDay: 2000 },
   },
   {
     id: "uti",
     indication: "Uncomplicated Urinary Tract Infection",
     aliases: ["urinary tract infection", "uti", "uncomplicated urinary tract infection", "cystitis"],
     patientGroup: "Adult",
-    firstLine: "Nitrofurantoin 100mg PO BD x 5 days",
+    firstLine: "Nitrofurantoin 50-100mg PO q6h (immediate release) OR 100mg PO q12h (modified release) x 5 days",
     alternatives: [
-      { when: "eGFR < 45 mL/min or alternative preferred", regimen: "Fosfomycin 3g PO single dose" },
+      { when: "eGFR < 30 mL/min, or alternative preferred", regimen: "Cephalexin 500mg PO q6-12h x 5 days" },
     ],
-    durationDaysRange: [1, 5],
-    allowedDrugs: ["Nitrofurantoin", "Fosfomycin"],
-    cautions: ["Avoid nitrofurantoin if eGFR < 45 mL/min."],
-    source: "NAG 2024 — Uncomplicated Urinary Tract Infection",
+    durationDaysRange: [3, 5],
+    allowedDrugs: ["Nitrofurantoin", "Cephalexin"],
+    cautions: [
+      "Nitrofurantoin is contraindicated if eGFR < 30 mL/min.",
+      "Consider q6h dosing frequency, and consider urine culture rather than empirical treatment alone, in patients at risk of complicated UTI (immunosuppressed, poorly controlled diabetes, post-menopausal, urinary tract obstruction/urolithiasis, UTI in men, CKD, catheter in situ, neurogenic bladder, recurrent UTI).",
+    ],
+    source: "NAG 2024 — Urinary Tract Infection in Non-Pregnancy (v30 Jan 2026)",
   },
 ];
 

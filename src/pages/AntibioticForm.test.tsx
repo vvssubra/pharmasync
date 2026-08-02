@@ -121,20 +121,19 @@ describe("AntibioticForm weight-driven local dose card", () => {
     fireEvent.click(screen.getByLabelText("YES")); // AOM otoscopy finding
     fireEvent.change(screen.getByPlaceholderText("kg"), { target: { value: "14" } });
 
-    expect(await screen.findByText("Amoxicillin 1120-1260 mg/day PO divided BD x 5-7 days")).toBeInTheDocument();
+    expect(await screen.findByText("Amoxicillin 1120-1260 mg/day PO q8-12h x 5-10 days")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Use" }));
     expect(screen.getByPlaceholderText(/Amoxicillin 500mg TDS/i)).toHaveValue(
-      "Amoxicillin 1120-1260 mg/day PO divided BD x 5-7 days"
+      "Amoxicillin 1120-1260 mg/day PO q8-12h x 5-10 days"
     );
   });
 
-  it("shows a hint instead of a card when the matched pathway has no local weight rule (CAP)", async () => {
+  it("shows a hint instead of a card when the matched pathway has no local weight rule (UTI has no paediatric table)", async () => {
     renderForm();
     await waitFor(() => expect(rpc).toHaveBeenCalledWith("get_fms_list"));
 
-    fireEvent.click(within(screen.getByText(/ACUTE COUGH \/ SPUTUM/).closest("label")!).getByRole("checkbox"));
-    fireEvent.click(within(screen.getByText("FEVER (>38°C)").closest("label")!).getByRole("checkbox"));
+    fireEvent.click(within(screen.getByText(/Nit \+ve/).closest("label")!).getByRole("checkbox"));
     fireEvent.change(screen.getByPlaceholderText("kg"), { target: { value: "20" } });
 
     expect(

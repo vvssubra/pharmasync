@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { violatesDrugAllowlist } from "../../supabase/functions/antibiotic-suggest/resolve";
 
-const ALLOWED = ["Penicillin V", "Azithromycin"];
+const ALLOWED = ["Penicillin V", "Erythromycin Ethylsuccinate"];
 
 describe("violatesDrugAllowlist", () => {
   it("does not violate when the suggestion names an allowed drug", () => {
@@ -9,7 +9,7 @@ describe("violatesDrugAllowlist", () => {
   });
 
   it("does not violate for the alternative drug, case-insensitively", () => {
-    expect(violatesDrugAllowlist("azithromycin 500mg od x 5 days", ALLOWED)).toBe(false);
+    expect(violatesDrugAllowlist("erythromycin ethylsuccinate 800mg od x 5 days", ALLOWED)).toBe(false);
   });
 
   it("violates when the suggestion names an off-list drug", () => {

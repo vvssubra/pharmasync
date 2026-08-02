@@ -22,7 +22,7 @@ describe("checkPathway", () => {
   it("stated allergy conflicts with the first-line drug -> review, names the alternative", () => {
     const r = checkPathway({ diagnosis: "pharyngitis", antibiotic: "Penicillin V 500mg BD", allergy_status: "Penicillin rash" });
     expect(r.verdict).toBe("review");
-    expect(r.explanation).toContain("Azithromycin");
+    expect(r.explanation).toContain("Erythromycin");
   });
 
   it("duration outside the NAG range -> review", () => {
@@ -69,10 +69,14 @@ describe("checkPathway", () => {
 
 describe("paediatric patient-group safety", () => {
   it("does not apply an adult-only pathway to a child", () => {
-    // Live bug: a 6-year-old with pneumonia was told "Amoxicillin 500mg-1g PO
-    // TDS" — the ADULT CAP regimen, ~150 mg/kg/day for a 20kg child — labelled
-    // as a confident NAG match, because matchPathway ended in `?? pool[0]`.
-    const r = checkPathway({ diagnosis: "community acquired pneumonia", antibiotic: "Amoxicillin 500mg TDS", patient_age: 6 });
+    // Live bug (original repro): a 6-year-old with pneumonia was told
+    // "Amoxicillin 500mg-1g PO TDS" — the ADULT CAP regimen, ~150 mg/kg/day
+    // for a 20kg child — labelled as a confident NAG match, because
+    // matchPathway ended in `?? pool[0]`. CAP now carries real paediatric
+    // dosing (NAG 2024 gives a children's table), so it's no longer a valid
+    // adult-only repro; UTI has no paediatric table in the source and stays
+    // adult-only, preserving the same guarantee.
+    const r = checkPathway({ diagnosis: "urinary tract infection", antibiotic: "Nitrofurantoin 100mg BD", patient_age: 6 });
     expect(r.verdict).toBe("refer_specialist");
     expect(r.explanation).toContain("different patient group");
   });

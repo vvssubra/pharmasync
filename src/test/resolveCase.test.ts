@@ -3,19 +3,21 @@ import { resolveCase } from "../../supabase/functions/antibiotic-suggest/resolve
 
 describe("resolveCase patient-group safety", () => {
   it("refuses rather than handing a child the adult regimen", () => {
-    // The live failure: a 6-year-old, 20kg, with community-acquired pneumonia
-    // received "Amoxicillin 500mg-1g PO TDS x 5-7 days (mild, outpatient)" —
-    // the adult CAP first-line, roughly 150 mg/kg/day at 1g TDS — presented as
-    // "NAG 2024 pathway match". Only AOM carries weightBased dosing, so every
-    // other paediatric case fell through to the adult first-line.
+    // The live failure (original repro): a 6-year-old with community-acquired
+    // pneumonia received the adult CAP first-line, presented as a confident
+    // "NAG 2024 pathway match". CAP now carries real paediatric dosing (NAG
+    // 2024 gives a children's table), so it's no longer a valid adult-only
+    // repro; UTI has no paediatric table in the source and stays adult-only,
+    // preserving the same guarantee — a pathway written for one patient group
+    // must never be substituted for the other.
     const r = resolveCase({
-      diagnosis: "community acquired pneumonia",
+      diagnosis: "urinary tract infection",
       patient_age: 6,
       patient_weight_kg: 20,
     });
     expect(r.pathway).toBeNull();
     expect(r.regimenText).toContain("Refer to specialist");
-    expect(r.regimenText).not.toMatch(/Amoxicillin/i);
+    expect(r.regimenText).not.toMatch(/Nitrofurantoin/i);
     expect(r.rationale).toContain("Section B (Paediatrics)");
     expect(r.needsLlmPhrasing).toBe(false);
   });
@@ -27,7 +29,7 @@ describe("resolveCase patient-group safety", () => {
     expect(r.needsLlmPhrasing).toBe(false);
   });
 
-  it("computes weight-based dosing for the one paediatric pathway that has it", () => {
+  it("computes weight-based dosing for a paediatric pathway", () => {
     const r = resolveCase({ diagnosis: "acute otitis media", patient_age: 6, patient_weight_kg: 20 });
     expect(r.pathway?.id).toBe("aom");
     // 20kg x 80-90 mg/kg/day = 1600-1800 mg/day
