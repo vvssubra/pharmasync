@@ -65,7 +65,7 @@ export function computeAbxDose(rule: AbxWeightRule, weightKg: number): AbxDoseRe
     const duration = dMin === dMax ? `${dMin} days` : `${dMin}-${dMax} days`;
     return {
       drug: rule.drug,
-      text: `${rule.drug} ${amount} mg/day PO ${rule.frequency} x ${duration}`,
+      text: `${rule.drug} ${amount}mg/day ${rule.frequency} x ${duration}`,
       basis: `${lo}-${hi} mg/kg/day x ${weightKg} kg`,
       capped,
     };
@@ -82,7 +82,7 @@ export function computeAbxDose(rule: AbxWeightRule, weightKg: number): AbxDoseRe
     const duration = dMin === dMax ? `${dMin} days` : `${dMin}-${dMax} days`;
     return {
       drug: rule.drug,
-      text: `${rule.drug} ${dose}mg PO ${rule.frequency} x ${duration}`,
+      text: `${rule.drug} ${dose}mg ${rule.frequency} x ${duration}`,
       basis: `${rule.mgPerKgPerDose} mg/kg/dose x ${weightKg} kg`,
       capped,
     };

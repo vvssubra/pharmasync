@@ -26,23 +26,23 @@ const utiChecklist: ChecklistState = {
 
 describe("computeAbxDose", () => {
   it("computes AOM amoxicillin at 14kg", () => {
-    const rule: AbxWeightRule = { kind: "mgPerKgPerDay", drug: "Amoxicillin", mgPerKgPerDayRange: [80, 90], frequency: "q8-12h", durationDaysRange: [5, 10], maxMgPerDay: 3000 };
+    const rule: AbxWeightRule = { kind: "mgPerKgPerDay", drug: "Amoxicillin", mgPerKgPerDayRange: [80, 90], frequency: "BD", durationDaysRange: [5, 10], maxMgPerDay: 3000 };
     const result = computeAbxDose(rule, 14);
     expect(result).toEqual({
       drug: "Amoxicillin",
-      text: "Amoxicillin 1120-1260 mg/day PO q8-12h x 5-10 days",
+      text: "Amoxicillin 1120-1260mg/day BD x 5-10 days",
       basis: "80-90 mg/kg/day x 14 kg",
       capped: false,
     });
   });
 
   it("caps a mgPerKgPerDay rule at its maxMgPerDay", () => {
-    const rule: AbxWeightRule = { kind: "mgPerKgPerDay", drug: "Cephalexin", mgPerKgPerDayRange: [25, 50], frequency: "q12h", durationDaysRange: [5, 7], maxMgPerDay: 2000 };
+    const rule: AbxWeightRule = { kind: "mgPerKgPerDay", drug: "Cephalexin", mgPerKgPerDayRange: [25, 50], frequency: "BD", durationDaysRange: [5, 7], maxMgPerDay: 2000 };
     const result = computeAbxDose(rule, 60);
     // 25-50mg/kg/day x 60kg = 1500-3000mg/day, capped to 2000mg/day
     expect(result).toEqual({
       drug: "Cephalexin",
-      text: "Cephalexin 1500-2000 mg/day PO q12h x 5-7 days",
+      text: "Cephalexin 1500-2000mg/day BD x 5-7 days",
       basis: "25-50 mg/kg/day x 60 kg",
       capped: true,
     });
@@ -53,7 +53,7 @@ describe("computeAbxDose", () => {
     const result = computeAbxDose(rule, 60);
     expect(result).toEqual({
       drug: "Azithromycin",
-      text: "Azithromycin 500mg PO OD x 5 days",
+      text: "Azithromycin 500mg OD x 5 days",
       basis: "12 mg/kg/dose x 60 kg",
       capped: true,
     });
@@ -67,7 +67,7 @@ describe("computeAbxDose", () => {
   });
 
   it.each([0, -5, NaN, Infinity])("returns null for an invalid weight (%s)", (weight) => {
-    const rule: AbxWeightRule = { kind: "mgPerKgPerDay", drug: "Amoxicillin", mgPerKgPerDayRange: [80, 90], frequency: "q8-12h", durationDaysRange: [5, 10] };
+    const rule: AbxWeightRule = { kind: "mgPerKgPerDay", drug: "Amoxicillin", mgPerKgPerDayRange: [80, 90], frequency: "BD", durationDaysRange: [5, 10] };
     expect(computeAbxDose(rule, weight)).toBeNull();
   });
 });
@@ -78,20 +78,23 @@ describe("resolveLocalDose", () => {
     expect(result).toEqual({ unavailable: "noWeight" });
   });
 
-  it("resolves the AOM dose card once weight and checklist agree", () => {
+  it("resolves the AOM dose card once weight and checklist agree, alongside the allergy alternative", () => {
     const result = resolveLocalDose({ checklist: aomChecklist, diagnosis: "", age: 6, weightKg: 14, hasAllergy: false });
     expect(result).toMatchObject({
       source: "NAG 2024 — Acute Otitis Media (v16 Oct 2025)",
       warning: null,
-      result: { text: "Amoxicillin 1120-1260 mg/day PO q8-12h x 5-10 days" },
+      result: { text: "Amoxicillin 1120-1260mg/day BD x 5-10 days" },
+      // 40-50mg/kg/day x 14kg = 560-700mg/day
+      alternative: { label: "Penicillin allergy", result: { text: "Erythromycin Ethylsuccinate 560-700mg/day BD x 5-10 days" } },
     });
   });
 
-  it("switches to the allergy weight-based regimen when an allergy is stated", () => {
+  it("switches to the allergy weight-based regimen when an allergy is stated, keeping the preferred option as the alternative", () => {
     const result = resolveLocalDose({ checklist: aomChecklist, diagnosis: "", age: 6, weightKg: 20, hasAllergy: true });
     expect(result).toMatchObject({
       // 40-50mg/kg/day x 20kg = 800-1000mg/day, well under the 1600mg/day cap
-      result: { drug: "Erythromycin Ethylsuccinate", text: "Erythromycin Ethylsuccinate 800-1000 mg/day PO q12h x 5-10 days" },
+      result: { drug: "Erythromycin Ethylsuccinate", text: "Erythromycin Ethylsuccinate 800-1000mg/day BD x 5-10 days" },
+      alternative: { label: "Preferred (no allergy)", result: { drug: "Amoxicillin" } },
     });
     expect((result as { warning: string }).warning).toMatch(/Allergy noted/);
   });
@@ -99,6 +102,13 @@ describe("resolveLocalDose", () => {
   it("reports noPathway when nothing matches the checklist or diagnosis", () => {
     const result = resolveLocalDose({ checklist: emptyChecklist, diagnosis: "", age: 6, weightKg: 14, hasAllergy: false });
     expect(result).toEqual({ unavailable: "noPathway" });
+  });
+
+  it("omits the alternative when the pathway has no allergyWeightBased rule (SSTI)", () => {
+    const ssti: ChecklistState = { ...emptyChecklist, ssti: { ...emptyChecklist.ssti, cellulitis: true } };
+    const result = resolveLocalDose({ checklist: ssti, diagnosis: "", age: 6, weightKg: 20, hasAllergy: false });
+    expect(result).toMatchObject({ result: { drug: "Cephalexin" } });
+    expect((result as { alternative?: unknown }).alternative).toBeUndefined();
   });
 
   it("reports noRule for a matched pathway with no local weight-based dosing (UTI has no paediatric table)", () => {

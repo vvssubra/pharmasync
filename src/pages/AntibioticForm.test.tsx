@@ -121,11 +121,13 @@ describe("AntibioticForm weight-driven local dose card", () => {
     fireEvent.click(screen.getByLabelText("YES")); // AOM otoscopy finding
     fireEvent.change(screen.getByPlaceholderText("kg"), { target: { value: "14" } });
 
-    expect(await screen.findByText("Amoxicillin 1120-1260 mg/day PO q8-12h x 5-10 days")).toBeInTheDocument();
+    expect(await screen.findByText("Amoxicillin 1120-1260mg/day BD x 5-10 days")).toBeInTheDocument();
+    // The card also shows the allergy alternative alongside the preferred regimen.
+    expect(screen.getByText("Erythromycin Ethylsuccinate 560-700mg/day BD x 5-10 days")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Use" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Use" })[0]);
     expect(screen.getByPlaceholderText(/Amoxicillin 500mg TDS/i)).toHaveValue(
-      "Amoxicillin 1120-1260 mg/day PO q8-12h x 5-10 days"
+      "Amoxicillin 1120-1260mg/day BD x 5-10 days"
     );
   });
 

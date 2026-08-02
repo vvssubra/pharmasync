@@ -75,7 +75,7 @@ export function computeAbxDose(rule: AbxWeightRule, weightKg: number): AbxDoseRe
     const duration = dMin === dMax ? `${dMin} days` : `${dMin}-${dMax} days`;
     return {
       drug: rule.drug,
-      text: `${rule.drug} ${amount} mg/day PO ${rule.frequency} x ${duration}`,
+      text: `${rule.drug} ${amount}mg/day ${rule.frequency} x ${duration}`,
       basis: `${lo}-${hi} mg/kg/day x ${weightKg} kg`,
       capped,
     };
@@ -92,7 +92,7 @@ export function computeAbxDose(rule: AbxWeightRule, weightKg: number): AbxDoseRe
     const duration = dMin === dMax ? `${dMin} days` : `${dMin}-${dMax} days`;
     return {
       drug: rule.drug,
-      text: `${rule.drug} ${dose}mg PO ${rule.frequency} x ${duration}`,
+      text: `${rule.drug} ${dose}mg ${rule.frequency} x ${duration}`,
       basis: `${rule.mgPerKgPerDose} mg/kg/dose x ${weightKg} kg`,
       capped,
     };
@@ -124,10 +124,20 @@ import { matchPathwayDetailed, patientGroupFromAge } from "./nagPathways";
 
 export type LocalDoseUnavailable = "noWeight" | "noPathway" | "noRule";
 
+export interface LocalDoseAlternative {
+  result: AbxDoseResult;
+  /** Why this is the alternative — e.g. "Penicillin allergy", or "Preferred (no allergy)" when the main result is the allergy option. */
+  label: string;
+}
+
 export interface LocalDoseMatch {
   result: AbxDoseResult;
   source: string;
   warning: string | null;
+  /** The other weight-based option for this pathway, when one exists — shown
+   *  alongside `result` so the doctor sees both without re-ticking the
+   *  allergy toggle. */
+  alternative?: LocalDoseAlternative;
 }
 
 /** Resolves a paediatric antibiotic dose entirely client-side, from the same
@@ -156,9 +166,24 @@ export function resolveLocalDose(input: {
   const result = computeAbxDose(rule, input.weightKg);
   if (!result) return { unavailable: "noWeight" };
 
+  // The option not shown as `result` — primary when `result` is the allergy
+  // regimen, or the allergy regimen when `result` is primary — computed
+  // regardless of the allergy toggle so both are visible together.
+  const otherRule = rule === pathway.allergyWeightBased ? pathway.weightBased : pathway.allergyWeightBased;
+  const otherResult = otherRule ? computeAbxDose(otherRule, input.weightKg) : null;
+  const alternative: LocalDoseAlternative | undefined = otherResult
+    ? {
+        result: otherResult,
+        label: otherRule === pathway.allergyWeightBased
+          ? (pathway.alternatives[0]?.when ?? "Alternative")
+          : "Preferred (no allergy)",
+      }
+    : undefined;
+
   return {
     result,
     source: pathway.source,
     warning: input.hasAllergy ? `Allergy noted — this is the NAG alternative regimen, confirm before prescribing.` : null,
+    alternative,
   };
 }
