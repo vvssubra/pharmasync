@@ -8,8 +8,7 @@ import {
   corsHeaders,
   writeAuditLog,
 } from "../_shared/security.ts";
-import { generateJson, LlmTimeoutError } from "../_shared/llm.ts";
-import { resolveCase, violatesDrugAllowlist } from "./resolve.ts";
+import { resolveCase } from "./resolve.ts";
 
 const RequestSchema = z.object({
   diagnosis:         z.string().min(1).max(500),
@@ -26,22 +25,6 @@ const FUNCTION_NAME = "antibiotic-suggest";
 // only, while the route and the Suggest button were open to admin/pharmacist/
 // super_admin — so those roles saw the button and got a silent 403 on click.
 const ALLOWED_ROLES = ["mo", "admin", "pharmacist", "super_admin"];
-
-const SuggestionSchema = z.object({
-  suggestion: z.string().min(1).max(300),
-  rationale:  z.string().max(500),
-  warning:    z.string().max(300).nullable(),
-});
-
-const SUGGESTION_JSON_SCHEMA = {
-  type: "object",
-  properties: {
-    suggestion: { type: "string" },
-    rationale: { type: "string" },
-    warning: { type: ["string", "null"] },
-  },
-  required: ["suggestion", "rationale", "warning"],
-};
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
@@ -90,6 +73,8 @@ Deno.serve(async (req) => {
   const startedAt = Date.now();
 
   // ── 5. Resolve the regimen deterministically ────────────────────────────
+  // computeAbxDose() already renders the regimen in the clinic's own
+  // prescribing shorthand — there is no LLM call in this function.
   const resolved = resolveCase({
     diagnosis: sanitizeInput(diagnosis),
     checklist,
@@ -98,74 +83,22 @@ Deno.serve(async (req) => {
     patient_weight_kg,
   });
 
-  // No pathway match, or a fully-determined case (no allergy, no weight
-  // math needed) — return the verbatim NAG text, no LLM call at all.
-  if (!resolved.needsLlmPhrasing || !resolved.pathway) {
-    // A null pathway means we are declining (no match, or a patient-group
-    // mismatch), not matching. Labelling that "NAG 2024 pathway match" in the
-    // UI contradicts the very text being shown, so it gets its own source.
-    const source = resolved.pathway ? ("rules" as const) : ("refer" as const);
-    const result = { suggestion: resolved.regimenText, rationale: resolved.rationale, warning: resolved.warning, source };
-    try {
-      await writeAuditLog({ userId: userId!, role, functionName: FUNCTION_NAME, statusCode: 200, durationMs: Date.now() - startedAt });
-    } catch { /* non-fatal */ }
-    return new Response(JSON.stringify(result), { status: 200, headers: { ...cors, "Content-Type": "application/json" } });
-  }
+  // A null pathway means we are declining (no match, or a patient-group
+  // mismatch), not matching. Labelling that "NAG 2024 pathway match" in the
+  // UI contradicts the very text being shown, so it gets its own source.
+  const source = resolved.pathway ? ("rules" as const) : ("refer" as const);
+  const result = {
+    suggestion: resolved.regimenText,
+    rationale: resolved.rationale,
+    warning: resolved.warning,
+    alternative: resolved.alternative ?? null,
+    source,
+  };
 
-  // ── 6. LLM phrasing for the two genuinely variable cases ───────────────
-  // (allergy branch selection, paediatric weight-based dosing) — the drug,
-  // dose, and duration are already decided; the model only phrases them.
-  const pathway = resolved.pathway;
-  const systemPrompt = `You are a clinical pharmacist assistant phrasing an already-decided NAG 2024 antibiotic regimen for a Malaysian government clinic. The regimen, rationale, and warning below are FINAL — do not change the drug, dose, or duration, and never suggest a drug other than: ${pathway.allowedDrugs.join(", ")}.
-
-Respond ONLY with JSON in this exact shape:
-{"suggestion": "<the regimen, phrased naturally>", "rationale": "<1-2 sentences>", "warning": "<caution note, or null>"}
-
-Decided regimen: ${resolved.regimenText}
-Decided rationale: ${resolved.rationale}
-Decided warning: ${resolved.warning ?? "none"}`;
-
-  let source: "rules" | "llm" = "rules";
-  let result = { suggestion: resolved.regimenText, rationale: resolved.rationale, warning: resolved.warning };
-  let tokensUsed = 0;
-
+  // ── 6. Audit log ──────────────────────────────────────────────────────────
   try {
-    const generated = await generateJson(SuggestionSchema, {
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: `Phrase this NAG 2024 suggestion for: ${diagnosis}` },
-      ],
-      jsonSchema: SUGGESTION_JSON_SCHEMA,
-      numPredict: 300,
-      temperature: 0,
-      fallback: result,
-    });
-    tokensUsed = generated.usage.totalTokens;
-
-    if (generated.source === "llm" && !violatesDrugAllowlist(generated.data.suggestion, pathway.allowedDrugs)) {
-      result = generated.data;
-      source = "llm";
-    } else if (generated.source === "llm") {
-      // Model strayed off the allowed drug list — discard and keep the
-      // verbatim decided regimen.
-      try {
-        await writeAuditLog({ userId: userId!, role, functionName: FUNCTION_NAME, statusCode: 200, errorMessage: "drug_allowlist_violation" });
-      } catch { /* non-fatal */ }
-    }
-  } catch (err) {
-    if (err instanceof LlmTimeoutError) {
-      // Fall back to the verbatim decided regimen rather than surfacing a
-      // timeout — the answer is already known to be correct.
-    } else {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      console.error("LLM error:", errMsg);
-    }
-  }
-
-  // ── 7. Audit log ──────────────────────────────────────────────────────────
-  try {
-    await writeAuditLog({ userId: userId!, role, functionName: FUNCTION_NAME, statusCode: 200, tokensUsed, durationMs: Date.now() - startedAt });
+    await writeAuditLog({ userId: userId!, role, functionName: FUNCTION_NAME, statusCode: 200, durationMs: Date.now() - startedAt });
   } catch { /* non-fatal */ }
 
-  return new Response(JSON.stringify({ ...result, source }), { status: 200, headers: { ...cors, "Content-Type": "application/json" } });
+  return new Response(JSON.stringify(result), { status: 200, headers: { ...cors, "Content-Type": "application/json" } });
 });

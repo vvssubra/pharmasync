@@ -63,10 +63,14 @@ interface AiSuggestion {
   suggestion: string;
   rationale: string;
   warning: string | null;
+  /** The other option for this pathway — same pairing the local dose card
+   *  shows (preferred vs allergy alternative). Null when the pathway has
+   *  no alternative, or no pathway matched at all. */
+  alternative: { regimenText: string; label: string } | null;
   /** "refer" means no regimen was produced — no pathway matched, or the only
    *  match was written for a different patient group. It is not a suggestion,
    *  so it must not be labelled as a NAG match nor be insertable via "Use". */
-  source: "rules" | "llm" | "refer";
+  source: "rules" | "refer";
 }
 
 export default function AntibioticForm() {
@@ -515,12 +519,27 @@ checklist: checklist as unknown as Record<string, unknown>,
                         </Button>
                       )}
                     </div>
+                    {aiSuggestion.alternative && (
+                      <div className="flex items-start justify-between gap-2 border-t border-emerald-200 pt-2">
+                        <div className="space-y-1 flex-1">
+                          <p className="text-xs font-medium text-emerald-700">{aiSuggestion.alternative.label}</p>
+                          <p className="font-medium text-emerald-900">{aiSuggestion.alternative.regimenText}</p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs shrink-0"
+                          onClick={() => { setAntibioticRegimen(aiSuggestion.alternative!.regimenText); setAiSuggestion(null); }}
+                        >
+                          Use
+                        </Button>
+                      </div>
+                    )}
                     <p className="text-xs text-muted-foreground">
-                      {aiSuggestion.source === "llm"
-                        ? "AI-phrased from NAG 2024 — verify before prescribing."
-                        : aiSuggestion.source === "refer"
-                          ? "No NAG 2024 regimen available for this case — prescribe from the guideline directly."
-                          : "NAG 2024 pathway match — verify before prescribing."}
+                      {aiSuggestion.source === "refer"
+                        ? "No NAG 2024 regimen available for this case — prescribe from the guideline directly."
+                        : "NAG 2024 pathway match — verify before prescribing."}
                     </p>
                   </div>
                 )}
