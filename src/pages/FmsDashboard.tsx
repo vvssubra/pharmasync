@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
+import { AntibioticFormReadOnly } from "@/components/AntibioticFormReadOnly";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -96,6 +97,7 @@ export default function FmsDashboard() {
   const [rejectTarget, setRejectTarget] = useState<FmsPendingRequest | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [abApproveTarget, setAbApproveTarget] = useState<FmsAbFormRow | null>(null);
+  const [abNotes, setAbNotes] = useState("");
   const [abRejectTarget, setAbRejectTarget] = useState<FmsAbFormRow | null>(null);
   const [abRejectReason, setAbRejectReason] = useState("");
 
@@ -140,12 +142,13 @@ export default function FmsDashboard() {
       if (!id) throw new Error("No approval target");
       const { error } = await supabase
         .from("antibiotic_forms")
-        .update({ status: "approved", specialist_id: user?.id, specialist_action_at: new Date().toISOString() })
+        .update({ status: "approved", specialist_id: user?.id, specialist_action_at: new Date().toISOString(), specialist_notes: abNotes || null })
         .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
       setAbApproveTarget(null);
+      setAbNotes("");
       queryClient.invalidateQueries({ queryKey: ["fms-pending-antibiotic"] });
       toast.success("Antibiotic form approved");
     },
@@ -566,7 +569,7 @@ export default function FmsDashboard() {
                               onClick={() => setAbApproveTarget(f)}
                               disabled={abApproveMutation.isPending}
                             >
-                              Approve
+                              Review & Approve
                             </Button>
                             <Button
                               size="touch"
@@ -771,27 +774,32 @@ export default function FmsDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Antibiotic Approve Dialog */}
-      <Dialog open={!!abApproveTarget} onOpenChange={open => { if (!open) setAbApproveTarget(null); }}>
-        <DialogContent>
+      {/* Antibiotic Approve Dialog — full form review, matching SpecialistDashboard */}
+      <Dialog open={!!abApproveTarget} onOpenChange={open => { if (!open) { setAbApproveTarget(null); setAbNotes(""); } }}>
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Approve Antibiotic Form</DialogTitle>
+            <DialogTitle>Review Antibiotic Form — {abApproveTarget?.patient_name}</DialogTitle>
           </DialogHeader>
           {abApproveTarget && (
-            <div className="space-y-1.5 text-sm">
-              <p><span className="text-muted-foreground">Patient:</span> <span className="font-medium">{abApproveTarget.patient_name}</span></p>
-              <p><span className="text-muted-foreground">Diagnosis:</span> {abApproveTarget.diagnosis}</p>
-              <p><span className="text-muted-foreground">Submitted by:</span> {abApproveTarget.mo_name}</p>
+            <div className="space-y-4">
+              <AntibioticFormReadOnly form={abApproveTarget} />
+              <div className="space-y-2">
+                <Label>Approval Notes (optional)</Label>
+                <Textarea placeholder="Additional notes" value={abNotes} onChange={e => setAbNotes(e.target.value)} />
+              </div>
             </div>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAbApproveTarget(null)}>Cancel</Button>
+          {/* Pinned: this is the tallest overlay on this page (a full
+              read-only form plus a notes field), so on a phone the
+              approve/cancel pair would otherwise sit far below the fold. */}
+          <DialogFooter className="sticky bottom-0 -mx-6 -mb-6 bg-background px-6 pb-6 pt-3">
+            <Button variant="outline" onClick={() => { setAbApproveTarget(null); setAbNotes(""); }}>Cancel</Button>
             <Button
               className="bg-green-600 hover:bg-green-700 text-white"
               disabled={abApproveMutation.isPending}
               onClick={() => abApproveMutation.mutate()}
             >
-              Confirm Approve
+              {abApproveMutation.isPending ? "Processing..." : "Approve Form"}
             </Button>
           </DialogFooter>
         </DialogContent>
