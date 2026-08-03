@@ -120,33 +120,27 @@ export function computeAbxDose(rule: AbxWeightRule, weightKg: number): AbxDoseRe
 
 import type { ChecklistState } from "./doseQuery";
 import { derivePathwayIndication } from "./doseQuery";
-import { matchPathwayDetailed, patientGroupFromAge } from "./nagPathways";
+import { matchPathwayDetailed, patientGroupFromAge, computeRegimenOptions, type ComputedRegimen } from "./nagPathways";
 
 export type LocalDoseUnavailable = "noWeight" | "noPathway" | "noRule";
 
-export interface LocalDoseAlternative {
-  result: AbxDoseResult;
-  /** Why this is the alternative — e.g. "Penicillin allergy", or "Preferred (no allergy)" when the main result is the allergy option. */
-  label: string;
-}
-
 export interface LocalDoseMatch {
-  result: AbxDoseResult;
+  /** Every regimen option the matched pathway documents, in the source's own
+   *  Preferred-then-Alternative order — weight-computed where the source's
+   *  children's table allows it, adult reference text otherwise. */
+  options: ComputedRegimen[];
   source: string;
-  warning: string | null;
-  /** The other weight-based option for this pathway, when one exists — shown
-   *  alongside `result` so the doctor sees both without re-ticking the
-   *  allergy toggle. */
-  alternative?: LocalDoseAlternative;
+  /** Whether the patient has a stated drug allergy — the card uses this to
+   *  flag penicillin-class options, not to hide any of them. */
+  hasAllergy: boolean;
 }
 
-/** Resolves a paediatric antibiotic dose entirely client-side, from the same
- *  NAG_PATHWAYS data and computeAbxDose() math the antibiotic-suggest edge
- *  function uses server-side — so the on-screen card and the AI fallback
- *  never disagree. Never makes a network call. */
+/** Resolves every antibiotic option NAG_PATHWAYS documents for the checklist's
+ *  matched pathway, entirely client-side — the same data and computeAbxDose()
+ *  math the antibiotic-suggest edge function uses server-side, so the local
+ *  card and the AI suggestion never disagree. Never makes a network call. */
 export function resolveLocalDose(input: {
   checklist: ChecklistState;
-  diagnosis: string;
   age: number | null;
   weightKg: number | null;
   hasAllergy: boolean;
@@ -157,33 +151,11 @@ export function resolveLocalDose(input: {
 
   const patientGroup = patientGroupFromAge(input.age);
   const indication = derivePathwayIndication(input.checklist);
-  const { pathway } = matchPathwayDetailed(indication, input.diagnosis, patientGroup);
+  const { pathway } = matchPathwayDetailed(indication, patientGroup);
   if (!pathway) return { unavailable: "noPathway" };
 
-  const rule = input.hasAllergy ? pathway.allergyWeightBased ?? pathway.weightBased : pathway.weightBased;
-  if (!rule) return { unavailable: "noRule" };
+  const options = computeRegimenOptions(pathway, patientGroup, input.weightKg);
+  if (options.length === 0) return { unavailable: "noRule" };
 
-  const result = computeAbxDose(rule, input.weightKg);
-  if (!result) return { unavailable: "noWeight" };
-
-  // The option not shown as `result` — primary when `result` is the allergy
-  // regimen, or the allergy regimen when `result` is primary — computed
-  // regardless of the allergy toggle so both are visible together.
-  const otherRule = rule === pathway.allergyWeightBased ? pathway.weightBased : pathway.allergyWeightBased;
-  const otherResult = otherRule ? computeAbxDose(otherRule, input.weightKg) : null;
-  const alternative: LocalDoseAlternative | undefined = otherResult
-    ? {
-        result: otherResult,
-        label: otherRule === pathway.allergyWeightBased
-          ? (pathway.alternatives[0]?.when ?? "Alternative")
-          : "Preferred (no allergy)",
-      }
-    : undefined;
-
-  return {
-    result,
-    source: pathway.source,
-    warning: input.hasAllergy ? `Allergy noted — this is the NAG alternative regimen, confirm before prescribing.` : null,
-    alternative,
-  };
+  return { options, source: pathway.source, hasAllergy: input.hasAllergy };
 }

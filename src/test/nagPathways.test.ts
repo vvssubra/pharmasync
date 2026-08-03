@@ -9,23 +9,25 @@ const VAULT_DIR = resolve(__dirname, "../../knowledge-service/vault-sample");
 
 describe("matchPathway", () => {
   it("matches by derivePathwayIndication-style indication text", () => {
-    const p = matchPathway("Pharyngitis", null, "Any");
+    const p = matchPathway("Pharyngitis", "Any");
     expect(p?.id).toBe("pharyngitis");
   });
 
-  it("falls back to free-text diagnosis when indication is null", () => {
-    const p = matchPathway(null, "suspected acute otitis media in a toddler", "Paediatric");
-    expect(p?.id).toBe("aom");
+  it("never matches on indication text alone — a null indication is always null", () => {
+    // No free-text diagnosis fallback: matching is checklist-derived
+    // indication only, so a doctor's shorthand diagnosis can never silently
+    // redirect which pathway is suggested.
+    expect(matchPathway(null, "Paediatric")).toBeNull();
   });
 
   it("prefers a pathway whose patientGroup matches the caller's", () => {
     // "pharyngitis" is patientGroup "Any" so it should still match regardless.
-    const p = matchPathway("pharyngitis", null, "Paediatric");
+    const p = matchPathway("pharyngitis", "Paediatric");
     expect(p?.id).toBe("pharyngitis");
   });
 
   it("returns null when nothing matches", () => {
-    expect(matchPathway("unrelated made-up condition", "unrelated made-up condition", "Any")).toBeNull();
+    expect(matchPathway("unrelated made-up condition", "Any")).toBeNull();
   });
 });
 
@@ -69,7 +71,7 @@ describe("NAG_PATHWAYS <-> knowledge-service/vault-sample parity", () => {
       const match = text.match(/^indication:\s*(.+)$/m);
       expect(match, `${file} has no frontmatter indication`).not.toBeNull();
       const indication = match![1].trim();
-      const pathway = matchPathway(indication, indication, "Any");
+      const pathway = matchPathway(indication, "Any");
       expect(pathway, `no NAG_PATHWAYS entry matches vault note "${file}" (indication: "${indication}")`).not.toBeNull();
     }
   });

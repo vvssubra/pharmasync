@@ -12,6 +12,7 @@ import PathwayCheckBanner from "@/components/PathwayCheckBanner";
 import { AI_ENABLED, AI_SUGGEST_ROLES, PATHWAY_CHECK_ENABLED, KNOWLEDGE_ENABLED } from "@/lib/featureFlags";
 import { deriveDoseQuery, type ChecklistState } from "@/lib/doseQuery";
 import { resolveLocalDose } from "@/lib/abxDose";
+import type { ComputedRegimen } from "@/lib/nagPathways";
 import AbxDoseCard from "@/components/AbxDoseCard";
 import { exampleDoseFor } from "@/lib/knowledgeClient";
 
@@ -60,16 +61,14 @@ const defaultChecklist: ChecklistState = {
 };
 
 interface AiSuggestion {
-  suggestion: string;
+  /** Every regimen option NAG_PATHWAYS documents for the matched pathway —
+   *  empty when no pathway matched (see `source: "refer"` below). */
+  regimens: ComputedRegimen[];
   rationale: string;
   warning: string | null;
-  /** The other option for this pathway — same pairing the local dose card
-   *  shows (preferred vs allergy alternative). Null when the pathway has
-   *  no alternative, or no pathway matched at all. */
-  alternative: { regimenText: string; label: string } | null;
   /** "refer" means no regimen was produced — no pathway matched, or the only
-   *  match was written for a different patient group. It is not a suggestion,
-   *  so it must not be labelled as a NAG match nor be insertable via "Use". */
+   *  match was written for a different patient group. `regimens` is empty,
+   *  and `rationale` carries the refer-to-specialist message instead. */
   source: "rules" | "refer";
 }
 
@@ -194,10 +193,10 @@ export default function AntibioticForm() {
   // and math the antibiotic-suggest edge function uses server-side, so this
   // card and the AI fallback below never disagree.
   const localDose = useMemo(
-    () => resolveLocalDose({ checklist, diagnosis, age, weightKg, hasAllergy: drugAllergy }),
-    [checklist, diagnosis, age, weightKg, drugAllergy]
+    () => resolveLocalDose({ checklist, age, weightKg, hasAllergy: drugAllergy }),
+    [checklist, age, weightKg, drugAllergy]
   );
-  const hasLocalDose = "result" in localDose;
+  const hasLocalDose = "options" in localDose;
 
   const { verdict: pathwayVerdict, explanation: pathwayExplanation, status: pathwayStatus } = usePathwayCheck({
     diagnosis,
@@ -495,47 +494,41 @@ checklist: checklist as unknown as Record<string, unknown>,
                 )}
                 {AI_ENABLED && aiSuggestion && (
                   <div className={`rounded-md border p-3 space-y-2 text-sm ${aiSuggestion.source === "refer" ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="space-y-1 flex-1">
-                        <p className={aiSuggestion.source === "refer" ? "font-semibold text-amber-900" : "font-semibold text-emerald-900"}>{aiSuggestion.suggestion}</p>
-                        <p className={aiSuggestion.source === "refer" ? "text-xs text-amber-800" : "text-xs text-emerald-700"}>{aiSuggestion.rationale}</p>
-                        {aiSuggestion.warning && (
-                          <div className="flex items-start gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-                            <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
-                            <span>{aiSuggestion.warning}</span>
-                          </div>
-                        )}
+                    <p className={aiSuggestion.source === "refer" ? "text-xs text-amber-800" : "text-xs text-emerald-700"}>{aiSuggestion.rationale}</p>
+                    {aiSuggestion.warning && (
+                      <div className="flex items-start gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                        <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                        <span>{aiSuggestion.warning}</span>
                       </div>
-                      {/* A "refer" result is a refusal, not a regimen — there is
-                          nothing to insert into the prescription field. */}
-                      {aiSuggestion.source !== "refer" && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="h-7 text-xs shrink-0"
-                          onClick={() => { setAntibioticRegimen(aiSuggestion.suggestion); setAiSuggestion(null); }}
-                        >
-                          Use
-                        </Button>
-                      )}
-                    </div>
-                    {aiSuggestion.alternative && (
-                      <div className="flex items-start justify-between gap-2 border-t border-emerald-200 pt-2">
-                        <div className="space-y-1 flex-1">
-                          <p className="text-xs font-medium text-emerald-700">{aiSuggestion.alternative.label}</p>
-                          <p className="font-medium text-emerald-900">{aiSuggestion.alternative.regimenText}</p>
+                    )}
+                    {/* A "refer" result is a refusal, not a regimen — there are
+                        no options to list or insert into the prescription field. */}
+                    {aiSuggestion.regimens.map((opt, i) => (
+                      <div key={`${opt.drug}-${i}`} className="flex items-start justify-between gap-2 rounded border border-emerald-200 bg-white/70 p-2">
+                        <div className="space-y-0.5 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="font-medium text-emerald-900">{opt.text}</span>
+                            <Badge variant="outline" className="text-[10px] border-emerald-300 text-emerald-700">{opt.tier}</Badge>
+                            {drugAllergy && opt.penicillinClass && (
+                              <Badge variant="outline" className="gap-1 text-[10px] border-amber-400 bg-amber-50 text-amber-700">
+                                <AlertTriangle className="h-2.5 w-2.5" /> contains penicillin
+                              </Badge>
+                            )}
+                          </div>
+                          {opt.basis && <p className="text-xs text-emerald-700">{opt.basis}</p>}
+                          {opt.capped && <p className="text-xs text-emerald-700">Dose capped at label maximum.</p>}
                         </div>
                         <Button
                           type="button"
                           size="sm"
                           variant="outline"
                           className="h-7 text-xs shrink-0"
-                          onClick={() => { setAntibioticRegimen(aiSuggestion.alternative!.regimenText); setAiSuggestion(null); }}
+                          onClick={() => { setAntibioticRegimen(opt.text); setAiSuggestion(null); }}
                         >
                           Use
                         </Button>
                       </div>
-                    )}
+                    ))}
                     <p className="text-xs text-muted-foreground">
                       {aiSuggestion.source === "refer"
                         ? "No NAG 2024 regimen available for this case — prescribe from the guideline directly."

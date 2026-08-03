@@ -113,7 +113,7 @@ describe("AntibioticForm weight-driven local dose card", () => {
     expect(screen.getByPlaceholderText("kg")).toBeInTheDocument();
   });
 
-  it("computes the AOM local dose with no network call and fills the regimen field on Use", async () => {
+  it("lists every documented AOM option with no network call, and fills the regimen field on Use", async () => {
     renderForm();
     await waitFor(() => expect(rpc).toHaveBeenCalledWith("get_fms_list"));
 
@@ -121,9 +121,11 @@ describe("AntibioticForm weight-driven local dose card", () => {
     fireEvent.click(screen.getByLabelText("YES")); // AOM otoscopy finding
     fireEvent.change(screen.getByPlaceholderText("kg"), { target: { value: "14" } });
 
+    // Weight-computed options
     expect(await screen.findByText("Amoxicillin 1120-1260mg/day BD x 5-10 days")).toBeInTheDocument();
-    // The card also shows the allergy alternative alongside the preferred regimen.
     expect(screen.getByText("Erythromycin Ethylsuccinate 560-700mg/day BD x 5-10 days")).toBeInTheDocument();
+    // No children's table for this drug in AOM — adult reference text only
+    expect(screen.getByText("Amoxicillin-Clavulanate 625mg PO TDS x 5-7 days")).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole("button", { name: "Use" })[0]);
     expect(screen.getByPlaceholderText(/Amoxicillin 500mg TDS/i)).toHaveValue(
@@ -131,17 +133,16 @@ describe("AntibioticForm weight-driven local dose card", () => {
     );
   });
 
-  it("shows a hint instead of a card when the matched pathway has no local weight rule (UTI has no paediatric table)", async () => {
+  it("lists every UTI option as adult reference text — NAG has no paediatric UTI table", async () => {
     renderForm();
     await waitFor(() => expect(rpc).toHaveBeenCalledWith("get_fms_list"));
 
     fireEvent.click(within(screen.getByText(/Nit \+ve/).closest("label")!).getByRole("checkbox"));
     fireEvent.change(screen.getByPlaceholderText("kg"), { target: { value: "20" } });
 
-    expect(
-      await screen.findByText(/No local paediatric dose for this indication/i)
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/mg\/day PO/)).toBeNull();
+    expect(await screen.findByText(/50-100mg PO QID/)).toBeInTheDocument();
+    expect(screen.getByText(/500mg PO BD-QID/)).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: "Use" }).length).toBeGreaterThanOrEqual(5);
   });
 });
 

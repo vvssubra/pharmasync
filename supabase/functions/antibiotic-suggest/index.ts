@@ -88,10 +88,9 @@ Deno.serve(async (req) => {
   // UI contradicts the very text being shown, so it gets its own source.
   const source = resolved.pathway ? ("rules" as const) : ("refer" as const);
   const result = {
-    suggestion: resolved.regimenText,
+    regimens: resolved.regimens,
     rationale: resolved.rationale,
     warning: resolved.warning,
-    alternative: resolved.alternative ?? null,
     source,
   };
 

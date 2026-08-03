@@ -16,14 +16,6 @@ const aomChecklist: ChecklistState = {
   aom: { ...emptyChecklist.aom, otoscopy_sign: "yes", otalgia: true },
 };
 
-// Matches nit_positive in the UTI section — the one pathway with no
-// paediatric weightBased/allergyWeightBased rule in the source (NAG 2024
-// gives no children's UTI table), so it's the reliable "noRule" repro.
-const utiChecklist: ChecklistState = {
-  ...emptyChecklist,
-  uti: { ...emptyChecklist.uti, nit_positive: true },
-};
-
 describe("computeAbxDose", () => {
   it("computes AOM amoxicillin at 14kg", () => {
     const rule: AbxWeightRule = { kind: "mgPerKgPerDay", drug: "Amoxicillin", mgPerKgPerDayRange: [80, 90], frequency: "BD", durationDaysRange: [5, 10], maxMgPerDay: 3000 };
@@ -74,47 +66,56 @@ describe("computeAbxDose", () => {
 
 describe("resolveLocalDose", () => {
   it("reports noWeight when no weight is given", () => {
-    const result = resolveLocalDose({ checklist: aomChecklist, diagnosis: "", age: 6, weightKg: null, hasAllergy: false });
+    const result = resolveLocalDose({ checklist: aomChecklist, age: 6, weightKg: null, hasAllergy: false });
     expect(result).toEqual({ unavailable: "noWeight" });
   });
 
-  it("resolves the AOM dose card once weight and checklist agree, alongside the allergy alternative", () => {
-    const result = resolveLocalDose({ checklist: aomChecklist, diagnosis: "", age: 6, weightKg: 14, hasAllergy: false });
+  it("lists every documented AOM option once weight and checklist agree", () => {
+    const result = resolveLocalDose({ checklist: aomChecklist, age: 6, weightKg: 14, hasAllergy: false });
     expect(result).toMatchObject({
       source: "NAG 2024 — Acute Otitis Media (v16 Oct 2025)",
-      warning: null,
-      result: { text: "Amoxicillin 1120-1260mg/day BD x 5-10 days" },
-      // 40-50mg/kg/day x 14kg = 560-700mg/day
-      alternative: { label: "Penicillin allergy", result: { text: "Erythromycin Ethylsuccinate 560-700mg/day BD x 5-10 days" } },
+      hasAllergy: false,
+      options: [
+        // 80-90mg/kg/day x 14kg = 1120-1260mg/day — weight-computed
+        { drug: "Amoxicillin", tier: "Preferred", penicillinClass: true, text: "Amoxicillin 1120-1260mg/day BD x 5-10 days", computed: true },
+        // No children's table for Amoxicillin-Clavulanate in this pathway — adult reference text only
+        { drug: "Amoxicillin-Clavulanate", tier: "Alternative", penicillinClass: true, text: "Amoxicillin-Clavulanate 625mg PO TDS x 5-7 days", computed: false },
+        // 40-50mg/kg/day x 14kg = 560-700mg/day — weight-computed
+        { drug: "Erythromycin Ethylsuccinate", tier: "Alternative", text: "Erythromycin Ethylsuccinate 560-700mg/day BD x 5-10 days", computed: true },
+      ],
     });
   });
 
-  it("switches to the allergy weight-based regimen when an allergy is stated, keeping the preferred option as the alternative", () => {
-    const result = resolveLocalDose({ checklist: aomChecklist, diagnosis: "", age: 6, weightKg: 20, hasAllergy: true });
+  it("still lists every option when an allergy is stated — hasAllergy only flags, never filters", () => {
+    const result = resolveLocalDose({ checklist: aomChecklist, age: 6, weightKg: 20, hasAllergy: true });
     expect(result).toMatchObject({
-      // 40-50mg/kg/day x 20kg = 800-1000mg/day, well under the 1600mg/day cap
-      result: { drug: "Erythromycin Ethylsuccinate", text: "Erythromycin Ethylsuccinate 800-1000mg/day BD x 5-10 days" },
-      alternative: { label: "Preferred (no allergy)", result: { drug: "Amoxicillin" } },
+      hasAllergy: true,
+      options: [
+        { drug: "Amoxicillin", penicillinClass: true },
+        { drug: "Amoxicillin-Clavulanate", penicillinClass: true },
+        { drug: "Erythromycin Ethylsuccinate" },
+      ],
     });
-    expect((result as { warning: string }).warning).toMatch(/Allergy noted/);
+    expect((result as { options: unknown[] }).options).toHaveLength(3);
   });
 
-  it("reports noPathway when nothing matches the checklist or diagnosis", () => {
-    const result = resolveLocalDose({ checklist: emptyChecklist, diagnosis: "", age: 6, weightKg: 14, hasAllergy: false });
+  it("reports noPathway when nothing matches the checklist", () => {
+    const result = resolveLocalDose({ checklist: emptyChecklist, age: 6, weightKg: 14, hasAllergy: false });
     expect(result).toEqual({ unavailable: "noPathway" });
   });
 
-  it("omits the alternative when the pathway has no allergyWeightBased rule (SSTI)", () => {
+  it("skips a drug the source only tabulates for the other patient group (SSTI, adult)", () => {
     const ssti: ChecklistState = { ...emptyChecklist, ssti: { ...emptyChecklist.ssti, cellulitis: true } };
-    const result = resolveLocalDose({ checklist: ssti, diagnosis: "", age: 6, weightKg: 20, hasAllergy: false });
-    expect(result).toMatchObject({ result: { drug: "Cephalexin" } });
-    expect((result as { alternative?: unknown }).alternative).toBeUndefined();
-  });
-
-  it("reports noRule for a matched pathway with no local weight-based dosing (UTI has no paediatric table)", () => {
-    // age omitted (patientGroup "Any") so the Adult-only UTI pathway still
-    // matches — matchPathwayDetailed only refuses on a real group conflict.
-    const result = resolveLocalDose({ checklist: utiChecklist, diagnosis: "", age: null, weightKg: 20, hasAllergy: false });
-    expect(result).toEqual({ unavailable: "noRule" });
+    // age 40 (Adult) — Cephalexin/Cloxacillin's weightBased rules don't apply,
+    // but both still have adultText, so all 4 documented drugs still show.
+    const result = resolveLocalDose({ checklist: ssti, age: 40, weightKg: 70, hasAllergy: false });
+    expect(result).toMatchObject({
+      options: [
+        { drug: "Cephalexin", computed: false },
+        { drug: "Cloxacillin", computed: false },
+        { drug: "Amoxicillin-Clavulanate", computed: false },
+        { drug: "Erythromycin Ethylsuccinate", computed: false },
+      ],
+    });
   });
 });
