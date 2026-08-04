@@ -1,0 +1,93 @@
+# Auto-logs commits and PRs to Linear.
+#
+# Needs two repo secrets (Settings > Secrets and variables > Actions):
+#   LINEAR_API_KEY  - personal API key from Linear (Settings > Security & access)
+#   LINEAR_TEAM_ID  - internal team UUID (query via GraphQL, see README below)
+#
+# Push -> one Linear issue per commit on main, titled "[type] subject".
+# PR opened -> one Linear issue titled "[PR] title", linked to the PR.
+# PR closed -> finds that issue by title and adds a closed/merged comment.
+name: linear-log
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, closed]
+
+jobs:
+  log-push:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Linear issue per commit
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          LINEAR_TEAM_ID: ${{ secrets.LINEAR_TEAM_ID }}
+        run: |
+          for sha in $(echo '${{ toJson(github.event.commits) }}' | jq -r '.[].id'); do
+            commit=$(echo '${{ toJson(github.event.commits) }}' | jq -c --arg sha "$sha" '.[] | select(.id == $sha)')
+            subject=$(echo "$commit" | jq -r '.message' | head -n1)
+            author=$(echo "$commit" | jq -r '.author.name')
+            url=$(echo "$commit" | jq -r '.url')
+
+            # skip merge commits
+            echo "$subject" | grep -qi '^Merge ' && continue
+
+            type=$(echo "$subject" | grep -oE '^[a-z]+' || echo "chore")
+            title="[$type] $subject"
+            desc="Commit by $author\n\n$url"
+
+            jq -n --arg title "$title" --arg desc "$desc" --arg teamId "$LINEAR_TEAM_ID" \
+              '{query: "mutation($input: IssueCreateInput!) { issueCreate(input: $input) { success } }", variables: {input: {title: $title, description: $desc, teamId: $teamId}}}' \
+              | curl -s -X POST https://api.linear.app/graphql \
+                  -H "Authorization: $LINEAR_API_KEY" \
+                  -H "Content-Type: application/json" \
+                  -d @-
+          done
+
+  log-pr-opened:
+    if: github.event_name == 'pull_request' && github.event.action == 'opened'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Linear issue for PR
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          LINEAR_TEAM_ID: ${{ secrets.LINEAR_TEAM_ID }}
+        run: |
+          title="[PR] ${{ github.event.pull_request.title }}"
+          desc="${{ github.event.pull_request.html_url }}\n\nOpened by ${{ github.event.pull_request.user.login }}"
+
+          jq -n --arg title "$title" --arg desc "$desc" --arg teamId "$LINEAR_TEAM_ID" \
+            '{query: "mutation($input: IssueCreateInput!) { issueCreate(input: $input) { success } }", variables: {input: {title: $title, description: $desc, teamId: $teamId}}}' \
+            | curl -s -X POST https://api.linear.app/graphql \
+                -H "Authorization: $LINEAR_API_KEY" \
+                -H "Content-Type: application/json" \
+                -d @-
+
+  log-pr-closed:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Comment merged/closed status on matching Linear issue
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        run: |
+          title="[PR] ${{ github.event.pull_request.title }}"
+          status="${{ github.event.pull_request.merged == true && 'merged' || 'closed without merge' }}"
+
+          issue_id=$(jq -n --arg title "$title" \
+            '{query: "query($title: String!) { issues(filter: {title: {eq: $title}}, first: 1) { nodes { id } } }", variables: {title: $title}}' \
+            | curl -s -X POST https://api.linear.app/graphql \
+                -H "Authorization: $LINEAR_API_KEY" \
+                -H "Content-Type: application/json" \
+                -d @- | jq -r '.data.issues.nodes[0].id // empty')
+
+          [ -z "$issue_id" ] && exit 0
+
+          jq -n --arg issueId "$issue_id" --arg body "PR $status: ${{ github.event.pull_request.html_url }}" \
+            '{query: "mutation($input: CommentCreateInput!) { commentCreate(input: $input) { success } }", variables: {input: {issueId: $issueId, body: $body}}}' \
+            | curl -s -X POST https://api.linear.app/graphql \
+                -H "Authorization: $LINEAR_API_KEY" \
+                -H "Content-Type: application/json" \
+                -d @-
