@@ -6,8 +6,8 @@
 // Retrieval is deterministic IDF-weighted token overlap against each
 // entry's aliases (the question phrased several ways) and answer text —
 // sub-millisecond, no model call. English content, Malay domain nouns
-// (Terimaan, Keluaran, Baki Awal, Pesara, Kuota, Arkib Antibiotik) kept
-// verbatim, matching the rest of the migrated UI.
+// (Terimaan, Keluaran, Baki Awal, Pesara, Kuota) kept verbatim, matching
+// the rest of the migrated UI.
 
 export interface FaqEntry {
   id: string;
@@ -172,7 +172,7 @@ export const FAQ_ENTRIES: FaqEntry[] = [
       "antibiotic form acknowledgement",
     ],
     answer:
-      "Once an antibiotic form is approved by FMS, open it from Arkib Antibiotik and acknowledge it to confirm the pharmacy has seen and actioned the approved regimen. This is tracked separately from the form's approval status.",
+      "Once an antibiotic form is approved by FMS, open it from Abx Archive and acknowledge it to confirm the pharmacy has seen and actioned the approved regimen. This is tracked separately from the form's approval status.",
   },
 
   // ── fms ─────────────────────────────────────────────────────────────────

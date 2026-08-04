@@ -23,7 +23,7 @@ Tables (types at `src/integrations/supabase/types.ts`):
 
 ### UI Conventions
 
-- UI language: **English**, with domain nouns kept in Malay (Terimaan, Keluaran, Baki Awal, Pesara, Kuota, Arkib Antibiotik)
+- UI language: **English**, with domain nouns kept in Malay (Terimaan, Keluaran, Baki Awal, Pesara, Kuota)
 - React Query refetch: 15–30s on pages with pending counts
 - Dialogs for create/edit forms (`DrugFormDialog`, `OpeningBalanceDialog`)
 - `NoPermission` shown (not redirect) when role doesn't match route

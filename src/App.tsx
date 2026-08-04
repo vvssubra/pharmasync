@@ -80,7 +80,9 @@ const App = () => (
             <Route path="/drugs/:id/ledger" element={<ProtectedRoute><AppLayout><DrugLedger /></AppLayout></ProtectedRoute>} />
             <Route path="/terimaan" element={<ProtectedRoute><AppLayout><Terimaan /></AppLayout></ProtectedRoute>} />
             <Route path="/fulfilment" element={<ProtectedRoute><AppLayout><PharmacistFulfilment /></AppLayout></ProtectedRoute>} />
-            <Route path="/arkib-antibiotik" element={<ProtectedRoute><AppLayout><AntibioticArchive /></AppLayout></ProtectedRoute>} />
+            <Route path="/abx-archive" element={<ProtectedRoute><AppLayout><AntibioticArchive /></AppLayout></ProtectedRoute>} />
+            {/* Old bookmarked path; kept so existing links keep working. */}
+            <Route path="/arkib-antibiotik" element={<Navigate to="/abx-archive" replace />} />
             <Route path="/pesakit" element={<ProtectedRoute><AppLayout><PatientRegistry /></AppLayout></ProtectedRoute>} />
             <Route path="/laporan" element={<ProtectedRoute><AppLayout><Laporan /></AppLayout></ProtectedRoute>} />
             <Route path="/role-management" element={<ProtectedRoute><AppLayout><RoleManagement /></AppLayout></ProtectedRoute>} />

@@ -38,7 +38,7 @@ const items: NavItem[] = [
   { title: "Antibiotic Form", url: "/request/antibiotik", icon: Pill,          roles: ["admin", "mo"] },
   { title: "Paeds Dose",      url: "/dos-paediatrik",     icon: Baby,          roles: ["admin", "fms", "mo", "pharmacist"] },
   { title: "G6PD",            url: "/g6pd",               icon: ShieldAlert,   roles: ["admin", "fms", "mo", "pharmacist"] },
-  { title: "Arkib Antibiotik", url: "/arkib-antibiotik",   icon: Archive,       roles: ["admin", "fms", "pharmacist"] },
+  { title: "Abx Archive",     url: "/abx-archive",        icon: Archive,       roles: ["admin", "fms", "pharmacist"] },
   { title: "Role Management", url: "/role-management",    icon: UserCog,       showBadge: true, roles: ["admin"] },
 ];
 
