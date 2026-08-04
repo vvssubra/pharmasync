@@ -58,6 +58,12 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
+vi.mock("@/contexts/AuthContext", () => ({
+  useAuth: vi.fn(() => ({ role: "admin", user: null, profile: null, loading: false })),
+}));
+
+const { useAuth } = await import("@/contexts/AuthContext");
+
 
 function makeQueryClient() {
   return new QueryClient({
@@ -107,5 +113,13 @@ describe("Index dashboard English text", () => {
     await waitFor(() =>
       expect(screen.getByRole("columnheader", { name: "Actions" })).toBeInTheDocument()
     );
+  });
+
+  it("hides the Recent Activity 'View All' link for pharmacist (/terimaan is no longer reachable for that role), keeps the Recent Dispensing one (/laporan still is)", async () => {
+    (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({ role: "pharmacist", user: null, profile: null, loading: false });
+    renderIndex();
+    await waitFor(() => expect(screen.getAllByText("CRITICAL").length).toBeGreaterThan(0));
+    // Only one "View All" link should remain — Recent Dispensing's, to /laporan.
+    expect(screen.getAllByText("View All")).toHaveLength(1);
   });
 });

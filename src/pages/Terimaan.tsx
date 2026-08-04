@@ -241,7 +241,7 @@ export default function Terimaan() {
   };
 
   const canEdit = (tx: TerimaanRow) => {
-    if (role !== "pharmacist" && role !== "admin" && role !== "super_admin") return false;
+    if (role !== "admin" && role !== "super_admin") return false;
     const created = new Date(tx.created_at);
     const diff = Date.now() - created.getTime();
     return diff < 24 * 60 * 60 * 1000;

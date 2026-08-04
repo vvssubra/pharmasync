@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
 import { quotaDerivedStatus } from "@/lib/quotaHelpers";
 import { computeStockByDrug } from "@/lib/stock";
@@ -60,6 +61,7 @@ const STATUS_ORDER: Record<StockStatus, number> = {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { role } = useAuth();
   const [alertDismissed, setAlertDismissed] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StockStatus | null>(null);
 
@@ -330,9 +332,13 @@ export default function Dashboard() {
         <Card className="lg:col-span-2">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-base font-semibold">Recent Activity</CardTitle>
-            <Button variant="link" size="sm" className="text-xs" onClick={() => navigate("/terimaan")}>
-              View All
-            </Button>
+            {/* /terimaan is admin/fms/super_admin only — pharmacist lost route
+                access when Terimaan was restricted for them (see ProtectedRoute). */}
+            {role !== "pharmacist" && (
+              <Button variant="link" size="sm" className="text-xs" onClick={() => navigate("/terimaan")}>
+                View All
+              </Button>
+            )}
           </CardHeader>
           <CardContent className="space-y-3">
             {activityFeed.length === 0 && (
