@@ -274,16 +274,16 @@ export default function SpecialistDashboard() {
       label: "Approved Today", count: approvedToday + abApprovedToday, icon: CheckCircle,
       bg: "bg-green-100 dark:bg-green-900/30", color: "text-green-700 dark:text-green-400",
       breakdown: [
-        { label: "Drug", value: approvedToday },
-        { label: "Antibiotic", value: abApprovedToday },
+        { label: "Drug requests", value: approvedToday },
+        { label: "Antibiotic forms", value: abApprovedToday },
       ],
     },
     {
       label: "Rejected Today", count: rejectedToday + abRejectedToday, icon: XCircle,
       bg: "bg-red-100 dark:bg-red-900/30", color: "text-red-700 dark:text-red-400",
       breakdown: [
-        { label: "Drug", value: rejectedToday },
-        { label: "Antibiotic", value: abRejectedToday },
+        { label: "Drug requests", value: rejectedToday },
+        { label: "Antibiotic forms", value: abRejectedToday },
       ],
     },
   ];

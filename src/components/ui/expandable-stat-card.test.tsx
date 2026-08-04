@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { Clock } from "lucide-react";
 import { ExpandableStatCard } from "./expandable-stat-card";
 
@@ -65,5 +65,27 @@ describe("ExpandableStatCard", () => {
   it("is not a button role when onClick is omitted", () => {
     const { container } = render(<ExpandableStatCard icon={Clock} count={5} label="Pending Approvals" />);
     expect((container.firstChild as Element).getAttribute("role")).toBeNull();
+  });
+
+  it("reveals breakdown rows on focus and hides them again on blur", async () => {
+    const onClick = vi.fn();
+    render(
+      <ExpandableStatCard
+        icon={Clock}
+        count={5}
+        label="Pending Approvals"
+        onClick={onClick}
+        breakdown={[{ label: "Drug requests", value: 3 }, { label: "Antibiotic forms", value: 2 }]}
+      />
+    );
+    const card = screen.getByTestId("stat-card-Pending Approvals");
+
+    fireEvent.focus(card);
+    expect(screen.getByText("Drug requests")).toBeInTheDocument();
+
+    fireEvent.blur(card);
+    // The breakdown unmounts via an AnimatePresence exit transition, which is
+    // asynchronous even in jsdom, so the removal must be awaited.
+    await waitFor(() => expect(screen.queryByText("Drug requests")).not.toBeInTheDocument());
   });
 });

@@ -81,6 +81,8 @@ export const ExpandableStatCard = React.forwardRef<HTMLDivElement, ExpandableSta
         onMouseMove={handleMouseMove}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={handleMouseLeave}
+        onFocus={() => setIsHovered(true)}
+        onBlur={handleMouseLeave}
         style={{ perspective: 1000 }}
         className={cn(bgClassName, onClick && "cursor-pointer", active && "ring-2 ring-primary", className)}
       >

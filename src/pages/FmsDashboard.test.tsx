@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
@@ -95,6 +95,7 @@ function makeQC() {
 
 describe("FmsDashboard sections", () => {
   beforeEach(() => vi.clearAllMocks());
+  afterEach(() => vi.restoreAllMocks());
 
   it("renders Controlled Drug Annual Quota section", () => {
     render(<MemoryRouter><QueryClientProvider client={makeQC()}><FmsDashboard /></QueryClientProvider></MemoryRouter>);
@@ -136,11 +137,11 @@ describe("FmsDashboard sections", () => {
   it("still scrolls to the pending-approvals section when the card is clicked", async () => {
     render(<MemoryRouter><QueryClientProvider client={makeQC()}><FmsDashboard /></QueryClientProvider></MemoryRouter>);
     const card = await screen.findByTestId("stat-card-Pending Approvals");
-    // jsdom's scrollIntoView is a no-op stub from src/test/setup.ts; replace it
-    // with a spy so this test can verify the existing scroll-on-click behavior
-    // is still wired up after the swap to ExpandableStatCard.
-    const scrollIntoViewSpy = vi.fn();
-    Element.prototype.scrollIntoView = scrollIntoViewSpy;
+    // jsdom's scrollIntoView is a no-op stub from src/test/setup.ts; spy on it
+    // so this test can verify the existing scroll-on-click behavior is still
+    // wired up after the swap to ExpandableStatCard. vi.restoreAllMocks() in
+    // the afterEach above restores the stub after this test runs.
+    const scrollIntoViewSpy = vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(() => {});
     fireEvent.click(card);
     expect(scrollIntoViewSpy).toHaveBeenCalled();
   });
