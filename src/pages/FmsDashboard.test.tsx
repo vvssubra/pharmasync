@@ -124,4 +124,24 @@ describe("FmsDashboard sections", () => {
     expect(screen.getByText("Amoxicillin 500mg PO TDS x 5-7 days")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Additional notes")).toBeInTheDocument();
   });
+
+  it("reveals the drug-vs-antibiotic breakdown when hovering the Pending Approvals card", async () => {
+    render(<MemoryRouter><QueryClientProvider client={makeQC()}><FmsDashboard /></QueryClientProvider></MemoryRouter>);
+    const card = await screen.findByTestId("stat-card-Pending Approvals");
+    fireEvent.mouseEnter(card);
+    expect(screen.getByText("Drug requests")).toBeInTheDocument();
+    expect(screen.getByText("Antibiotic forms")).toBeInTheDocument();
+  });
+
+  it("still scrolls to the pending-approvals section when the card is clicked", async () => {
+    render(<MemoryRouter><QueryClientProvider client={makeQC()}><FmsDashboard /></QueryClientProvider></MemoryRouter>);
+    const card = await screen.findByTestId("stat-card-Pending Approvals");
+    // jsdom's scrollIntoView is a no-op stub from src/test/setup.ts; replace it
+    // with a spy so this test can verify the existing scroll-on-click behavior
+    // is still wired up after the swap to ExpandableStatCard.
+    const scrollIntoViewSpy = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoViewSpy;
+    fireEvent.click(card);
+    expect(scrollIntoViewSpy).toHaveBeenCalled();
+  });
 });
