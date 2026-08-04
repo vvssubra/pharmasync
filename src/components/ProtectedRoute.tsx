@@ -15,7 +15,7 @@ const ROUTE_PERMISSIONS: Array<{ prefix: string; roles: AppRole[] }> = [
   { prefix: "/dos-paediatrik",  roles: ["admin", "fms", "mo", "pharmacist", "super_admin"] },
   { prefix: "/g6pd",            roles: ["admin", "fms", "mo", "pharmacist", "super_admin"] },
   { prefix: "/request",         roles: ["admin", "mo", "pharmacist", "super_admin"] },
-  { prefix: "/specialist",      roles: ["admin", "fms", "super_admin"] },
+  { prefix: "/specialist",      roles: ["admin", "fms", "pharmacist", "super_admin"] },
   { prefix: "/fulfilment",      roles: ["admin", "fms", "pharmacist", "super_admin"] },
   { prefix: "/arkib-antibiotik", roles: ["admin", "fms", "pharmacist", "super_admin"] },
   { prefix: "/drugs",           roles: ["admin", "fms", "pharmacist", "super_admin"] },
