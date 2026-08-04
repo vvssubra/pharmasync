@@ -111,6 +111,17 @@ describe("AppSidebar navigation labels", () => {
     renderSidebar("pharmacist");
     expect(screen.getByText("Approvals")).toBeInTheDocument();
   });
+
+  it("does not render 'FMS Dashboard', 'MO Dashboard', 'Terimaan', 'Drug Request', or 'Antibiotic Form' nav labels for pharmacist", () => {
+    renderSidebar("pharmacist");
+    // Pharmacist works its own queues (New Requests, Approvals) and reference
+    // tools, not the FMS/MO clinical dashboards or the MO-facing request forms.
+    expect(screen.queryByText("FMS Dashboard")).not.toBeInTheDocument();
+    expect(screen.queryByText("MO Dashboard")).not.toBeInTheDocument();
+    expect(screen.queryByText("Terimaan")).not.toBeInTheDocument();
+    expect(screen.queryByText("Drug Request")).not.toBeInTheDocument();
+    expect(screen.queryByText("Antibiotic Form")).not.toBeInTheDocument();
+  });
 });
 
 describe("AppSidebar unassigned-user badge", () => {

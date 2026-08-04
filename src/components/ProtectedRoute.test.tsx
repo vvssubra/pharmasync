@@ -46,6 +46,9 @@ function renderWithRouter(
         <Route path="/request"         element={<ProtectedRoute><div>Doctor Request page</div></ProtectedRoute>} />
         <Route path="/role-management" element={<ProtectedRoute><div>Role Management page</div></ProtectedRoute>} />
         <Route path="/drugs"           element={<ProtectedRoute><div>Drugs page</div></ProtectedRoute>} />
+        <Route path="/fms"             element={<ProtectedRoute><div>FMS Dashboard page</div></ProtectedRoute>} />
+        <Route path="/mo"              element={<ProtectedRoute><div>MO Dashboard page</div></ProtectedRoute>} />
+        <Route path="/terimaan"        element={<ProtectedRoute><div>Terimaan page</div></ProtectedRoute>} />
         <Route path="/change-password" element={<ProtectedRoute><div>Change Password page</div></ProtectedRoute>} />
         <Route path="/"                element={<div>Dashboard</div>} />
         <Route path="/login"           element={<div>Login page</div>} />
@@ -125,9 +128,21 @@ describe("ProtectedRoute", () => {
       renderWithRouter("/specialist", { user: { id: "1" }, role: "pharmacist", loading: false });
       expect(screen.getByText("Specialist page")).toBeInTheDocument();
     });
-    it("allows access to /request", () => {
+    it("blocks access to /request", () => {
       renderWithRouter("/request", { user: { id: "1" }, role: "pharmacist", loading: false });
-      expect(screen.getByText("Doctor Request page")).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: /No Permission/i })).toBeInTheDocument();
+    });
+    it("blocks access to /fms", () => {
+      renderWithRouter("/fms", { user: { id: "1" }, role: "pharmacist", loading: false });
+      expect(screen.getByRole("heading", { name: /No Permission/i })).toBeInTheDocument();
+    });
+    it("blocks access to /mo", () => {
+      renderWithRouter("/mo", { user: { id: "1" }, role: "pharmacist", loading: false });
+      expect(screen.getByRole("heading", { name: /No Permission/i })).toBeInTheDocument();
+    });
+    it("blocks access to /terimaan", () => {
+      renderWithRouter("/terimaan", { user: { id: "1" }, role: "pharmacist", loading: false });
+      expect(screen.getByRole("heading", { name: /No Permission/i })).toBeInTheDocument();
     });
     it("blocks access to /role-management", () => {
       renderWithRouter("/role-management", { user: { id: "1" }, role: "pharmacist", loading: false });
