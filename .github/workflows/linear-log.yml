@@ -1,8 +1,10 @@
 # Auto-logs commits and PRs to Linear.
 #
-# Needs two repo secrets (Settings > Secrets and variables > Actions):
+# Needs two repo secrets (Settings > Secrets and variables > Actions > Secrets):
 #   LINEAR_API_KEY  - personal API key from Linear (Settings > Security & access)
 #   LINEAR_TEAM_ID  - internal team UUID (query via GraphQL, see README below)
+# And one repo variable (Settings > Secrets and variables > Actions > Variables):
+#   LINEAR_PROJECT_ID - PHARMASYNC project UUID, so issues land inside the project
 #
 # Push -> one Linear issue per commit on main, titled "[type] subject".
 # PR opened -> one Linear issue titled "[PR] title", linked to the PR.
@@ -24,6 +26,7 @@ jobs:
         env:
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
           LINEAR_TEAM_ID: ${{ secrets.LINEAR_TEAM_ID }}
+          LINEAR_PROJECT_ID: ${{ vars.LINEAR_PROJECT_ID }}
         run: |
           for sha in $(echo '${{ toJson(github.event.commits) }}' | jq -r '.[].id'); do
             commit=$(echo '${{ toJson(github.event.commits) }}' | jq -c --arg sha "$sha" '.[] | select(.id == $sha)')
@@ -38,8 +41,8 @@ jobs:
             title="[$type] $subject"
             desc="Commit by $author\n\n$url"
 
-            jq -n --arg title "$title" --arg desc "$desc" --arg teamId "$LINEAR_TEAM_ID" \
-              '{query: "mutation($input: IssueCreateInput!) { issueCreate(input: $input) { success } }", variables: {input: {title: $title, description: $desc, teamId: $teamId}}}' \
+            jq -n --arg title "$title" --arg desc "$desc" --arg teamId "$LINEAR_TEAM_ID" --arg projectId "$LINEAR_PROJECT_ID" \
+              '{query: "mutation($input: IssueCreateInput!) { issueCreate(input: $input) { success } }", variables: {input: {title: $title, description: $desc, teamId: $teamId, projectId: $projectId}}}' \
               | curl -s -X POST https://api.linear.app/graphql \
                   -H "Authorization: $LINEAR_API_KEY" \
                   -H "Content-Type: application/json" \
@@ -54,12 +57,13 @@ jobs:
         env:
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
           LINEAR_TEAM_ID: ${{ secrets.LINEAR_TEAM_ID }}
+          LINEAR_PROJECT_ID: ${{ vars.LINEAR_PROJECT_ID }}
         run: |
           title="[PR] ${{ github.event.pull_request.title }}"
           desc="${{ github.event.pull_request.html_url }}\n\nOpened by ${{ github.event.pull_request.user.login }}"
 
-          jq -n --arg title "$title" --arg desc "$desc" --arg teamId "$LINEAR_TEAM_ID" \
-            '{query: "mutation($input: IssueCreateInput!) { issueCreate(input: $input) { success } }", variables: {input: {title: $title, description: $desc, teamId: $teamId}}}' \
+          jq -n --arg title "$title" --arg desc "$desc" --arg teamId "$LINEAR_TEAM_ID" --arg projectId "$LINEAR_PROJECT_ID" \
+            '{query: "mutation($input: IssueCreateInput!) { issueCreate(input: $input) { success } }", variables: {input: {title: $title, description: $desc, teamId: $teamId, projectId: $projectId}}}' \
             | curl -s -X POST https://api.linear.app/graphql \
                 -H "Authorization: $LINEAR_API_KEY" \
                 -H "Content-Type: application/json" \
