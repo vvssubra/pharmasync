@@ -15,6 +15,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ExpandableStatCard } from "@/components/ui/expandable-stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -391,20 +392,18 @@ export default function FmsDashboard() {
             </div>
           </CardContent>
         </Card>
-        <Card
-          role="button" tabIndex={0}
+        <ExpandableStatCard
+          icon={Clock}
+          count={pendingRequests.length + pendingAntibiotic.length}
+          label="Pending Approvals"
+          bgClassName="bg-yellow-50"
+          colorClassName="text-yellow-700"
+          breakdown={[
+            { label: "Drug requests", value: pendingRequests.length },
+            { label: "Antibiotic forms", value: pendingAntibiotic.length },
+          ]}
           onClick={() => pendingApprovalsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pendingApprovalsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }); } }}
-          className="bg-yellow-50 cursor-pointer transition-shadow hover:shadow-md"
-        >
-          <CardContent className="flex items-center gap-3 p-4">
-            <Clock className="h-6 w-6 text-yellow-600" />
-            <div>
-              <p className="text-2xl font-bold text-yellow-700">{pendingRequests.length + pendingAntibiotic.length}</p>
-              <p className="text-xs text-muted-foreground">Pending Approvals</p>
-            </div>
-          </CardContent>
-        </Card>
+        />
       </div>
 
       {/* Drug stock table */}

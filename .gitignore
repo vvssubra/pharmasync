@@ -46,3 +46,6 @@ supabase/.temp/
 # and similar). These contain actual names/IC numbers and must never be
 # committed to git — deliver to the target DB directly, never via git/GitHub.
 supabase/migrations/*_seed_*.sql
+
+# superpowers subagent-driven-development scratch (per-plan workspaces)
+.superpowers/

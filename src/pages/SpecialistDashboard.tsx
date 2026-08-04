@@ -9,6 +9,7 @@ import { formatDistanceToNow, startOfDay } from "date-fns";
 import { Clock, CheckCircle, XCircle, ChevronDown } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ExpandableStatCard } from "@/components/ui/expandable-stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -256,10 +257,35 @@ export default function SpecialistDashboard() {
   });
 
   const stats = [
-    { label: "Pending (Drug)", count: allPending.length, icon: Clock, bg: "bg-yellow-100 dark:bg-yellow-900/30", color: "text-yellow-700 dark:text-yellow-400" },
-    { label: "Pending (Antibiotic)", count: abPending.length, icon: Clock, bg: "bg-teal-100 dark:bg-teal-900/30", color: "text-teal-700 dark:text-teal-400" },
-    { label: "Approved Today", count: approvedToday + abApprovedToday, icon: CheckCircle, bg: "bg-green-100 dark:bg-green-900/30", color: "text-green-700 dark:text-green-400" },
-    { label: "Rejected Today", count: rejectedToday + abRejectedToday, icon: XCircle, bg: "bg-red-100 dark:bg-red-900/30", color: "text-red-700 dark:text-red-400" },
+    {
+      label: "Pending (Drug)", count: allPending.length, icon: Clock,
+      bg: "bg-yellow-100 dark:bg-yellow-900/30", color: "text-yellow-700 dark:text-yellow-400",
+      breakdown: [
+        { label: "Regular", value: regularPending.length },
+        { label: "Pesara", value: pesaraPending.length },
+      ],
+    },
+    {
+      label: "Pending (Antibiotic)", count: abPending.length, icon: Clock,
+      bg: "bg-teal-100 dark:bg-teal-900/30", color: "text-teal-700 dark:text-teal-400",
+      breakdown: undefined,
+    },
+    {
+      label: "Approved Today", count: approvedToday + abApprovedToday, icon: CheckCircle,
+      bg: "bg-green-100 dark:bg-green-900/30", color: "text-green-700 dark:text-green-400",
+      breakdown: [
+        { label: "Drug requests", value: approvedToday },
+        { label: "Antibiotic forms", value: abApprovedToday },
+      ],
+    },
+    {
+      label: "Rejected Today", count: rejectedToday + abRejectedToday, icon: XCircle,
+      bg: "bg-red-100 dark:bg-red-900/30", color: "text-red-700 dark:text-red-400",
+      breakdown: [
+        { label: "Drug requests", value: rejectedToday },
+        { label: "Antibiotic forms", value: abRejectedToday },
+      ],
+    },
   ];
 
   return (
@@ -267,15 +293,15 @@ export default function SpecialistDashboard() {
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-4">
         {stats.map(s => (
-          <Card key={s.label} className={s.bg}>
-            <CardContent className="flex items-center gap-3 p-4">
-              <s.icon className={`h-6 w-6 ${s.color}`} />
-              <div>
-                <p className="text-2xl font-bold text-foreground">{s.count}</p>
-                <p className="text-xs text-muted-foreground">{s.label}</p>
-              </div>
-            </CardContent>
-          </Card>
+          <ExpandableStatCard
+            key={s.label}
+            icon={s.icon}
+            count={s.count}
+            label={s.label}
+            bgClassName={s.bg}
+            colorClassName={s.color}
+            breakdown={s.breakdown}
+          />
         ))}
       </div>
 

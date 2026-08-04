@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -192,5 +192,17 @@ describe("SpecialistDashboard", () => {
         expect(screen.getByText("Unlimited")).toBeInTheDocument();
       });
     });
+  });
+
+  it("reveals the Regular vs Pesara breakdown when hovering the Pending (Drug) stat card", async () => {
+    renderDashboard();
+    const card = await screen.findByTestId("stat-card-Pending (Drug)");
+    fireEvent.mouseEnter(card);
+    // Scoped to the card: "Regular"/"Pesara" also appear as Controlled Drug
+    // sub-tab labels elsewhere on the page (Radix renders the TabsList
+    // regardless of which tab is active), so an unscoped screen.getByText
+    // would match multiple elements.
+    expect(within(card).getByText("Regular")).toBeInTheDocument();
+    expect(within(card).getByText("Pesara")).toBeInTheDocument();
   });
 });
