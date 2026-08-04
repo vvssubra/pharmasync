@@ -162,8 +162,6 @@ export interface ExpandableStatCardProps {
   active?: boolean;
   className?: string;
 }
-```
-  `data-testid={\`stat-card-${label}\`}` is set on the rendered root element — Tasks 2 and 3 use it to target the exact element the hover/click handlers are attached to (`mouseenter`/`mouseleave` do not bubble, so tests must fire on that precise node, not a descendant or ancestor).
 
 // Adapted from a supplied LocationMap demo (3D mouse-tilt + click-to-expand
 // map card). The map/road SVG art doesn't apply here, so expansion instead
