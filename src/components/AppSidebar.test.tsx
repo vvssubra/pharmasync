@@ -103,7 +103,12 @@ describe("AppSidebar navigation labels", () => {
   it("renders 'Approvals' nav label for fms", () => {
     renderSidebar("fms");
     // FMS is an antibiotic approver: AppSidebar gates Approvals to
-    // ["admin", "fms"], matching /specialist in ProtectedRoute.
+    // ["admin", "fms", "pharmacist"], matching /specialist in ProtectedRoute.
+    expect(screen.getByText("Approvals")).toBeInTheDocument();
+  });
+
+  it("renders 'Approvals' nav label for pharmacist", () => {
+    renderSidebar("pharmacist");
     expect(screen.getByText("Approvals")).toBeInTheDocument();
   });
 });

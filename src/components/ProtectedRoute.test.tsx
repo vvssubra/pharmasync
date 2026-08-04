@@ -99,8 +99,8 @@ describe("ProtectedRoute", () => {
   });
 
   // Not a typo: /specialist is the antibiotic *approval* queue, gated to
-  // admin/fms/super_admin (ProtectedRoute.tsx ROUTE_PERMISSIONS). The
-  // `specialist` role itself is not on that list.
+  // admin/fms/pharmacist/super_admin (ProtectedRoute.tsx ROUTE_PERMISSIONS).
+  // The `specialist` role itself is not on that list.
   describe("specialist role", () => {
     it("blocks access to /specialist", () => {
       renderWithRouter("/specialist", { user: { id: "1" }, role: "specialist", loading: false });
@@ -121,9 +121,9 @@ describe("ProtectedRoute", () => {
       renderWithRouter("/fulfilment", { user: { id: "1" }, role: "pharmacist", loading: false });
       expect(screen.getByText("Permintaan Baharu page")).toBeInTheDocument();
     });
-    it("blocks access to /specialist", () => {
+    it("allows access to /specialist", () => {
       renderWithRouter("/specialist", { user: { id: "1" }, role: "pharmacist", loading: false });
-      expect(screen.getByRole("heading", { name: /No Permission/i })).toBeInTheDocument();
+      expect(screen.getByText("Specialist page")).toBeInTheDocument();
     });
     it("allows access to /request", () => {
       renderWithRouter("/request", { user: { id: "1" }, role: "pharmacist", loading: false });

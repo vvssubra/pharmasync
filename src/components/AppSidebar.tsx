@@ -29,7 +29,7 @@ const items: NavItem[] = [
   { title: "FMS Dashboard",   url: "/fms",                icon: BarChart2,     showBadge: true, roles: ["admin", "fms", "pharmacist"] },
   { title: "MO Dashboard",    url: "/mo",                 icon: Stethoscope,   roles: ["admin", "mo", "pharmacist"] },
   { title: "New Requests",    url: "/fulfilment",         icon: Bell,          showBadge: true, roles: ["admin", "fms", "pharmacist"] },
-  { title: "Approvals",       url: "/specialist",         icon: ShieldCheck,   showBadge: true, roles: ["admin", "fms"] },
+  { title: "Approvals",       url: "/specialist",         icon: ShieldCheck,   showBadge: true, roles: ["admin", "fms", "pharmacist"] },
   { title: "Drug Master",     url: "/drugs",              icon: Pill,          roles: ["admin", "fms", "pharmacist"] },
   { title: "Terimaan",        url: "/terimaan",           icon: PackagePlus,   roles: ["admin", "fms", "pharmacist"] },
   { title: "Patients",        url: "/pesakit",            icon: Users,         roles: ["admin", "fms", "pharmacist"] },
@@ -76,9 +76,11 @@ export function AppSidebar() {
   });
 
   // Pending specialist approval count (drug requests + antibiotic forms awaiting FMS)
+  const canSeeApprovals = role === "admin" || role === "fms" || role === "pharmacist" || role === "super_admin";
+
   const { data: specialistBadge = 0 } = useQuery({
     queryKey: ["pending-specialist-badge-count"],
-    enabled: role === "admin" || role === "fms" || role === "super_admin",
+    enabled: canSeeApprovals,
     refetchInterval: 15000,
     queryFn: async () => {
       const [{ count: drugCount, error: drugError }, { data: abData, error: abError }] =
