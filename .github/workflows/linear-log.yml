@@ -9,6 +9,14 @@
 # Push -> one Linear issue per commit on main, titled "[type] subject".
 # PR opened -> one Linear issue titled "[PR] title", linked to the PR.
 # PR closed -> finds that issue by title and adds a closed/merged comment.
+#
+# Every untrusted value (commit message, PR title, PR author) is passed via
+# `env:` and read as a shell variable ($VAR), never spliced with ${{ }} into
+# the `run:` body directly. GitHub splices ${{ }} into the script BEFORE bash
+# parses it, so a commit message or PR title containing a quote/paren/backtick
+# breaks the script — or worse, is a documented script-injection vector. This
+# bit a real deploy: a PR body with parentheses broke log-push's `for` loop.
+# See: https://docs.github.com/actions/security-guides/security-hardening-for-github-actions#understanding-the-risk-of-script-injections
 name: linear-log
 
 on:
@@ -27,9 +35,10 @@ jobs:
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
           LINEAR_TEAM_ID: ${{ secrets.LINEAR_TEAM_ID }}
           LINEAR_PROJECT_ID: ${{ vars.LINEAR_PROJECT_ID }}
+          COMMITS_JSON: ${{ toJson(github.event.commits) }}
         run: |
-          for sha in $(echo '${{ toJson(github.event.commits) }}' | jq -r '.[].id'); do
-            commit=$(echo '${{ toJson(github.event.commits) }}' | jq -c --arg sha "$sha" '.[] | select(.id == $sha)')
+          for sha in $(echo "$COMMITS_JSON" | jq -r '.[].id'); do
+            commit=$(echo "$COMMITS_JSON" | jq -c --arg sha "$sha" '.[] | select(.id == $sha)')
             subject=$(echo "$commit" | jq -r '.message' | head -n1)
             author=$(echo "$commit" | jq -r '.author.name')
             url=$(echo "$commit" | jq -r '.url')
@@ -58,9 +67,12 @@ jobs:
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
           LINEAR_TEAM_ID: ${{ secrets.LINEAR_TEAM_ID }}
           LINEAR_PROJECT_ID: ${{ vars.LINEAR_PROJECT_ID }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
         run: |
-          title="[PR] ${{ github.event.pull_request.title }}"
-          desc="${{ github.event.pull_request.html_url }}\n\nOpened by ${{ github.event.pull_request.user.login }}"
+          title="[PR] $PR_TITLE"
+          desc="$PR_URL\n\nOpened by $PR_AUTHOR"
 
           jq -n --arg title "$title" --arg desc "$desc" --arg teamId "$LINEAR_TEAM_ID" --arg projectId "$LINEAR_PROJECT_ID" \
             '{query: "mutation($input: IssueCreateInput!) { issueCreate(input: $input) { success } }", variables: {input: {title: $title, description: $desc, teamId: $teamId, projectId: $projectId}}}' \
@@ -76,9 +88,12 @@ jobs:
       - name: Comment merged/closed status on matching Linear issue
         env:
           LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_MERGED: ${{ github.event.pull_request.merged }}
         run: |
-          title="[PR] ${{ github.event.pull_request.title }}"
-          status="${{ github.event.pull_request.merged == true && 'merged' || 'closed without merge' }}"
+          title="[PR] $PR_TITLE"
+          if [ "$PR_MERGED" = "true" ]; then status="merged"; else status="closed without merge"; fi
 
           issue_id=$(jq -n --arg title "$title" \
             '{query: "query($title: String!) { issues(filter: {title: {eq: $title}}, first: 1) { nodes { id } } }", variables: {title: $title}}' \
@@ -89,7 +104,7 @@ jobs:
 
           [ -z "$issue_id" ] && exit 0
 
-          jq -n --arg issueId "$issue_id" --arg body "PR $status: ${{ github.event.pull_request.html_url }}" \
+          jq -n --arg issueId "$issue_id" --arg body "PR $status: $PR_URL" \
             '{query: "mutation($input: CommentCreateInput!) { commentCreate(input: $input) { success } }", variables: {input: {issueId: $issueId, body: $body}}}' \
             | curl -s -X POST https://api.linear.app/graphql \
                 -H "Authorization: $LINEAR_API_KEY" \
