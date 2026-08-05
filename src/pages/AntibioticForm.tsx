@@ -10,11 +10,12 @@ import { usePathwayCheck } from "@/hooks/usePathwayCheck";
 import { useDoseSuggestion } from "@/hooks/useDoseSuggestion";
 import PathwayCheckBanner from "@/components/PathwayCheckBanner";
 import { AI_ENABLED, AI_SUGGEST_ROLES, PATHWAY_CHECK_ENABLED, KNOWLEDGE_ENABLED } from "@/lib/featureFlags";
-import { deriveDoseQuery, type ChecklistState } from "@/lib/doseQuery";
+import { deriveDoseQuery, derivePathwayIndication, type ChecklistState } from "@/lib/doseQuery";
 import { resolveLocalDose } from "@/lib/abxDose";
 import type { ComputedRegimen } from "@/lib/nagPathways";
 import AbxDoseCard from "@/components/AbxDoseCard";
 import { exampleDoseFor } from "@/lib/knowledgeClient";
+import { DiagnosisCombobox } from "@/components/DiagnosisCombobox";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -119,6 +120,33 @@ export default function AntibioticForm() {
   const [healthEdTca, setHealthEdTca] = useState(false);
   const [prescriberNotes, setPrescriberNotes] = useState("");
 
+  // This MO's own recent diagnoses, most-recent-first — surfaces real clinic
+  // vocabulary in the diagnosis picker with no curation needed. Read-only,
+  // same access an MO already has to their own submitted forms.
+  const { data: recentDiagnoses = [] } = useQuery({
+    queryKey: ["recent-diagnoses", user?.id],
+    enabled: !!user?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("antibiotic_forms")
+        .select("diagnosis")
+        .eq("submitted_by", user!.id)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (error) throw error;
+      const seen = new Set<string>();
+      const out: string[] = [];
+      for (const row of data ?? []) {
+        const key = row.diagnosis.trim().toLowerCase();
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        out.push(row.diagnosis.trim());
+        if (out.length >= 5) break;
+      }
+      return out;
+    },
+  });
+
   // Section 2
   const [checklist, setChecklist] = useState<ChecklistState>(defaultChecklist);
 
@@ -210,6 +238,13 @@ checklist: checklist as unknown as Record<string, unknown>,
     patient_age: age ?? undefined,
   }, { enabled: PATHWAY_CHECK_ENABLED && canUseAiSuggest });
   const centorTotal = checklist.pharyngitis.temp + checklist.pharyngitis.no_cough + checklist.pharyngitis.adenopathy + checklist.pharyngitis.exudate + checklist.pharyngitis.age_score;
+
+  // Suggestion only, never auto-written: once the checklist itself crosses a
+  // pathway's threshold, offer a one-tap fill for Diagnosis instead of
+  // making the MO retype what they just ticked.
+  const suggestedIndication = derivePathwayIndication(checklist);
+  const showIndicationHint =
+    !!suggestedIndication && diagnosis.trim().toLowerCase() !== suggestedIndication.toLowerCase();
 
   const doseQuery = deriveDoseQuery(checklist, diagnosis, age);
   const { matches: doseMatches, status: doseStatus, message: doseMessage } = useDoseSuggestion(doseQuery, {
@@ -414,7 +449,18 @@ checklist: checklist as unknown as Record<string, unknown>,
               </div>
               <div className="space-y-2">
                 <Label>5. Diagnosis *</Label>
-                <Textarea value={diagnosis} onChange={e => setDiagnosis(e.target.value)} placeholder="Diagnosis" />
+                <DiagnosisCombobox value={diagnosis} onChange={setDiagnosis} recent={recentDiagnoses} />
+                {showIndicationHint && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-auto p-0 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setDiagnosis(suggestedIndication!)}
+                  >
+                    Use: {suggestedIndication}
+                  </Button>
+                )}
               </div>
               <div className="space-y-2">
                 <Label>6. Assigned FMS *</Label>

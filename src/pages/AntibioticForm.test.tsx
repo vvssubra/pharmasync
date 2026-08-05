@@ -14,6 +14,8 @@ const updateEqSpy = vi.fn(() => Promise.resolve({ error: null }));
 // treats the visit as a plain new form. Holder object so tests can swap the
 // row without reassigning a module binding.
 const editHolder: { row: Record<string, unknown> | null } = { row: null };
+// Rows returned to the recent-diagnoses picker query (select().eq().order().limit()).
+const recentHolder: { rows: { diagnosis: string }[] } = { rows: [] };
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
@@ -21,9 +23,15 @@ vi.mock("@/integrations/supabase/client", () => ({
     from: vi.fn(() => ({
       insert: insertSpy,
       update: vi.fn(() => ({ eq: updateEqSpy })),
+      // Two distinct read shapes share `select().eq(...)`: the ?edit=<id>
+      // loader chains .single(), the recent-diagnoses picker chains
+      // .order().limit() — this stub supports both off the same eq() call.
       select: vi.fn(() => ({
         eq: vi.fn(() => ({
           single: vi.fn(() => Promise.resolve({ data: editHolder.row, error: null })),
+          order: vi.fn(() => ({
+            limit: vi.fn(() => Promise.resolve({ data: recentHolder.rows, error: null })),
+          })),
         })),
       })),
     })),
@@ -179,7 +187,9 @@ describe("AntibioticForm correction mode (?edit=<id>)", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/Dose does not match weight/)).toBeInTheDocument();
     expect(screen.getByDisplayValue("Aminah binti Yusof")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("Community Acquired Pneumonia")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Diagnosis" })).toHaveTextContent(
+      "Community Acquired Pneumonia"
+    );
   });
 
   it("resubmits via UPDATE (back to pending_specialist), not a new INSERT", async () => {
