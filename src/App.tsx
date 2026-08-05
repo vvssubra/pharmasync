@@ -8,6 +8,7 @@ import { AppLayout } from "@/components/AppLayout";
 import { PwaUpdatePrompt } from "@/components/PwaUpdatePrompt";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { NotificationSetup } from "@/components/NotificationSetup";
+import { IdleTimeout } from "@/components/IdleTimeout";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Index";
 import FmsDashboard from "@/pages/FmsDashboard";
@@ -55,6 +56,8 @@ const App = () => (
         {/* Approver roles only: subscribes the device to Web Push so request
             notifications arrive even with the app closed. */}
         <NotificationSetup />
+        {/* Signs the user out after 1 hour with no activity; warns 2 min before. */}
+        <IdleTimeout />
         <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
