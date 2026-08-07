@@ -40,7 +40,8 @@ describe("PaedsDoseCalculator", () => {
 
   it("keeps millilitres where the source itself publishes them", () => {
     enterPatient({ years: "4", months: "0", weight: "16" });
-    expect(drugCard("lactulose").getByText("5–10 mL")).toBeInTheDocument();
+    // 0.5mL/kg on 16kg is 8mL.
+    expect(drugCard("lactulose").getByText("8 mL")).toBeInTheDocument();
   });
 
   // The whole point of the contraindication rule: no number to misread.

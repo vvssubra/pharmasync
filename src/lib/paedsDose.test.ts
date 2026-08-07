@@ -24,13 +24,6 @@ describe("age band matching", () => {
     expect(dose("paracetamol", 0, 2, 5).kind).toBe("outOfBand");
   });
 
-  // The source runs 6-11 years then resumes above 12, leaving 12-year-olds
-  // unpublished. Reproducing the gap is the point — it must not be filled.
-  it("reproduces a gap the source leaves open", () => {
-    expect(dose("diphenhydramine", 12, 0, 40).kind).toBe("outOfBand");
-    expect(amount(dose("diphenhydramine", 13, 0, 45))).toBe("25–50 mg");
-  });
-
   // Cetirizine's MIMS bands both cover a 6-year-old; the younger wins.
   it("resolves an overlap in favour of the band listed first", () => {
     expect(amount(dose("cetirizine", 6, 0, 20))).toBe("2.5 mg");
@@ -56,6 +49,15 @@ describe("contraindications", () => {
       expect(dose(id, 6, 0, 20).kind).toBe("notRecommended");
     }
   );
+
+  it("releases the phenylephrine per-kg dose once the patient is 12, capped at 10mg", () => {
+    expect(amount(dose("phenylephrine", 14, 0, 40))).toBe("8 mg");
+    expect(amount(dose("phenylephrine", 14, 0, 60))).toBe("10 mg");
+  });
+
+  it("releases the dextromethorphan per-kg dose once the patient is 12", () => {
+    expect(amount(dose("dextromethorphan", 12, 0, 40))).toBe("8–16 mg");
+  });
 });
 
 describe("per-kg calculation", () => {
@@ -73,11 +75,18 @@ describe("per-kg calculation", () => {
     // 0.1mg/kg on 14kg is 1.4mg, not the retired 1mg fixed dose.
     expect(amount(dose("chlorpheniramine", 2, 0, 14))).toBe("1.4 mg");
   });
+
+  it("doses promethazine, bromhexine, diphenhydramine and salbutamol by weight", () => {
+    expect(amount(dose("promethazine", 3, 0, 14))).toBe("2.8–7 mg");
+    expect(amount(dose("bromhexine", 3, 0, 14))).toBe("4.2 mg");
+    expect(amount(dose("diphenhydramine", 3, 0, 14))).toBe("14–28 mg");
+    expect(amount(dose("salbutamol", 3, 0, 14))).toBe("1.4–2.1 mg");
+  });
 });
 
 describe("volume-dosed entries", () => {
-  it("computes lactulose volume from the published band", () => {
-    expect(amount(dose("lactulose", 4, 0, 16))).toBe("5–10 ml");
+  it("computes lactulose from mL per kg", () => {
+    expect(amount(dose("lactulose", 4, 0, 16))).toBe("8 ml");
   });
 });
 
@@ -97,13 +106,18 @@ describe("shown working", () => {
   });
 
   it("leaves a fixed-band dose without a basis — there is no arithmetic", () => {
-    const outcome = dose("promethazine", 3, 0, 14);
+    const outcome = dose("cetirizine", 3, 0, 14);
     if (outcome.kind === "dose") expect(outcome.basis).toBeUndefined();
   });
 
   it("states the mg/kg basis for paracetamol", () => {
     const outcome = dose("paracetamol", 2, 0, 14);
     if (outcome.kind === "dose") expect(outcome.basis).toBe("15 mg/kg × 14 kg");
+  });
+
+  it("states the mL/kg basis for lactulose", () => {
+    const outcome = dose("lactulose", 4, 0, 16);
+    if (outcome.kind === "dose") expect(outcome.basis).toBe("0.5 mL/kg × 16 kg");
   });
 });
 
@@ -134,7 +148,6 @@ describe("formatting", () => {
 
   it("renders the published small doses exactly as the source prints them", () => {
     expect(amount(dose("triprolidine", 1, 0, 10))).toBe("0.313 mg");
-    expect(amount(dose("diphenhydramine", 3, 0, 14))).toBe("6.25 mg");
   });
 
   it("collapses a range whose ends round to the same figure", () => {

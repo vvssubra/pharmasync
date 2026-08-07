@@ -2,7 +2,9 @@
 //
 // The paediatric dose table. THIS FILE IS CLINICAL DATA, NOT LOGIC — every
 // entry carries the source text verbatim above it so it can be checked line by
-// line against MIMS without reading any code.
+// line against source without reading any code. "MIMS" entries are transcribed
+// from the MIMS Malaysia label; "Clinic protocol" entries are the mg/kg (or
+// mL/kg) figures the clinic doses by, sourced from Frank Shann Drug Doses.
 //
 // Conventions:
 //  - Age bands are whole months, minMonths inclusive, maxMonths exclusive.
@@ -79,15 +81,13 @@ export const PAEDS_DRUGS: Drug[] = [
     ],
   },
   {
-    // MIMS  2-5 years: 5mg TDS / 6-10 years: 10mg BD / >10 years: 25mg OD or BD
+    // Clinic protocol: 0.2-0.5mg/kg/dose TDS.
     id: "promethazine",
     name: "Promethazine",
     category: "antihistamine",
     preparations: [{ label: "5mg/5ml" }],
     mims: [
-      { kind: "fixed", minMonths: 24, maxMonths: 72, mgMin: 5, freq: "TDS" },
-      { kind: "fixed", minMonths: 72, maxMonths: 132, mgMin: 10, freq: "BD" },
-      { kind: "fixed", minMonths: 132, mgMin: 25, freq: "OD or BD" },
+      { kind: "perKg", mgPerKgMin: 0.2, mgPerKgMax: 0.5, freq: "TDS" },
     ],
   },
   {
@@ -107,30 +107,32 @@ export const PAEDS_DRUGS: Drug[] = [
 
   // ── DECONGESTANT ─────────────────────────────────────────────────────────
   {
-    // MIMS  Not recommended < 12 years old
+    // Not recommended under 12 years; clinic protocol above that is
+    // 0.2mg/kg/dose TDS or QID, max 10mg.
     id: "phenylephrine",
     name: "Phenylephrine",
     category: "decongestant",
     preparations: [{ label: "5mg/5ml" }],
-    mims: [{ kind: "notRecommended", belowMonths: 144, note: "Not recommended under 12 years" }],
+    mims: [
+      { kind: "notRecommended", belowMonths: 144, note: "Not recommended under 12 years" },
+      { kind: "perKg", mgPerKgMin: 0.2, maxMg: 10, freq: "TDS or QID", note: "max 10 mg" },
+    ],
   },
 
   // ── WET COUGH ────────────────────────────────────────────────────────────
   {
-    // MIMS  2-5 years: 4mg BD / 6-11 years: 8mg TDS
+    // Clinic protocol: 0.3mg/kg/dose. Source gives no frequency; none invented.
     id: "bromhexine",
     frequentlyUsed: true,
     name: "Bromhexine",
     category: "wetCough",
     preparations: [{ label: "4mg/5ml" }],
     mims: [
-      { kind: "fixed", minMonths: 24, maxMonths: 72, mgMin: 4, freq: "BD" },
-      { kind: "fixed", minMonths: 72, maxMonths: 144, mgMin: 8, freq: "TDS" },
+      { kind: "perKg", mgPerKgMin: 0.3, freq: "frequency not stated" },
     ],
   },
   {
-    // MIMS  2-5 years: 6.25mg QID / 6-11 years: 12.5-25mg QID /
-    //       >12 years: 25-50mg TDS or QID
+    // Clinic protocol: 1-2mg/kg/dose TDS or QID.
     id: "diphenhydramine",
     frequentlyUsed: true,
     name: "Diphenhydramine",
@@ -139,51 +141,45 @@ export const PAEDS_DRUGS: Drug[] = [
       { label: "12.5mg/5ml" },
       { label: "14mg/5ml" },
     ],
-    caution: "MIMS runs to 11 years then resumes above 12; 12-year-olds fall in no published band.",
     mims: [
-      { kind: "fixed", minMonths: 24, maxMonths: 72, mgMin: 6.25, freq: "QID" },
-      { kind: "fixed", minMonths: 72, maxMonths: 144, mgMin: 12.5, mgMax: 25, freq: "QID" },
-      { kind: "fixed", minMonths: 156, mgMin: 25, mgMax: 50, freq: "TDS or QID" },
+      { kind: "perKg", mgPerKgMin: 1, mgPerKgMax: 2, freq: "TDS or QID" },
     ],
   },
 
   // ── DRY COUGH ────────────────────────────────────────────────────────────
   {
-    // MIMS  Not recommended < 12 years old
+    // Not recommended under 12 years; clinic protocol above that is
+    // 0.2-0.4mg/kg/dose TDS or QID.
     id: "dextromethorphan",
     name: "Dextromethorphan",
     category: "dryCough",
     preparations: [{ label: "15mg/5ml" }],
-    mims: [{ kind: "notRecommended", belowMonths: 144, note: "Not recommended under 12 years" }],
+    mims: [
+      { kind: "notRecommended", belowMonths: 144, note: "Not recommended under 12 years" },
+      { kind: "perKg", mgPerKgMin: 0.2, mgPerKgMax: 0.4, freq: "TDS or QID" },
+    ],
   },
 
   // ── MISCELLANEOUS ────────────────────────────────────────────────────────
   {
-    // MIMS  2-6 years: 1-2mg TDS or QID / >6-12 years: 2mg TDS or QID
+    // Clinic protocol: 0.1-0.15mg/kg/dose QID.
     id: "salbutamol",
     frequentlyUsed: true,
     name: "Salbutamol",
     category: "misc",
     preparations: [{ label: "2mg/5ml" }],
     mims: [
-      { kind: "fixed", minMonths: 24, maxMonths: 84, mgMin: 1, mgMax: 2, freq: "TDS or QID" },
-      { kind: "fixed", minMonths: 84, maxMonths: 156, mgMin: 2, freq: "TDS or QID" },
+      { kind: "perKg", mgPerKgMin: 0.1, mgPerKgMax: 0.15, freq: "QID" },
     ],
   },
   {
-    // MIMS  <1 year: up to 5ml daily / 1-6 years: 5-10ml daily /
-    //       7-14 years: 10-15ml daily
+    // Clinic protocol: 0.5mL/kg/dose BD.
     id: "lactulose",
     frequentlyUsed: true,
     name: "Lactulose",
     category: "misc",
-    // Dosed by volume, so no mg conversion is offered.
     preparations: [{ label: "3.335g/5ml" }],
-    mims: [
-      { kind: "volume", maxMonths: 12, mlMin: 5, freq: "daily", note: "up to" },
-      { kind: "volume", minMonths: 12, maxMonths: 84, mlMin: 5, mlMax: 10, freq: "daily" },
-      { kind: "volume", minMonths: 84, maxMonths: 180, mlMin: 10, mlMax: 15, freq: "daily" },
-    ],
+    mims: [{ kind: "mlPerKg", mlPerKg: 0.5, freq: "BD" }],
   },
 ];
 
