@@ -49,7 +49,6 @@ function Outcome({ outcome }: { outcome: DoseOutcome }) {
 
 function DrugCard({ drug, patient }: { drug: Drug; patient: Patient }) {
   const mims = evaluate(drug.mims, patient);
-  const shann = evaluate(drug.shann, patient);
 
   return (
     <div
@@ -76,15 +75,8 @@ function DrugCard({ drug, patient }: { drug: Drug; patient: Patient }) {
         <p className="mt-1 text-xs italic text-muted-foreground">{drug.caution}</p>
       )}
 
-      <div className="mt-3 space-y-3">
-        <div>
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">MIMS</p>
-          <Outcome outcome={mims} />
-        </div>
-        <div className="border-t pt-3">
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Frank Shann</p>
-          <Outcome outcome={shann} />
-        </div>
+      <div className="mt-3">
+        <Outcome outcome={mims} />
       </div>
     </div>
   );
@@ -117,8 +109,8 @@ export default function PaedsDoseCalculator() {
           Paediatric Dose Calculator
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Enter age and weight to see the MIMS and Frank Shann doses side by side, with the volume
-          to draw up for each preparation.
+          Enter age and weight to see the MIMS dose, with the volume to draw up for each
+          preparation.
         </p>
       </div>
 

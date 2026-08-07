@@ -8,10 +8,10 @@ function drug(id: string) {
   return found;
 }
 
-/** mg (or mL) figures for one source, as the UI would show them. */
-function dose(id: string, source: "mims" | "shann", years: number, months: number, weightKg: number): DoseOutcome {
+/** mg (or mL) figures, as the UI would show them. */
+function dose(id: string, years: number, months: number, weightKg: number): DoseOutcome {
   const d = drug(id);
-  return evaluate(d[source], { ageMonths: ageToMonths(years, months), weightKg });
+  return evaluate(d.mims, { ageMonths: ageToMonths(years, months), weightKg });
 }
 
 function amount(outcome: DoseOutcome): string {
@@ -23,147 +23,95 @@ describe("age band matching", () => {
   it("treats a band's lower bound as inclusive and upper as exclusive", () => {
     // Paracetamol 6-23 months is 120mg; 2-3 years is 180mg. The 24th month is
     // the first day of the older band.
-    expect(amount(dose("paracetamol", "mims", 1, 11, 10))).toBe("120 mg");
-    expect(amount(dose("paracetamol", "mims", 2, 0, 12))).toBe("180 mg");
+    expect(amount(dose("paracetamol", 1, 11, 10))).toBe("120 mg");
+    expect(amount(dose("paracetamol", 2, 0, 12))).toBe("180 mg");
   });
 
   it("reports out of band rather than extrapolating past the youngest entry", () => {
     // Paracetamol's youngest MIMS band starts at 3 months.
-    expect(dose("paracetamol", "mims", 0, 2, 5).kind).toBe("outOfBand");
+    expect(dose("paracetamol", 0, 2, 5).kind).toBe("outOfBand");
   });
 
   it("reports out of band rather than extrapolating past the oldest entry", () => {
     // MIMS paracetamol stops at 11 years.
-    expect(dose("paracetamol", "mims", 12, 0, 40).kind).toBe("outOfBand");
+    expect(dose("paracetamol", 12, 0, 40).kind).toBe("outOfBand");
   });
 
   // The source runs 6-11 years then resumes above 12, leaving 12-year-olds
   // unpublished. Reproducing the gap is the point — it must not be filled.
   it("reproduces a gap the source leaves open", () => {
-    expect(dose("diphenhydramine", "mims", 12, 0, 40).kind).toBe("outOfBand");
-    expect(amount(dose("diphenhydramine", "mims", 13, 0, 45))).toBe("25–50 mg");
+    expect(dose("diphenhydramine", 12, 0, 40).kind).toBe("outOfBand");
+    expect(amount(dose("diphenhydramine", 13, 0, 45))).toBe("25–50 mg");
   });
 
   // Cetirizine's MIMS bands both cover a 6-year-old; the younger wins.
   it("resolves an overlap in favour of the band listed first", () => {
-    expect(amount(dose("cetirizine", "mims", 6, 0, 20))).toBe("2.5 mg");
-    expect(amount(dose("cetirizine", "mims", 7, 0, 22))).toBe("5 mg");
+    expect(amount(dose("cetirizine", 6, 0, 20))).toBe("2.5 mg");
+    expect(amount(dose("cetirizine", 7, 0, 22))).toBe("5 mg");
   });
 });
 
 describe("weight-conditional bands", () => {
   it("splits loratadine on the 30kg threshold", () => {
-    expect(amount(dose("loratadine", "mims", 8, 0, 25))).toBe("5 mg");
-    expect(amount(dose("loratadine", "mims", 8, 0, 35))).toBe("10 mg");
+    expect(amount(dose("loratadine", 8, 0, 25))).toBe("5 mg");
+    expect(amount(dose("loratadine", 8, 0, 35))).toBe("10 mg");
   });
 
   it("treats exactly 30kg as the heavier band", () => {
-    expect(amount(dose("loratadine", "mims", 8, 0, 30))).toBe("10 mg");
-  });
-
-  it("applies the Frank Shann lower weight bound too", () => {
-    // Frank Shann's band is 12-30kg; a 10kg toddler is below it.
-    expect(dose("loratadine", "shann", 2, 0, 10).kind).toBe("outOfBand");
-    expect(amount(dose("loratadine", "shann", 2, 0, 13))).toBe("5 mg");
+    expect(amount(dose("loratadine", 8, 0, 30))).toBe("10 mg");
   });
 });
 
 describe("contraindications", () => {
   it.each(["pseudoephedrine", "phenylephrine", "dextromethorphan"])(
-    "%s offers no dose under 12 from either source",
+    "%s offers no dose under 12",
     (id) => {
-      expect(dose(id, "mims", 6, 0, 20).kind).toBe("notRecommended");
-      expect(dose(id, "shann", 6, 0, 20).kind).toBe("notRecommended");
+      expect(dose(id, 6, 0, 20).kind).toBe("notRecommended");
     }
   );
-
-  it("releases the Frank Shann dose once the patient is 12", () => {
-    expect(amount(dose("dextromethorphan", "shann", 12, 0, 40))).toBe("8–16 mg");
-  });
 });
 
 describe("per-kg calculation", () => {
   it("multiplies by weight", () => {
-    // Frank Shann paracetamol 15mg/kg on 12kg.
-    expect(amount(dose("paracetamol", "shann", 2, 0, 12))).toBe("180 mg");
+    // MIMS ibuprofen 5-10mg/kg on 14kg.
+    expect(amount(dose("ibuprofen", 3, 0, 14))).toBe("70–140 mg");
   });
 
   it("carries a range through", () => {
-    // MIMS ibuprofen 5-10mg/kg on 14kg.
-    expect(amount(dose("ibuprofen", "mims", 3, 0, 14))).toBe("70–140 mg");
-  });
-
-  it("caps at the published maximum", () => {
-    // Frank Shann phenylephrine 0.2mg/kg, max 10mg. 60kg would give 12mg.
-    expect(amount(dose("phenylephrine", "shann", 14, 0, 60))).toBe("10 mg");
-    expect(amount(dose("phenylephrine", "shann", 14, 0, 40))).toBe("8 mg");
+    expect(amount(dose("ibuprofen", 3, 0, 14))).toBe("70–140 mg");
   });
 });
 
 describe("sources that publish no dose", () => {
-  it("says so for ambroxol rather than showing a blank", () => {
-    const outcome = dose("ambroxol", "shann", 3, 0, 14);
-    expect(outcome.kind).toBe("noData");
-    if (outcome.kind === "noData") expect(outcome.note).toBe("No data");
-  });
-
-  it("does not invent a frequency for bromhexine", () => {
-    const outcome = dose("bromhexine", "shann", 3, 0, 14);
-    expect(outcome.kind).toBe("dose");
-    if (outcome.kind === "dose") expect(outcome.freq).toBe("frequency not stated");
+  it("says so for ambroxol above the published bands rather than showing a blank", () => {
+    const outcome = dose("ambroxol", 13, 0, 40);
+    expect(outcome.kind).toBe("outOfBand");
   });
 });
 
 describe("volume-dosed entries", () => {
-  it("keeps triprolidine's Frank Shann figure in mL", () => {
-    const outcome = dose("triprolidine", "shann", 3, 0, 14);
-    expect(outcome.kind).toBe("dose");
-    if (outcome.kind === "dose") expect(outcome.unit).toBe("ml");
-    expect(amount(outcome)).toBe("2.5–5 ml");
-  });
-
-  it("computes lactulose from mL per kg", () => {
-    expect(amount(dose("lactulose", "shann", 4, 0, 16))).toBe("8 ml");
+  it("computes lactulose volume from the published band", () => {
+    expect(amount(dose("lactulose", 4, 0, 16))).toBe("5–10 ml");
   });
 });
 
 // Doses are reported in the unit the source publishes. Nothing is converted:
-// a mg figure stays mg, and the two entries published as volumes stay mL.
+// a mg figure stays mg, and lactulose stays mL.
 describe("units follow the source", () => {
-  it("reports milligrams for a mg/kg drug", () => {
-    const outcome = dose("paracetamol", "shann", 2, 0, 10);
-    expect(outcome.kind).toBe("dose");
-    if (outcome.kind === "dose") expect(outcome.unit).toBe("mg");
-    expect(amount(outcome)).toBe("150 mg");
-  });
-
   it("reports millilitres only where the source printed millilitres", () => {
-    const lactulose = dose("lactulose", "mims", 3, 0, 14);
+    const lactulose = dose("lactulose", 3, 0, 14);
     if (lactulose.kind === "dose") expect(lactulose.unit).toBe("ml");
-    const triprolidine = dose("triprolidine", "shann", 3, 0, 14);
-    if (triprolidine.kind === "dose") expect(triprolidine.unit).toBe("ml");
   });
 });
 
 describe("shown working", () => {
-  it("states the mg/kg basis behind a per-kg dose", () => {
-    const outcome = dose("chlorpheniramine", "shann", 3, 0, 10);
-    expect(amount(outcome)).toBe("1 mg");
-    if (outcome.kind === "dose") expect(outcome.basis).toBe("0.1 mg/kg × 10 kg");
-  });
-
   it("states both ends of a per-kg range", () => {
-    const outcome = dose("ibuprofen", "mims", 3, 0, 14);
+    const outcome = dose("ibuprofen", 3, 0, 14);
     if (outcome.kind === "dose") expect(outcome.basis).toBe("5–10 mg/kg × 14 kg");
   });
 
-  it("states the mL/kg basis for lactulose", () => {
-    const outcome = dose("lactulose", "shann", 4, 0, 16);
-    if (outcome.kind === "dose") expect(outcome.basis).toBe("0.5 mL/kg × 16 kg");
-  });
-
   it("leaves a fixed-band dose without a basis — there is no arithmetic", () => {
-    const outcome = dose("paracetamol", "mims", 2, 0, 12);
+    const outcome = dose("paracetamol", 2, 0, 12);
     if (outcome.kind === "dose") expect(outcome.basis).toBeUndefined();
   });
 });
@@ -195,9 +143,9 @@ describe("formatting", () => {
   });
 
   it("renders the published small doses exactly as the source prints them", () => {
-    expect(amount(dose("desloratadine", "mims", 3, 0, 14))).toBe("1.25 mg");
-    expect(amount(dose("triprolidine", "mims", 1, 0, 10))).toBe("0.313 mg");
-    expect(amount(dose("diphenhydramine", "mims", 3, 0, 14))).toBe("6.25 mg");
+    expect(amount(dose("desloratadine", 3, 0, 14))).toBe("1.25 mg");
+    expect(amount(dose("triprolidine", 1, 0, 10))).toBe("0.313 mg");
+    expect(amount(dose("diphenhydramine", 3, 0, 14))).toBe("6.25 mg");
   });
 
   it("collapses a range whose ends round to the same figure", () => {
@@ -211,8 +159,7 @@ describe("table coverage", () => {
   it("has no drug that silently produces nothing for a 7-year-old, 22kg", () => {
     const unresolved = PAEDS_DRUGS.filter(d => {
       const mims = evaluate(d.mims, { ageMonths: 84, weightKg: 22 });
-      const shann = evaluate(d.shann, { ageMonths: 84, weightKg: 22 });
-      return mims.kind === "outOfBand" && shann.kind === "outOfBand";
+      return mims.kind === "outOfBand";
     });
     expect(unresolved.map(d => d.id)).toEqual([]);
   });

@@ -7,8 +7,6 @@
 // means children aged 2 up to their 6th birthday, so it becomes [24, 72) —
 // minMonths inclusive, maxMonths exclusive.
 
-export type DoseSource = "mims" | "shann";
-
 export interface Preparation {
   /** As printed on the bottle, e.g. "120mg/5ml". Shown for reference only —
    *  the calculator does not convert a dose into a volume. */
@@ -43,7 +41,6 @@ export interface Drug {
   category: CategoryId;
   preparations: Preparation[];
   mims: Rule[];
-  shann: Rule[];
   /** Shown under the drug name when something about the entry needs saying —
    *  an unconfirmed strength, a gap or overlap in the source bands. */
   caution?: string;
@@ -76,8 +73,8 @@ export const CATEGORY_ORDER: CategoryId[] = [
 
 export type DoseOutcome =
   /** A dose was resolved. amount is mg unless unit is "ml" — which happens
-   *  only where the source itself publishes a volume (lactulose, and Frank
-   *  Shann's triprolidine). Nothing is converted between the two. */
+   *  only where the source itself publishes a volume (lactulose). Nothing is
+   *  converted between the two. */
   | { kind: "dose"; min: number; max?: number; unit: "mg" | "ml"; freq: string; note?: string; basis?: string }
   /** The drug is contraindicated at this age; no number is offered. */
   | { kind: "notRecommended"; note: string }
