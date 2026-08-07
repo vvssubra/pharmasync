@@ -20,21 +20,8 @@ function amount(outcome: DoseOutcome): string {
 }
 
 describe("age band matching", () => {
-  it("treats a band's lower bound as inclusive and upper as exclusive", () => {
-    // Paracetamol 6-23 months is 120mg; 2-3 years is 180mg. The 24th month is
-    // the first day of the older band.
-    expect(amount(dose("paracetamol", 1, 11, 10))).toBe("120 mg");
-    expect(amount(dose("paracetamol", 2, 0, 12))).toBe("180 mg");
-  });
-
-  it("reports out of band rather than extrapolating past the youngest entry", () => {
-    // Paracetamol's youngest MIMS band starts at 3 months.
+  it("reports out of band below paracetamol's 3-month floor", () => {
     expect(dose("paracetamol", 0, 2, 5).kind).toBe("outOfBand");
-  });
-
-  it("reports out of band rather than extrapolating past the oldest entry", () => {
-    // MIMS paracetamol stops at 11 years.
-    expect(dose("paracetamol", 12, 0, 40).kind).toBe("outOfBand");
   });
 
   // The source runs 6-11 years then resumes above 12, leaving 12-year-olds
@@ -73,12 +60,18 @@ describe("contraindications", () => {
 
 describe("per-kg calculation", () => {
   it("multiplies by weight", () => {
+    // Clinic protocol paracetamol 15mg/kg on 14kg.
+    expect(amount(dose("paracetamol", 2, 0, 14))).toBe("210 mg");
+  });
+
+  it("carries a range through", () => {
     // MIMS ibuprofen 5-10mg/kg on 14kg.
     expect(amount(dose("ibuprofen", 3, 0, 14))).toBe("70–140 mg");
   });
 
-  it("carries a range through", () => {
-    expect(amount(dose("ibuprofen", 3, 0, 14))).toBe("70–140 mg");
+  it("caps chlorpheniramine at 0.1mg/kg, not the old fixed 1mg band", () => {
+    // 0.1mg/kg on 14kg is 1.4mg, not the retired 1mg fixed dose.
+    expect(amount(dose("chlorpheniramine", 2, 0, 14))).toBe("1.4 mg");
   });
 });
 
@@ -104,8 +97,13 @@ describe("shown working", () => {
   });
 
   it("leaves a fixed-band dose without a basis — there is no arithmetic", () => {
-    const outcome = dose("paracetamol", 2, 0, 12);
+    const outcome = dose("promethazine", 3, 0, 14);
     if (outcome.kind === "dose") expect(outcome.basis).toBeUndefined();
+  });
+
+  it("states the mg/kg basis for paracetamol", () => {
+    const outcome = dose("paracetamol", 2, 0, 14);
+    if (outcome.kind === "dose") expect(outcome.basis).toBe("15 mg/kg × 14 kg");
   });
 });
 

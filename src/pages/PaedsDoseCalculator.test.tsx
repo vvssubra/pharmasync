@@ -26,7 +26,7 @@ describe("PaedsDoseCalculator", () => {
   it("shows the dose in mg, with no volume conversion", () => {
     enterPatient({ years: "2", months: "0", weight: "12" });
     const paracetamol = drugCard("paracetamol");
-    // MIMS 2-3 years = 180mg.
+    // 15mg/kg on 12kg is 180mg.
     expect(paracetamol.getByText(/180 mg/)).toBeInTheDocument();
     expect(paracetamol.queryByText(/mL/)).not.toBeInTheDocument();
   });

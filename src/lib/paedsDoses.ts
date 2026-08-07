@@ -20,9 +20,7 @@ import type { Drug } from "./paedsDose";
 export const PAEDS_DRUGS: Drug[] = [
   // ── FEVER ────────────────────────────────────────────────────────────────
   {
-    // MIMS  3-5 months: 60mg Q4H-Q6H / 6-23 months: 120mg Q4H-Q6H /
-    //       2-3 years: 180mg / 4-5 years: 240mg / 6-7 years: 240-250mg /
-    //       8-9 years: 360-375mg / 10-11 years: 480-500mg  (all Q4H-Q6H)
+    // Clinic protocol: 15mg/kg/dose Q4H-Q6H, from 3 months.
     id: "paracetamol",
     frequentlyUsed: true,
     name: "Paracetamol",
@@ -32,13 +30,7 @@ export const PAEDS_DRUGS: Drug[] = [
       { label: "250mg/5ml" },
     ],
     mims: [
-      { kind: "fixed", minMonths: 3, maxMonths: 6, mgMin: 60, freq: "Q4H–Q6H" },
-      { kind: "fixed", minMonths: 6, maxMonths: 24, mgMin: 120, freq: "Q4H–Q6H" },
-      { kind: "fixed", minMonths: 24, maxMonths: 48, mgMin: 180, freq: "Q4H–Q6H" },
-      { kind: "fixed", minMonths: 48, maxMonths: 72, mgMin: 240, freq: "Q4H–Q6H" },
-      { kind: "fixed", minMonths: 72, maxMonths: 96, mgMin: 240, mgMax: 250, freq: "Q4H–Q6H" },
-      { kind: "fixed", minMonths: 96, maxMonths: 120, mgMin: 360, mgMax: 375, freq: "Q4H–Q6H" },
-      { kind: "fixed", minMonths: 120, maxMonths: 144, mgMin: 480, mgMax: 500, freq: "Q4H–Q6H" },
+      { kind: "perKg", minMonths: 3, mgPerKgMin: 15, freq: "Q4H–Q6H" },
     ],
   },
   {
@@ -76,15 +68,14 @@ export const PAEDS_DRUGS: Drug[] = [
     ],
   },
   {
-    // MIMS  2-5 years: 1mg q4-6h / 6-12 years: 2mg q4-6h
+    // Clinic protocol: 0.1mg/kg/dose Q4H-Q6H, from 2 years.
     id: "chlorpheniramine",
     frequentlyUsed: true,
     name: "Chlorpheniramine",
     category: "antihistamine",
     preparations: [{ label: "2mg/5ml" }],
     mims: [
-      { kind: "fixed", minMonths: 24, maxMonths: 72, mgMin: 1, freq: "Q4H–Q6H" },
-      { kind: "fixed", minMonths: 72, maxMonths: 156, mgMin: 2, freq: "Q4H–Q6H" },
+      { kind: "perKg", minMonths: 24, mgPerKgMin: 0.1, freq: "Q4H–Q6H" },
     ],
   },
   {
