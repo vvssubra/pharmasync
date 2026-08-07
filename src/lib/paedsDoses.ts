@@ -52,31 +52,6 @@ export const PAEDS_DRUGS: Drug[] = [
 
   // ── ANTIHISTAMINE ────────────────────────────────────────────────────────
   {
-    // MIMS  0.5-2 years: 15mg BD / 2-11 years: 30mg BD /
-    //       ≥12 years: 60mg BD or 180mg OD
-    id: "fexofenadine",
-    name: "Fexofenadine",
-    category: "antihistamine",
-    preparations: [{ label: "30mg/5ml" }],
-    mims: [
-      { kind: "fixed", minMonths: 6, maxMonths: 24, mgMin: 15, freq: "BD" },
-      { kind: "fixed", minMonths: 24, maxMonths: 144, mgMin: 30, freq: "BD" },
-      { kind: "fixed", minMonths: 144, mgMin: 60, freq: "BD", note: "or 180 mg OD" },
-    ],
-  },
-  {
-    // MIMS  1-5 years: 1.25mg OD / 6-11 years: 2.5mg OD / ≥12 years: 5mg OD
-    id: "desloratadine",
-    name: "Desloratadine",
-    category: "antihistamine",
-    preparations: [{ label: "2.5mg/5ml" }],
-    mims: [
-      { kind: "fixed", minMonths: 12, maxMonths: 72, mgMin: 1.25, freq: "OD" },
-      { kind: "fixed", minMonths: 72, maxMonths: 144, mgMin: 2.5, freq: "OD" },
-      { kind: "fixed", minMonths: 144, mgMin: 5, freq: "OD" },
-    ],
-  },
-  {
     // MIMS  2-12 years (<30kg): 5mg OD / 2-11 years (>30kg): 10mg OD
     id: "loratadine",
     name: "Loratadine",
@@ -142,14 +117,6 @@ export const PAEDS_DRUGS: Drug[] = [
   // ── DECONGESTANT ─────────────────────────────────────────────────────────
   {
     // MIMS  Not recommended < 12 years old
-    id: "pseudoephedrine",
-    name: "Pseudoephedrine",
-    category: "decongestant",
-    preparations: [{ label: "30mg/5ml" }],
-    mims: [{ kind: "notRecommended", belowMonths: 144, note: "Not recommended under 12 years" }],
-  },
-  {
-    // MIMS  Not recommended < 12 years old
     id: "phenylephrine",
     name: "Phenylephrine",
     category: "decongestant",
@@ -169,41 +136,6 @@ export const PAEDS_DRUGS: Drug[] = [
       { kind: "fixed", minMonths: 24, maxMonths: 72, mgMin: 4, freq: "BD" },
       { kind: "fixed", minMonths: 72, maxMonths: 144, mgMin: 8, freq: "TDS" },
     ],
-  },
-  {
-    // MIMS  2-5 years: 100mg BD / 6-12 years: 100mg or 250mg TDS
-    id: "carbocisteine",
-    name: "Carbocisteine",
-    category: "wetCough",
-    preparations: [{ label: "100mg/5ml" }],
-    mims: [
-      { kind: "fixed", minMonths: 24, maxMonths: 72, mgMin: 100, freq: "BD" },
-      { kind: "fixed", minMonths: 72, maxMonths: 156, mgMin: 100, freq: "TDS", note: "or 250 mg TDS" },
-    ],
-  },
-  {
-    // MIMS  <6 months: 3mg BD / 7-11 months: 6mg BD / 1-2 years: 7.5mg BD /
-    //       2-5 years: 7.5mg TDS / 6-11 years: 15mg TDS
-    id: "ambroxol",
-    name: "Ambroxol",
-    category: "wetCough",
-    preparations: [{ label: "3mg/ml" }],
-    caution: "MIMS jumps from \"<6 months\" to \"7-11 months\"; infants of exactly 6 months fall in no published band.",
-    mims: [
-      { kind: "fixed", maxMonths: 6, mgMin: 3, freq: "BD" },
-      { kind: "fixed", minMonths: 7, maxMonths: 12, mgMin: 6, freq: "BD" },
-      { kind: "fixed", minMonths: 12, maxMonths: 24, mgMin: 7.5, freq: "BD" },
-      { kind: "fixed", minMonths: 24, maxMonths: 72, mgMin: 7.5, freq: "TDS" },
-      { kind: "fixed", minMonths: 72, maxMonths: 144, mgMin: 15, freq: "TDS" },
-    ],
-  },
-  {
-    // MIMS  6-12 years: 100mg QID
-    id: "guaifenesin",
-    name: "Guaifenesin",
-    category: "wetCough",
-    preparations: [{ label: "50mg/5ml" }],
-    mims: [{ kind: "fixed", minMonths: 72, maxMonths: 156, mgMin: 100, freq: "QID" }],
   },
   {
     // MIMS  2-5 years: 6.25mg QID / 6-11 years: 12.5-25mg QID /
@@ -232,14 +164,6 @@ export const PAEDS_DRUGS: Drug[] = [
     category: "dryCough",
     preparations: [{ label: "15mg/5ml" }],
     mims: [{ kind: "notRecommended", belowMonths: 144, note: "Not recommended under 12 years" }],
-  },
-  {
-    // MIMS  6-12 years: 2-5mg TDS or QID
-    id: "pholcodine",
-    name: "Pholcodine",
-    category: "dryCough",
-    preparations: [{ label: "10mg/5ml" }],
-    mims: [{ kind: "fixed", minMonths: 72, maxMonths: 156, mgMin: 2, mgMax: 5, freq: "TDS or QID" }],
   },
 
   // ── MISCELLANEOUS ────────────────────────────────────────────────────────

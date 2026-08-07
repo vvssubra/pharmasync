@@ -172,10 +172,9 @@ export function roundMl(value: number): number {
 
 /**
  * Milligrams keep three decimals. Rounding these to one decimal would print
- * desloratadine's published 1.25 mg as "1.3 mg" and triprolidine's 0.313 mg as
- * "0.3 mg" — a clinician checking the screen against the printed table would
- * find figures that do not match, which is the fastest way to lose trust in
- * the whole tool.
+ * triprolidine's published 0.313 mg as "0.3 mg" — a clinician checking the
+ * screen against the printed table would find figures that do not match,
+ * which is the fastest way to lose trust in the whole tool.
  */
 export function roundMg(value: number): number {
   return Math.round(value * 1000) / 1000;

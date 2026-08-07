@@ -63,7 +63,7 @@ describe("weight-conditional bands", () => {
 });
 
 describe("contraindications", () => {
-  it.each(["pseudoephedrine", "phenylephrine", "dextromethorphan"])(
+  it.each(["phenylephrine", "dextromethorphan"])(
     "%s offers no dose under 12",
     (id) => {
       expect(dose(id, 6, 0, 20).kind).toBe("notRecommended");
@@ -79,13 +79,6 @@ describe("per-kg calculation", () => {
 
   it("carries a range through", () => {
     expect(amount(dose("ibuprofen", 3, 0, 14))).toBe("70–140 mg");
-  });
-});
-
-describe("sources that publish no dose", () => {
-  it("says so for ambroxol above the published bands rather than showing a blank", () => {
-    const outcome = dose("ambroxol", 13, 0, 40);
-    expect(outcome.kind).toBe("outOfBand");
   });
 });
 
@@ -132,18 +125,16 @@ describe("formatting", () => {
     expect(formatAmount(3.649, undefined, "mL")).toBe("3.6 mL");
   });
 
-  // Rounding mg to one decimal would print desloratadine's published 1.25 mg
-  // as 1.3 and triprolidine's 0.313 as 0.3, so the screen would disagree with
-  // the printed table a clinician is checking it against.
+  // Rounding mg to one decimal would print triprolidine's published 0.313 mg
+  // as 0.3, so the screen would disagree with the printed table a clinician
+  // is checking it against.
   it("keeps the published precision on milligrams", () => {
-    expect(roundMg(1.25)).toBe(1.25);
-    expect(formatAmount(1.25, undefined, "mg")).toBe("1.25 mg");
+    expect(roundMg(0.313)).toBe(0.313);
     expect(formatAmount(0.313, undefined, "mg")).toBe("0.313 mg");
     expect(formatAmount(0.938, undefined, "mg")).toBe("0.938 mg");
   });
 
   it("renders the published small doses exactly as the source prints them", () => {
-    expect(amount(dose("desloratadine", 3, 0, 14))).toBe("1.25 mg");
     expect(amount(dose("triprolidine", 1, 0, 10))).toBe("0.313 mg");
     expect(amount(dose("diphenhydramine", 3, 0, 14))).toBe("6.25 mg");
   });
