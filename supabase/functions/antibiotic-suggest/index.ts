@@ -24,7 +24,7 @@ const FUNCTION_NAME = "antibiotic-suggest";
 // and with AI_SUGGEST_ROLES in src/pages/AntibioticForm.tsx. Previously "mo"
 // only, while the route and the Suggest button were open to admin/pharmacist/
 // super_admin — so those roles saw the button and got a silent 403 on click.
-const ALLOWED_ROLES = ["mo", "admin", "pharmacist", "super_admin"];
+const ALLOWED_ROLES = ["mo", "fms", "admin", "pharmacist", "super_admin"];
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");

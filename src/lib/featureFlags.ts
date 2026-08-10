@@ -11,7 +11,7 @@ export const AI_ENABLED = import.meta.env.VITE_AI_ENABLED === "true";
 // Suggest button to a role the endpoint rejects yields a silent 403 on click,
 // which is exactly what happened when this list was "mo" only on the server
 // while the /request route admitted admin/pharmacist/super_admin too.
-export const AI_SUGGEST_ROLES = ["mo", "admin", "pharmacist", "super_admin"];
+export const AI_SUGGEST_ROLES = ["mo", "fms", "admin", "pharmacist", "super_admin"];
 
 // pathway-check is a rule-based NAG 2024 lookup (Phase 4), not an LLM call —
 // zero marginal cost, so it defaults on independently of AI_ENABLED (which
