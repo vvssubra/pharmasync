@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { UserCog, Users, Plus, KeyRound, UserPlus, Search, MoreHorizontal } from "lucide-react";
+import { UserCog, Users, Plus, KeyRound, UserPlus, Search, MoreHorizontal, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -106,6 +106,19 @@ export default function RoleManagement() {
   const [resetTarget, setResetTarget] = useState<{ id: string; email: string } | null>(null);
   const [resetPassword, setResetPassword] = useState("");
   const [resetError, setResetError] = useState<string | null>(null);
+
+  // Deleting an account is irreversible and the row actions sit in a dense
+  // list, so the confirmation asks for the email back rather than a button
+  // one stray tap away from the menu item.
+  const [deleteTarget, setDeleteTarget] = useState<UserWithRole | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  function openDelete(u: UserWithRole) {
+    setDeleteTarget(u);
+    setDeleteConfirm("");
+    setDeleteError(null);
+  }
 
   const { data: users = [], isLoading, error: usersError } = useQuery<UserWithRole[]>({
     queryKey: ["all-users-with-roles"],
@@ -243,6 +256,36 @@ export default function RoleManagement() {
       setResetTarget(null);
     },
     onError: (err: Error) => setResetError(err.message),
+  });
+
+  // super_admin only, and enforced again server-side — the menu item merely
+  // hides what the function would refuse anyway.
+  const deleteUser = useMutation({
+    mutationFn: async (userId: string) => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(ADMIN_MGMT_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({ action: "delete_user", user_id: userId }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed to delete user");
+      return json;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all-users-with-roles"] });
+      queryClient.invalidateQueries({ queryKey: ["unassigned-user-count"] });
+      toast.success("Account deleted.");
+      setDeleteTarget(null);
+      setDeleteConfirm("");
+      setDeleteError(null);
+    },
+    // The 409 path explains which records hold the account down, so it is
+    // shown in the dialog rather than a toast that scrolls away mid-read.
+    onError: (err: Error) => setDeleteError(err.message),
   });
 
   // A user with no clinic cannot read or write anything clinic-scoped —
@@ -393,6 +436,18 @@ export default function RoleManagement() {
                       >
                         Approve
                       </Button>
+
+                      {isSuperAdmin && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-8 w-8 p-0 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          aria-label={`Delete ${u.full_name || u.email}`}
+                          onClick={() => openDelete(u)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );
@@ -549,6 +604,15 @@ export default function RoleManagement() {
                           <KeyRound className="mr-2 h-3.5 w-3.5" />
                           Set password
                         </DropdownMenuItem>
+                        {isSuperAdmin && !self && u.role !== "super_admin" && (
+                          <DropdownMenuItem
+                            className="text-xs text-destructive focus:text-destructive"
+                            onSelect={() => openDelete(u)}
+                          >
+                            <Trash2 className="mr-2 h-3.5 w-3.5" />
+                            Delete user
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </div>
@@ -586,6 +650,59 @@ export default function RoleManagement() {
               <Button type="button" variant="outline" onClick={() => setResetOpen(false)}>Batal</Button>
               <Button type="submit" disabled={resetPasswordMutation.isPending}>
                 {resetPasswordMutation.isPending ? "Menyimpan…" : "Simpan"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setDeleteConfirm(""); setDeleteError(null); } }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete this account?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-1 rounded-md border bg-muted/40 p-3">
+            <p className="text-sm font-medium">{deleteTarget?.full_name || "—"}</p>
+            <p className="text-xs text-muted-foreground">{deleteTarget?.email}</p>
+            <p className="text-xs text-muted-foreground">
+              {deleteTarget?.clinic_name ?? deleteTarget?.pending_clinic_name ?? "No clinic"}
+              {" · "}
+              {deleteTarget?.role ? ROLE_LABELS[deleteTarget.role] ?? deleteTarget.role : "Unassigned"}
+            </p>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            This permanently removes the login, its profile and its role. It cannot be undone.
+            An account that authored any clinical or stock record cannot be deleted — set its
+            role to Unassigned instead.
+          </p>
+          <form
+            onSubmit={(e) => { e.preventDefault(); if (deleteTarget) deleteUser.mutate(deleteTarget.user_id); }}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="delete-confirm">
+                Type <span className="font-mono font-medium text-foreground">{deleteTarget?.email}</span> to confirm
+              </Label>
+              <Input
+                id="delete-confirm"
+                value={deleteConfirm}
+                onChange={e => setDeleteConfirm(e.target.value)}
+                autoComplete="off"
+                placeholder={deleteTarget?.email}
+              />
+            </div>
+            {deleteError && <p className="text-sm text-destructive">{deleteError}</p>}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+              <Button
+                type="submit"
+                variant="destructive"
+                disabled={deleteUser.isPending || deleteConfirm.trim() !== deleteTarget?.email}
+              >
+                {deleteUser.isPending ? "Deleting…" : "Delete account"}
               </Button>
             </DialogFooter>
           </form>
