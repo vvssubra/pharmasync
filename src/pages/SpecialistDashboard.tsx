@@ -33,20 +33,6 @@ import { AntibioticFormReadOnly } from "@/components/AntibioticFormReadOnly";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { quotaBadgeState, QUOTA_BADGE_CLASS, QUOTA_BADGE_LABEL } from "@/lib/quotaHelpers";
 
-const NAG_BADGE_CONFIG: Record<string, { label: string; cls: string }> = {
-  supported:        { label: "✅ Supported",        cls: "bg-green-100 text-green-700 border-green-300" },
-  review:           { label: "⚠ Review",            cls: "bg-amber-100 text-amber-700 border-amber-300" },
-  not_supported:    { label: "❌ Not supported",    cls: "bg-red-100 text-red-700 border-red-300" },
-  refer_specialist: { label: "💬 Refer specialist", cls: "bg-blue-100 text-blue-700 border-blue-300" },
-  unavailable:      { label: "— Unavailable",       cls: "bg-gray-100 text-gray-600 border-gray-300" },
-};
-
-function renderNagBadge(result: string | null | undefined) {
-  if (!result) return <span className="text-xs text-muted-foreground">—</span>;
-  const c = NAG_BADGE_CONFIG[result] ?? { label: result, cls: "" };
-  return <Badge variant="outline" className={`text-[10px] ${c.cls}`}>{c.label}</Badge>;
-}
-
 // Rows as this page queries them: dispensing requests join the drug's name and
 // unit; antibiotic forms are decorated with the submitter's profile name.
 type DispensingRow = Tables<"dispensing_requests"> & {
@@ -501,28 +487,26 @@ export default function SpecialistDashboard() {
                   <TableRow>
                     <TableHead>Time</TableHead>
                     <TableHead>Patient Name</TableHead>
-                    <TableHead>IC</TableHead>
                     <TableHead>Diagnosis</TableHead>
+                    <TableHead>Antibiotic &amp; Dose</TableHead>
                     <TableHead>Submitted By</TableHead>
                     <TableHead>Assigned FMS</TableHead>
                     <TableHead>Unit</TableHead>
-                    <TableHead>NAG Check</TableHead>
                     <TableHead>Action</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {abPending.length === 0 ? (
-                    <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No antibiotic forms pending</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No antibiotic forms pending</TableCell></TableRow>
                   ) : abPending.map((f) => (
                     <TableRow key={f.id}>
                       <TableCell className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(f.created_at), { addSuffix: true })}</TableCell>
                       <TableCell className="font-medium">{f.patient_name}</TableCell>
-                      <TableCell className="text-xs">{formatIC(f.patient_ic)}</TableCell>
                       <TableCell className="text-xs max-w-[150px] truncate">{f.diagnosis}</TableCell>
+                      <TableCell className="text-xs max-w-[200px] whitespace-normal">{f.antibiotic_regimen || "—"}</TableCell>
                       <TableCell className="text-xs font-medium">{f.submitter_name}</TableCell>
                       <TableCell><Badge variant="outline" className="text-[10px]">{f.assigned_fms || "—"}</Badge></TableCell>
                       <TableCell><Badge variant="outline" className="text-[10px]">{f.prescription_unit || "—"}</Badge></TableCell>
-                      <TableCell>{renderNagBadge(f.pathway_check_result)}</TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-2">
                           <Button size="touch" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => setAbApproveTarget(f)}>Review & Approve</Button>

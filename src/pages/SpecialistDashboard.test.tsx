@@ -80,12 +80,15 @@ function renderDashboard() {
 describe("SpecialistDashboard", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("renders 'NAG Check' column header in antibiotic forms table", async () => {
+  it("antibiotic forms table shows the prescribed antibiotic, not IC or NAG check", async () => {
     const user = userEvent.setup();
     renderDashboard();
     // Click the Antibiotik tab to reveal that table
     await user.click(screen.getByRole("tab", { name: /antibiotic form/i }));
-    expect(screen.getByText(/NAG Check/i)).toBeInTheDocument();
+    expect(screen.getByText(/Antibiotic & Dose/i)).toBeInTheDocument();
+    // IC and the NAG verdict live in the form itself now, not the queue.
+    expect(screen.queryByText(/NAG Check/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: /^IC$/i })).not.toBeInTheDocument();
   });
 
   describe("Controlled Drug sub-tabs", () => {
