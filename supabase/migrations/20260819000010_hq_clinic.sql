@@ -28,3 +28,5 @@ set search_path = public
 as $$
   select id from public.clinics where is_hq limit 1;
 $$;
+
+notify pgrst, 'reload schema';
