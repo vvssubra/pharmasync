@@ -6,26 +6,38 @@
 // per-clinic breakdown of who consumed it and an edit action that opens
 // NationalQuotaDialog. Quota-status thresholds and badge styling all come
 // from src/lib/quotaHelpers.ts — none of it is reimplemented here.
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import {
-  Warehouse, Package, AlertTriangle, CheckCircle2, Bell, ChevronDown, Pencil,
+  Warehouse, Package, AlertTriangle, CheckCircle2, Bell, ChevronDown, Pencil, Search, Users,
 } from "lucide-react";
 import {
   quotaStatus, quotaBadgeState, QUOTA_BADGE_CLASS, QUOTA_BADGE_LABEL,
 } from "@/lib/quotaHelpers";
 import { useHqQuotaUsage } from "@/hooks/useHqQuotaUsage";
+import { useMasterPatientRegistry, MASTER_PATIENT_PAGE_SIZE } from "@/hooks/useMasterPatientRegistry";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ExpandableStatCard } from "@/components/ui/expandable-stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Pagination, PaginationContent, PaginationItem,
+  PaginationNext, PaginationPrevious,
+} from "@/components/ui/pagination";
 import NationalQuotaDialog from "@/components/NationalQuotaDialog";
+
+// Search input is debounced 300ms before it lands in the RPC queryKey,
+// matching the setTimeout/useRef pattern used by useDoseSuggestion.ts and
+// usePathwayCheck.ts elsewhere in this codebase (no debounce library in
+// package.json).
+const SEARCH_DEBOUNCE_MS = 300;
 
 const CURRENCY = new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR" });
 
@@ -45,6 +57,30 @@ export default function LogistikDashboard() {
   const [cardFilter, setCardFilter] = useState<CardFilter>(null);
   const [expandedDrugId, setExpandedDrugId] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
+
+  // Master patient registry section — search input debounced 300ms before it
+  // drives the query; changing the search resets back to page 0.
+  const [patientSearchInput, setPatientSearchInput] = useState("");
+  const [patientSearch, setPatientSearch] = useState("");
+  const [patientPage, setPatientPage] = useState(0);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setPatientSearch(patientSearchInput.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [patientSearchInput]);
+
+  useEffect(() => {
+    setPatientPage(0);
+  }, [patientSearch]);
+
+  const {
+    rows: patientRows,
+    totalCount: patientTotalCount,
+    isLoading: patientsLoading,
+    isError: patientsError,
+  } = useMasterPatientRegistry(patientSearch, patientPage);
+
+  const patientPageCount = Math.max(1, Math.ceil(patientTotalCount / MASTER_PATIENT_PAGE_SIZE));
 
   const {
     national,
@@ -293,6 +329,136 @@ export default function LogistikDashboard() {
                 )}
               </TableBody>
             </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Master patient registry — read-only, HQ-wide, deduped by IC across
+          every clinic (get_master_patient_registry). No row click-through
+          and no history drill-down: patient dispensing history stays
+          clinic-scoped by design (see PatientRegistry.tsx / PatientHistorySheet
+          for the clinic-scoped equivalent). */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Master Patient Registry
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="relative sm:max-w-xs">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search patient name or IC…"
+              value={patientSearchInput}
+              onChange={(e) => setPatientSearchInput(e.target.value)}
+              className="pl-9"
+              aria-label="Search patients"
+            />
+          </div>
+
+          <div className="rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Patient</TableHead>
+                  <TableHead>IC</TableHead>
+                  <TableHead>Clinics Visited</TableHead>
+                  <TableHead className="text-right"># Clinics</TableHead>
+                  <TableHead>First Seen</TableHead>
+                  <TableHead>Last Seen</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {patientsLoading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      {Array.from({ length: 6 }).map((__, j) => (
+                        <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : patientsError ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-destructive">
+                      Failed to load the patient registry. Try again shortly.
+                    </TableCell>
+                  </TableRow>
+                ) : patientRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      {patientSearch ? `No patients match "${patientSearch}".` : "No patients registered yet."}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  patientRows.map((row) => {
+                    const visibleClinics = row.clinic_names.slice(0, 3);
+                    const overflowCount = row.clinic_names.length - visibleClinics.length;
+                    return (
+                      <TableRow key={row.normalized_ic}>
+                        <TableCell className="font-medium">{row.patient_name}</TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">{row.display_ic}</TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {visibleClinics.map((name) => (
+                              <Badge key={name} variant="outline" className="text-[10px] font-normal">
+                                {name}
+                              </Badge>
+                            ))}
+                            {overflowCount > 0 && (
+                              <Badge variant="outline" className="text-[10px] font-normal text-muted-foreground">
+                                +{overflowCount}
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right text-sm">{row.clinic_count}</TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">
+                          {new Date(row.first_seen).toLocaleDateString("en-MY")}
+                        </TableCell>
+                        <TableCell className="text-xs whitespace-nowrap">
+                          {new Date(row.last_seen).toLocaleDateString("en-MY")}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          {!patientsLoading && !patientsError && patientTotalCount > MASTER_PATIENT_PAGE_SIZE && (
+            <Pagination>
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    aria-disabled={patientPage === 0}
+                    className={cn(patientPage === 0 && "pointer-events-none opacity-50")}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPatientPage((p) => Math.max(0, p - 1));
+                    }}
+                  />
+                </PaginationItem>
+                <PaginationItem>
+                  <span className="px-2 text-sm text-muted-foreground">
+                    Page {patientPage + 1} of {patientPageCount}
+                  </span>
+                </PaginationItem>
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    aria-disabled={patientPage + 1 >= patientPageCount}
+                    className={cn(patientPage + 1 >= patientPageCount && "pointer-events-none opacity-50")}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPatientPage((p) => Math.min(patientPageCount - 1, p + 1));
+                    }}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
           )}
         </CardContent>
       </Card>
