@@ -262,13 +262,20 @@ export default function DrugMaster() {
         </CardContent>
       </Card>
 
-      <DrugFormDialog open={formOpen} onOpenChange={setFormOpen} drug={editDrug} />
+      <DrugFormDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        drug={editDrug}
+        nationalQuota={editDrug ? quotaUsageByDrug.get(editDrug.id) ?? null : null}
+      />
 
       <DrugQuotaDialog
         open={!!quotaTarget}
         onOpenChange={open => { if (!open) setQuotaTarget(null); }}
         drugId={quotaTarget?.id ?? ""}
         drugName={quotaTarget?.drug_name ?? ""}
+        isControlled={!!quotaTarget?.perlu_kelulusan_pakar}
+        nationalQuota={quotaTarget ? quotaUsageByDrug.get(quotaTarget.id) ?? null : null}
       />
 
       <ReplenishQuotaDialog
@@ -277,6 +284,8 @@ export default function DrugMaster() {
         drugId={replenishTarget?.id ?? ""}
         drugName={replenishTarget?.drug_name ?? ""}
         currentQuotaLimit={replenishTarget ? quotaUsageByDrug.get(replenishTarget.id)?.quota_limit ?? 0 : 0}
+        isControlled={!!replenishTarget?.perlu_kelulusan_pakar}
+        nationalQuota={replenishTarget ? quotaUsageByDrug.get(replenishTarget.id) ?? null : null}
       />
 
       <AlertDialog open={!!deactivateTarget} onOpenChange={(o) => !o && setDeactivateTarget(null)}>
