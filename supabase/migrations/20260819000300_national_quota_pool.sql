@@ -42,7 +42,14 @@ begin
              as detail
     from public.drug_quotas q
     join public.clinics c on c.id = q.clinic_id
+    join public.drugs d on d.id = q.drug_id
     where q.clinic_id is distinct from public.hq_clinic_id()
+      -- Same controlled-drug filter as the migrate step below: rows that are
+      -- never collapsed cannot conflict, and non-controlled per-clinic rows are
+      -- *expected* to disagree (each clinic sets its own), so guarding them
+      -- would abort the migration over a difference that no longer means
+      -- anything.
+      and coalesce(d.perlu_kelulusan_pakar, false)
     group by q.drug_id, q.year
     having count(distinct q.quota_limit) > 1
   ) x;
@@ -69,6 +76,16 @@ end $$;
 -- drug_quotas carries trg_stamp_clinic_id, whose auth.uid() is null branch
 -- (20260727000000 section 3) passes a caller-supplied clinic_id through
 -- untouched — which is what a migration running as `postgres` gets.
+--
+-- Only CONTROLLED drugs (drugs.perlu_kelulusan_pakar) are migrated. The
+-- national pool is a controlled-drug concept and enforcement below ignores
+-- every other drug, so nationalizing a non-controlled row would create an HQ
+-- row that looks live on the Logistik dashboard but constrains nothing. This
+-- matters in practice, not just in theory: before Task 12 gated it,
+-- DrugFormDialog wrote a drug_quotas row on EVERY drug save, so a large number
+-- of incidental quota_limit = 0 rows exist for drugs nobody ever set a quota
+-- on. Nationalizing those would have published a pool of zero — i.e. "blocked
+-- nationally" — for ordinary drugs.
 insert into public.drug_quotas (clinic_id, drug_id, year, quota_limit, alert_threshold_pct)
 select public.hq_clinic_id(),
        q.drug_id,
@@ -76,7 +93,9 @@ select public.hq_clinic_id(),
        max(q.quota_limit),
        max(q.alert_threshold_pct)
 from public.drug_quotas q
+join public.drugs d on d.id = q.drug_id
 where q.clinic_id is distinct from public.hq_clinic_id()
+  and coalesce(d.perlu_kelulusan_pakar, false)
 group by q.drug_id, q.year
 on conflict (clinic_id, drug_id, year) do update
   set quota_limit         = excluded.quota_limit,
@@ -313,7 +332,7 @@ comment on function public.get_quota_usage_by_clinic(integer) is
   'drug_quota_used() per (drug, year). Counts only — contains no patient data.';
 
 -- ── 6. enforce_dispensing_request_limits(): national gate + race guard ─────
--- Rewritten from 20260727000000 section 6. Four changes, nothing else:
+-- Rewritten from 20260727000000 section 6. Five changes, nothing else:
 --
 --   a) ADVISORY LOCK, taken as the very first statement of the function —
 --      before the drugs lookup, before the drug_quotas SELECT, and before
@@ -355,6 +374,7 @@ returns trigger
 language plpgsql security definer set search_path = public as $$
 declare
   v_blocked     boolean;
+  v_controlled  boolean;
   v_quota_limit integer;
   v_used        integer;
   v_year        integer := extract(year from now())::int;
@@ -379,12 +399,24 @@ begin
     raise exception 'National HQ clinic is not configured — controlled-drug quota cannot be enforced';
   end if;
 
-  select is_blocked into v_blocked from public.drugs where id = new.drug_id;
+  select is_blocked, coalesce(perlu_kelulusan_pakar, false)
+    into v_blocked, v_controlled
+  from public.drugs where id = new.drug_id;
+
   if v_blocked then
     raise exception 'This drug is blocked by admin and cannot be requested';
   end if;
 
-  if not new.is_pesara then
+  -- (e) CONTROLLED drugs only. The national pool is a controlled-drug concept:
+  --     the Logistik HQ dashboard only ever publishes rows for drugs requiring
+  --     specialist approval, and the clinic-side dialogs only retire their
+  --     editable quota field for those drugs. Enforcing on any drug that
+  --     happens to carry a drug_quotas row would gate ordinary drugs on a
+  --     number no HQ user manages — including the incidental quota_limit = 0
+  --     rows DrugFormDialog used to write on every drug save, which would read
+  --     as "nationally blocked". The row-migration step above applies the same
+  --     filter, so these rows are not nationalized in the first place.
+  if not new.is_pesara and v_controlled then
     -- (b) national limit: the HQ clinic's row is the only one enforcement reads
     select quota_limit into v_quota_limit
     from public.drug_quotas
@@ -431,5 +463,152 @@ $$;
 
 -- Trigger itself is unchanged (trg_zz_enforce_dispensing_request_limits, BEFORE
 -- INSERT, defined in 20260724000200) — only the function body is replaced.
+
+-- ── 7. Batch guard: the same limit, re-checked once per STATEMENT ───────────
+-- The BEFORE-ROW trigger above closes the race between two concurrent
+-- transactions. It cannot close the one INSIDE a single statement:
+--
+--   PostgREST happily accepts an ARRAY body, which becomes ONE
+--   `insert into dispensing_requests ... values (...), (...), (...)`. The
+--   BEFORE-ROW trigger fires once per row, but every one of those firings runs
+--   inside the same statement, so:
+--     • the advisory lock is already held by this very transaction after the
+--       first row, so rows 2..N acquire it instantly — it serializes other
+--       transactions, never siblings of the same statement;
+--     • drug_quota_used() reads the table through the statement's snapshot,
+--       under which the sibling rows inserted moments earlier by the same
+--       command are NOT visible (a query inside a BEFORE trigger sees the data
+--       as of the command's start; rows the command has written so far are
+--       hidden from it by the command-id visibility rule).
+--   So with a national limit of 1 and two rows in one statement, both rows see
+--   used = 0, both pass `used >= limit`, and the pool goes to 2 over a limit of
+--   1. Under a national pool, that one API call can consume an entire year's
+--   allocation for every clinic at once.
+--
+-- No per-row trigger can fix this, because there is no point during the
+-- statement at which a row-level trigger can see its siblings. The standard
+-- Postgres answer is a STATEMENT-level AFTER trigger with a TRANSITION TABLE:
+--   • it fires ONCE, after the whole command has finished writing;
+--   • `referencing new table as new_rows` is guaranteed to contain EVERY row
+--     the statement inserted, whatever the array length;
+--   • an AFTER trigger runs with the command counter already advanced, so a
+--     query against public.dispensing_requests here DOES see the inserted rows.
+-- It is still inside the inserting transaction, so `raise exception` aborts the
+-- entire statement and its transaction — all-or-nothing, no partial batch.
+--
+-- Why it does not double-punish legitimate inserts: the check only fires when
+-- the batch actually introduces NEW quota consumers. An IC that already holds a
+-- national slot (enrolled, or already requested earlier in the year) adds
+-- nothing, exactly as the BEFORE trigger's `v_already` probe decides. So a
+-- repeat request for an existing patient is never rejected, not even when the
+-- pool is already over its limit because HQ lowered the limit after enrolment.
+create or replace function public.enforce_dispensing_request_batch_limits()
+returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  r             record;
+  v_year        integer := extract(year from now())::int;
+  v_quota_limit integer;
+  v_used        integer;
+  v_new_consumers integer;
+begin
+  if public.hq_clinic_id() is null then
+    -- Unreachable in practice (the BEFORE trigger already refused every row of
+    -- this statement), kept so this function is safe on its own terms.
+    raise exception 'National HQ clinic is not configured — controlled-drug quota cannot be enforced';
+  end if;
+
+  -- One iteration per distinct controlled drug touched by this statement.
+  for r in
+    select distinct nr.drug_id
+    from new_rows nr
+    join public.drugs d on d.id = nr.drug_id
+    where nr.is_pesara = false
+      and nr.status <> 'rejected'
+      and nr.created_at >= make_date(v_year, 1, 1)
+      and nr.created_at <  make_date(v_year + 1, 1, 1)
+      and coalesce(d.perlu_kelulusan_pakar, false)
+  loop
+    -- Same key as the BEFORE trigger's lock. Already held by this transaction
+    -- (the BEFORE trigger took it for every row), so this is a no-op re-entry —
+    -- taken anyway so this function does not depend on that fact.
+    perform pg_advisory_xact_lock(hashtext(r.drug_id::text || ':' || v_year::text));
+
+    select quota_limit into v_quota_limit
+    from public.drug_quotas
+    where drug_id = r.drug_id
+      and clinic_id = public.hq_clinic_id()
+      and year = v_year;
+
+    continue when v_quota_limit is null;  -- no HQ row = no limit, as before
+
+    -- How many national slots did THIS statement newly occupy? A normalized IC
+    -- in the batch counts once, and only if nothing outside the batch already
+    -- had it counted: not an enrolment (any clinic), and not a pre-existing
+    -- non-pesara, non-rejected request this year (any clinic). This is the
+    -- statement-wide form of the BEFORE trigger's `v_already` probe.
+    select count(*) into v_new_consumers
+    from (
+      select distinct regexp_replace(nr.no_ic, '\D', '', 'g') as ic
+      from new_rows nr
+      where nr.drug_id   = r.drug_id
+        and nr.is_pesara = false
+        and nr.status <> 'rejected'
+        and nr.created_at >= make_date(v_year, 1, 1)
+        and nr.created_at <  make_date(v_year + 1, 1, 1)
+    ) b
+    where not exists (
+      select 1
+      from public.drug_quota_patients dqp
+      join public.patient_registry pr on pr.id = dqp.patient_id
+      where dqp.drug_id = r.drug_id
+        and dqp.year    = v_year
+        and regexp_replace(pr.no_ic, '\D', '', 'g') = b.ic
+    )
+      and not exists (
+        select 1
+        from public.dispensing_requests dr
+        where dr.drug_id   = r.drug_id
+          and dr.is_pesara = false
+          and dr.status <> 'rejected'
+          and dr.created_at >= make_date(v_year, 1, 1)
+          and dr.created_at <  make_date(v_year + 1, 1, 1)
+          and regexp_replace(dr.no_ic, '\D', '', 'g') = b.ic
+          -- ...excluding this statement's own rows, or every batch row would
+          -- match itself and the batch would always look like it added nothing.
+          and not exists (select 1 from new_rows nr2 where nr2.id = dr.id)
+      );
+
+    continue when v_new_consumers = 0;
+
+    -- Post-statement national usage. drug_quota_used() reads the base tables,
+    -- which in an AFTER trigger already include this statement's rows, so this
+    -- is the true total the batch leaves behind.
+    -- p_clinic_id is ignored by drug_quota_used(); cast so the overload
+    -- resolves without relying on an untyped NULL.
+    v_used := public.drug_quota_used(null::uuid, r.drug_id, v_year);
+
+    if v_used > v_quota_limit then
+      -- Same wording as the per-row gate: to the caller this is the same rule.
+      raise exception 'Annual quota exhausted for this drug';
+    end if;
+  end loop;
+
+  return null;  -- AFTER STATEMENT triggers ignore the return value
+end;
+$$;
+
+comment on function public.enforce_dispensing_request_batch_limits() is
+  'Statement-level companion to enforce_dispensing_request_limits(). Re-checks '
+  'the national controlled-drug quota once per INSERT statement using the '
+  'transition table, which is the only way to catch a multi-row INSERT whose '
+  'rows cannot see each other in the per-row BEFORE trigger.';
+
+drop trigger if exists trg_zz_enforce_dispensing_request_batch_limits on public.dispensing_requests;
+create trigger trg_zz_enforce_dispensing_request_batch_limits
+  after insert on public.dispensing_requests
+  referencing new table as new_rows
+  for each statement
+  execute function public.enforce_dispensing_request_batch_limits();
 
 notify pgrst, 'reload schema';

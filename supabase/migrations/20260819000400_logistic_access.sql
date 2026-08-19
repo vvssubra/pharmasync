@@ -116,6 +116,21 @@ begin
     raise exception 'Alert threshold must be between 0 and 100 (got %)', p_alert_threshold_pct;
   end if;
 
+  -- Controlled drugs only. enforce_dispensing_request_limits() (20260819000300
+  -- section 6e) enforces the national pool ONLY for drugs requiring specialist
+  -- approval, so an HQ row on any other drug would show on the Logistik
+  -- dashboard as a live pool with a limit, a used count and a status badge —
+  -- while constraining nothing at all. That is the same "a number that looks
+  -- authoritative and does nothing" failure the clinic-level quota dialogs were
+  -- retired to remove, and it must not be reachable from the write path either.
+  if not exists (
+    select 1 from public.drugs d
+    where d.id = p_drug_id and coalesce(d.perlu_kelulusan_pakar, false)
+  ) then
+    raise exception
+      'National quota applies to controlled drugs only. Mark this drug as requiring specialist approval first, or leave it without a quota.';
+  end if;
+
   -- Fail closed on a missing HQ clinic, matching
   -- enforce_dispensing_request_limits() (20260819000300 section 6d): with no HQ
   -- row there is no national pool to write to, and stamping the quota onto some
