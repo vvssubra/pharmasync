@@ -194,6 +194,54 @@ describe("SpecialistDashboard", () => {
     });
   });
 
+  // Borrowing quota from a neighbouring clinic predates the national pool. Now
+  // that every clinic draws from ONE shared allocation
+  // (20260819000300_national_quota_pool.sql) there is nothing to borrow, so
+  // requiring a borrow clinic before Confirm simply blocked approvals that the
+  // specialist is entitled to make.
+  it("lets the specialist confirm an approval with the national quota exhausted and no clinic picked", async () => {
+    const { supabase } = await import("@/integrations/supabase/client");
+    const mockRequest = {
+      id: "req-3",
+      status: "pending_specialist",
+      is_pesara: false,
+      borrowed_from_clinic_id: null,
+      patient_name: "Ali bin Abu",
+      no_ic: "800101011234",
+      drug_id: "drug-1",
+      quantity: 30,
+      prescriber_name: "Dr. Siti",
+      created_at: new Date().toISOString(),
+      specialist_action_at: null,
+      specialist_notes: null,
+      drugs: { drug_name: "Morphine", unit_pengukuran: "tablet" },
+    };
+
+    vi.mocked(supabase.from).mockImplementation((table: string) => {
+      if (table === "dispensing_requests") {
+        return chainOf([], { order: [mockRequest], lt: [] }) as unknown as FromReturn;
+      }
+      return chainOf([], { in: [], order: [], lt: [] }) as unknown as FromReturn;
+    });
+    // National pool fully consumed for this drug.
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: [{
+        clinic_id: "hq", drug_id: "drug-1", year: new Date().getFullYear(),
+        quota_limit: 1, alert_threshold_pct: 20, used: 1, remaining: 0,
+      }],
+      error: null,
+    } as never);
+
+    const user = userEvent.setup();
+    renderDashboard();
+
+    await waitFor(() => expect(screen.getByText("Morphine")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Approve" }));
+
+    await screen.findByText(/national quota exhausted/i);
+    expect(screen.getByRole("button", { name: /confirm approval/i })).toBeEnabled();
+  });
+
   it("reveals the Regular vs Pesara breakdown when hovering the Pending (Drug) stat card", async () => {
     renderDashboard();
     const card = await screen.findByTestId("stat-card-Pending (Drug)");

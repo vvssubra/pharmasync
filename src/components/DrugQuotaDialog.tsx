@@ -154,7 +154,8 @@ export default function DrugQuotaDialog({ open, onOpenChange, drugId, drugName, 
             <div className="space-y-3 py-2">
               <p className="text-sm text-muted-foreground">
                 Annual quotas are not set from the HQ clinic. Controlled drugs are pooled nationally and set on the
-                Logistik HQ dashboard; every other drug's quota is set by each clinic's own admin.
+                Logistik HQ dashboard. Drugs that do not require specialist approval carry no quota at all — nothing
+                limits how many patients may receive them.
               </p>
             </div>
             <DialogFooter>
@@ -164,8 +165,19 @@ export default function DrugQuotaDialog({ open, onOpenChange, drugId, drugName, 
         ) : (
           <>
             <div className="space-y-4 py-2">
+              {/* This branch is only reached for a NON-controlled drug at an
+                  ordinary clinic. Since 20260819000300_national_quota_pool.sql
+                  the request-time gate (enforce_dispensing_request_limits)
+                  applies only to drugs requiring specialist approval, so the
+                  number below does not stop anyone being prescribed this drug —
+                  saying "the maximum number of patients who may receive it"
+                  would promise a limit nothing enforces. The field stays
+                  because its other effect is real: the first save seeds this
+                  drug's opening stock balance (baki_awal) below. */}
               <p className="text-sm text-muted-foreground">
-                Set the maximum number of patients that may receive this controlled drug in {currentYear}.
+                This drug does not require specialist approval, so it is not part of the national pool and this
+                figure does not block requests for it. It is this clinic's own {currentYear} planning allocation, and
+                the first time it is set it seeds this drug's opening stock balance.
               </p>
               <div className="space-y-1.5">
                 <Label htmlFor="quota-input">Annual Patient Quota</Label>

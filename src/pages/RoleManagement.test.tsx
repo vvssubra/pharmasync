@@ -346,3 +346,39 @@ describe("Add New User — invite mode", () => {
     expect(body.password).toBe("secret123");
   });
 });
+
+// logistic_pharmacist governs the shared NATIONAL controlled-drug quota pool,
+// so it is not a role a clinic admin may hand out. The database refuses it
+// (20260819000100_logistic_role_helpers.sql) and admin-user-mgmt refuses it for
+// non-super_admin callers — this page must not offer it either, or an admin's
+// every attempt ends in an unexplained failure.
+describe("RoleManagement — logistic_pharmacist is super_admin-only", () => {
+  async function openRoleSelectInAddUser() {
+    await openAddUserDialog();
+    fireEvent.click(screen.getByLabelText(/^role$/i));
+  }
+
+  it("does not offer Logistic Pharmacist to a plain clinic admin", async () => {
+    renderPage("admin");
+    await openRoleSelectInAddUser();
+
+    await screen.findByRole("option", { name: "Medical Officer" });
+    expect(screen.queryByRole("option", { name: "Logistic Pharmacist" })).toBeNull();
+  });
+
+  it("offers Logistic Pharmacist to super_admin", async () => {
+    renderPage("super_admin");
+    await openRoleSelectInAddUser();
+
+    expect(await screen.findByRole("option", { name: "Logistic Pharmacist" })).toBeTruthy();
+  });
+
+  it("keeps it out of the pending-approval role picker for a plain admin", async () => {
+    renderPage("admin");
+    await waitFor(() => expect(within(pendingCard()).getByText("Dr Baru")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("role-pending-1"));
+
+    await screen.findByRole("option", { name: "Medical Officer" });
+    expect(screen.queryByRole("option", { name: "Logistic Pharmacist" })).toBeNull();
+  });
+});

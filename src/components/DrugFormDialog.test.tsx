@@ -3,23 +3,53 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { DrugFormDialog } from "./DrugFormDialog";
 
-// Mock Supabase client
-vi.mock("@/integrations/supabase/client", () => ({
-  supabase: {
-    from: vi.fn(() => ({
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
+// Every .eq() this dialog issues, as [table, column, value] — the quota read
+// has to be scoped by clinic_id and there is no other way to see that from the
+// outside. Reset in beforeEach.
+// Held in one mutable object so each field can be reset per test.
+const mockState: {
+  eqCalls: [string, string, unknown][];
+  // Row the drug_quotas read resolves to, and the error it raises (if any).
+  quotaRow: unknown;
+  quotaError: unknown;
+} = { eqCalls: [], quotaRow: null, quotaError: null };
+
+// Mock Supabase client. select() returns a chainable builder because the quota
+// read chains three .eq()s (drug_id, year, clinic_id) before .maybeSingle().
+vi.mock("@/integrations/supabase/client", () => {
+  const makeBuilder = (table: string) => {
+    const builder = {
+      eq: vi.fn((col: string, val: unknown) => {
+        mockState.eqCalls.push([table, col, val]);
+        return builder;
+      }),
+      maybeSingle: vi.fn(() =>
+        table === "drug_quotas"
+          ? Promise.resolve({ data: mockState.quotaRow, error: mockState.quotaError })
+          : Promise.resolve({ data: null, error: null }),
+      ),
+      single: vi.fn(() => Promise.resolve({ data: { id: "drug-1" }, error: null })),
+    };
+    return builder;
+  };
+  return {
+    supabase: {
+      from: vi.fn((table: string) => ({
+        select: vi.fn(() => makeBuilder(table)),
+        insert: vi.fn(() => ({
+          ...makeBuilder(table),
+          select: vi.fn(() => makeBuilder(table)),
+          then: (resolve: (v: unknown) => unknown) =>
+            Promise.resolve({ data: null, error: null }).then(resolve),
         })),
-        maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
+        upsert: vi.fn(() => Promise.resolve({ data: null, error: null })),
+        update: vi.fn(() => ({
+          eq: vi.fn(() => Promise.resolve({ data: null, error: null })),
+        })),
       })),
-      insert: vi.fn(() => Promise.resolve({ data: null, error: null })),
-      update: vi.fn(() => ({
-        eq: vi.fn(() => Promise.resolve({ data: null, error: null })),
-      })),
-    })),
-  },
-}));
+    },
+  };
+});
 
 // Mock sonner toast
 vi.mock("sonner", () => ({
@@ -41,7 +71,12 @@ function setAuth(auth: object) {
   (useAuth as ReturnType<typeof vi.fn>).mockReturnValue(auth);
 }
 
-beforeEach(() => setAuth(AT_ORDINARY_CLINIC));
+beforeEach(() => {
+  setAuth(AT_ORDINARY_CLINIC);
+  mockState.eqCalls = [];
+  mockState.quotaRow = null;
+  mockState.quotaError = null;
+});
 
 function makeQueryClient() {
   return new QueryClient({
@@ -194,5 +229,32 @@ describe("DrugFormDialog — editing a controlled drug (perlu_kelulusan_pakar=tr
     expect(screen.getByText(/60 \/ 100 remaining/i)).toBeInTheDocument();
     expect(screen.getByText(/set nationally by pkd logistik/i)).toBeInTheDocument();
     expect(screen.queryByText("Number of Quota")).not.toBeInTheDocument();
+  });
+});
+
+// Since the national pool landed, a drug can hold BOTH the HQ clinic's row and
+// a legacy per-clinic row for the same (drug_id, year). Without a clinic_id
+// filter a viewer who can see more than one clinic's rows gets 2+ rows back and
+// maybeSingle() errors — and this form used to drop that error and pre-fill 0,
+// i.e. quietly offer to overwrite a real quota with zero.
+describe("DrugFormDialog — quota read is scoped to the caller's clinic", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("filters drug_quotas by clinic_id as well as drug_id and year", async () => {
+    mockState.quotaRow = { quota_limit: 60 };
+    renderDialog(true, { id: "drug-1", drug_name: "Amoxicillin", is_active: true, perlu_kelulusan_pakar: false });
+
+    await waitFor(() => {
+      const quotaEqs = mockState.eqCalls.filter(([table]) => table === "drug_quotas");
+      expect(quotaEqs.map(([, col]) => col)).toContain("clinic_id");
+      expect(quotaEqs).toContainEqual(["drug_quotas", "clinic_id", "clinic-1"]);
+    });
+  });
+
+  it("surfaces a failed quota read instead of silently pre-filling 0", async () => {
+    mockState.quotaError = { message: "JSON object requested, multiple (or no) rows returned" };
+    renderDialog(true, { id: "drug-1", drug_name: "Amoxicillin", is_active: true, perlu_kelulusan_pakar: false });
+
+    expect(await screen.findByText(/could not load this drug's current quota/i)).toBeInTheDocument();
   });
 });

@@ -350,7 +350,7 @@ export default function SpecialistDashboard() {
                         <TableHead>Drug</TableHead>
                         <TableHead>Quantity</TableHead>
                         <TableHead>Doctor</TableHead>
-                        <TableHead>Quota</TableHead>
+                        <TableHead>Quota (National)</TableHead>
                         <TableHead>Action</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -410,7 +410,7 @@ export default function SpecialistDashboard() {
                         <TableHead>Drug</TableHead>
                         <TableHead>Quantity</TableHead>
                         <TableHead>Doctor</TableHead>
-                        <TableHead>Quota</TableHead>
+                        <TableHead>Quota (National)</TableHead>
                         <TableHead>Action</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -593,11 +593,22 @@ export default function SpecialistDashboard() {
                 <>
                   <Alert variant="destructive">
                     <AlertDescription>
-                      Quota exhausted: {approveUsedCount}/{approveQuotaLimit} patients for {approveTarget?.drugs?.drug_name} this year. Approval will exceed the annual patient quota.
+                      National quota exhausted: {approveUsedCount}/{approveQuotaLimit} patients for {approveTarget?.drugs?.drug_name} this year, counted across every clinic. Approval will exceed the shared annual patient quota.
                     </AlertDescription>
                   </Alert>
+                  {/* Borrowing predates the national pool, when each clinic held
+                      its own quota and a neighbouring clinic could lend from
+                      theirs. Under one shared pool
+                      (20260819000300_national_quota_pool.sql) every clinic is
+                      already drawing from the same allocation, so there is
+                      nothing left to borrow — the field is kept only because
+                      dispensing_requests.borrowed_from_clinic_id is still
+                      recorded and specialists use it as a note of who was
+                      consulted. It no longer gates the Confirm button below:
+                      requiring it blocked legitimate approvals outright, since
+                      no answer to it can free up national quota. */}
                   <div className="space-y-2">
-                    <Label htmlFor="borrow-clinic">Borrowing quota from clinic</Label>
+                    <Label htmlFor="borrow-clinic">Clinic consulted (optional — for the record only)</Label>
                     <Select value={borrowClinicId} onValueChange={setBorrowClinicId}>
                       <SelectTrigger id="borrow-clinic">
                         <SelectValue placeholder="Select clinic" />
@@ -622,7 +633,7 @@ export default function SpecialistDashboard() {
             <Button
               className="bg-green-600 hover:bg-green-700 text-white"
               onClick={() => approveMutation.mutate()}
-              disabled={approveMutation.isPending || (isQuotaExhausted && !borrowClinicId)}
+              disabled={approveMutation.isPending}
             >
               {approveMutation.isPending ? "Processing..." : "Confirm Approval"}
             </Button>

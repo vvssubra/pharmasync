@@ -127,8 +127,8 @@ export default function ReplenishQuotaDialog({ open, onOpenChange, drugId, drugN
             </DialogHeader>
             <div className="space-y-3 py-2">
               <p className="text-sm text-muted-foreground">
-                Controlled drugs are pooled nationally and set on the Logistik HQ dashboard; every other drug's
-                quota is replenished by each clinic's own admin.
+                Controlled drugs are pooled nationally and set on the Logistik HQ dashboard. Drugs that do not
+                require specialist approval carry no quota at all — to add physical stock for one, record a Terimaan.
               </p>
             </div>
             <DialogFooter>
@@ -140,11 +140,21 @@ export default function ReplenishQuotaDialog({ open, onOpenChange, drugId, drugN
             <DialogHeader>
               <DialogTitle>Replenish Quota — {drugName}</DialogTitle>
               <DialogDescription>
-                Add extra units to this drug's {currentYear} quota. Also adds the same amount to physical stock.
+                Adds the amount below to this clinic's physical stock as a Terimaan, and records it against this
+                drug's {currentYear} clinic allocation.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-2">
-              <p className="text-xs text-muted-foreground">Current quota: {currentQuotaLimit}</p>
+              {/* Non-controlled drugs only (controlled ones take the branch
+                  above). Since the national pool landed, this drug has no quota
+                  that gates requests — enforce_dispensing_request_limits() only
+                  looks at drugs requiring specialist approval — so the honest
+                  description of this action is "add stock", which is the part
+                  that has a real effect (the terimaan transaction below). */}
+              <p className="text-xs text-muted-foreground">
+                This drug is not part of the national pool, so this figure does not limit requests for it.
+              </p>
+              <p className="text-xs text-muted-foreground">Current clinic allocation: {currentQuotaLimit}</p>
               <div className="space-y-1.5">
                 <Label htmlFor="replenish-input">Amount to Add</Label>
                 <Input
@@ -158,7 +168,7 @@ export default function ReplenishQuotaDialog({ open, onOpenChange, drugId, drugN
               </div>
               {amountInput && !isNaN(parseInt(amountInput, 10)) && (
                 <p className="text-xs text-muted-foreground">
-                  New quota total: {currentQuotaLimit + parseInt(amountInput, 10)}
+                  New clinic allocation total: {currentQuotaLimit + parseInt(amountInput, 10)}
                 </p>
               )}
             </div>

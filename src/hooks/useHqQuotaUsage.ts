@@ -16,9 +16,9 @@ export type ClinicQuotaUsage =
  * per-clinic breakdown of who consumed that pool (get_quota_usage_by_clinic).
  *
  * This is a sibling of useDrugQuotaUsage, not a replacement — the seven
- * existing pages that read useDrugQuotaUsage's clinic-scoped shape keep using
- * it unchanged. This hook exists for the HQ dashboard, which is the only
- * consumer that also needs the per-clinic breakdown.
+ * existing clinic-facing pages keep using that hook unchanged. Note that its
+ * figures are national too (it calls the same RPC); what is exclusive to this
+ * hook is the per-clinic breakdown, which only the HQ dashboard needs.
  */
 export function useHqQuotaUsage(year: number) {
   const nationalQuery = useQuery({

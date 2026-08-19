@@ -45,7 +45,26 @@ const ROLE_LABELS: Record<string, string> = {
   logistic_pharmacist: "Logistic Pharmacist",
 };
 
+// Every role this page can name. Which of them the *current* caller may
+// actually assign is narrower — see assignableRolesFor() below.
 const ASSIGNABLE_ROLES = ["admin", "fms", "mo", "pharmacist", "logistic_pharmacist"] as const;
+
+// logistic_pharmacist is national in scope (it governs the shared
+// controlled-drug quota pool every clinic draws from) rather than clinic-scoped,
+// so a plain clinic admin must not be able to mint one. The database is the
+// real enforcement — the clinic-admin user_roles policies and
+// approve_clinic_member() both refuse it
+// (supabase/migrations/20260819000100_logistic_role_helpers.sql), and
+// admin-user-mgmt rejects it for non-super_admin callers — but a role an admin
+// cannot grant should not be offered to them either, or every pick ends in an
+// unexplained RLS error.
+const SUPER_ADMIN_ONLY_ROLES: readonly string[] = ["logistic_pharmacist"];
+
+function assignableRolesFor(isSuperAdmin: boolean): readonly string[] {
+  return isSuperAdmin
+    ? ASSIGNABLE_ROLES
+    : ASSIGNABLE_ROLES.filter((r) => !SUPER_ADMIN_ONLY_ROLES.includes(r));
+}
 
 // The user_roles.role column is the Postgres `app_role` enum, so a plain string
 // cannot be upserted. Narrow whatever the Select produced back to a real role.
@@ -71,6 +90,10 @@ const ROLE_FILTER_ALL = "all";
 export default function RoleManagement() {
   const { user: currentUser, role: currentRole } = useAuth();
   const isSuperAdmin = currentRole === "super_admin";
+  // Drives every role picker on this page (add user, approve pending, change
+  // role) and the role filter, so a plain admin never sees a role the server
+  // would refuse them.
+  const assignableRoles = assignableRolesFor(isSuperAdmin);
   const queryClient = useQueryClient();
 
   // The list outgrew scrolling once several clinics shared it, so it is
@@ -371,7 +394,7 @@ export default function RoleManagement() {
                           <SelectValue placeholder="Select role" />
                         </SelectTrigger>
                         <SelectContent>
-                          {ASSIGNABLE_ROLES.map((r) => (
+                          {assignableRoles.map((r) => (
                             <SelectItem key={r} value={r} className="text-xs">
                               {ROLE_LABELS[r]}
                             </SelectItem>
@@ -438,7 +461,7 @@ export default function RoleManagement() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={ROLE_FILTER_ALL} className="text-xs">All roles</SelectItem>
-                {ASSIGNABLE_ROLES.map((r) => (
+                {assignableRoles.map((r) => (
                   <SelectItem key={r} value={r} className="text-xs">{ROLE_LABELS[r]}</SelectItem>
                 ))}
                 <SelectItem value="unassigned" className="text-xs">Unassigned</SelectItem>
@@ -528,7 +551,7 @@ export default function RoleManagement() {
                             });
                           }}
                         >
-                          {ASSIGNABLE_ROLES.map((r) => (
+                          {assignableRoles.map((r) => (
                             <DropdownMenuRadioItem key={r} value={r} className="text-xs" disabled={self}>
                               {ROLE_LABELS[r]}
                             </DropdownMenuRadioItem>
@@ -665,7 +688,7 @@ export default function RoleManagement() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ASSIGNABLE_ROLES.map((r) => (
+                  {assignableRoles.map((r) => (
                     <SelectItem key={r} value={r}>{ROLE_LABELS[r]}</SelectItem>
                   ))}
                 </SelectContent>

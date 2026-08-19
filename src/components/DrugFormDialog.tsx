@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { getErrorMessage } from "@/lib/errors";
 
 const drugSchema = z.object({
   drug_name: z.string().trim().min(1, "Drug name is required").max(200),
@@ -91,16 +92,28 @@ export function DrugFormDialog({ open, onOpenChange, drug, nationalQuota }: Drug
   // upsert in the mutation, and the editable field in the form.
   const quotaWriteBlocked = isControlled || isAtHqClinic;
 
-  const { data: existingQuota } = useQuery({
-    queryKey: ["drug-quota", drug?.id, currentYear],
-    enabled: open && isEdit && !quotaWriteBlocked,
+  const { data: existingQuota, error: existingQuotaError } = useQuery({
+    queryKey: ["drug-quota", drug?.id, currentYear, profile?.clinic_id],
+    // Also requires a clinic: drug_quotas rows are stamped with the caller's
+    // clinic_id, so a user with none (super_admin) has no row of their own to
+    // pre-fill from and no write path either.
+    enabled: open && isEdit && !quotaWriteBlocked && !!profile?.clinic_id,
     queryFn: async () => {
-      const { data } = await supabase
+      // clinic_id filter is not optional. Since the national pool landed, a
+      // drug can hold BOTH an HQ row and a legacy per-clinic row for the same
+      // (drug_id, year); a viewer who can see more than one clinic's rows would
+      // then get 2+ rows back and maybeSingle() errors. That error used to be
+      // dropped on the floor by destructuring only `data`, and the form quietly
+      // pre-filled 0 — i.e. offered to overwrite a real quota with zero. Match
+      // DrugQuotaDialog: scope to this clinic, and let the error surface.
+      const { data, error } = await supabase
         .from("drug_quotas")
         .select("quota_limit")
         .eq("drug_id", drug!.id)
         .eq("year", currentYear)
+        .eq("clinic_id", profile!.clinic_id!)
         .maybeSingle();
+      if (error) throw error;
       return data as { quota_limit: number } | null;
     },
   });
@@ -275,8 +288,8 @@ export function DrugFormDialog({ open, onOpenChange, drug, nationalQuota }: Drug
                 <p className="text-sm font-medium">Quota not set from HQ</p>
                 <p className="text-xs text-muted-foreground">
                   Annual quotas are not set from the HQ clinic. Controlled drugs are pooled nationally and set on
-                  the Logistik HQ dashboard; every other drug's quota is set by each clinic's own admin. The rest
-                  of this drug's details save normally.
+                  the Logistik HQ dashboard. Drugs that do not require specialist approval carry no quota at all —
+                  nothing limits how many patients may receive them. The rest of this drug's details save normally.
                 </p>
               </div>
             ) : (
@@ -284,6 +297,15 @@ export function DrugFormDialog({ open, onOpenChange, drug, nationalQuota }: Drug
                 <FormItem>
                   <FormLabel>Number of Quota</FormLabel>
                   <FormControl><Input type="number" {...field} /></FormControl>
+                  {/* Without this the field silently shows 0 when the read
+                      failed, which reads as "no quota set" and invites saving
+                      a zero over a real value. */}
+                  {existingQuotaError && (
+                    <p className="text-xs text-destructive">
+                      Could not load this drug's current quota ({getErrorMessage(existingQuotaError, "unknown error")}).
+                      Saving will overwrite it with whatever is shown here.
+                    </p>
+                  )}
                   <FormMessage />
                 </FormItem>
               )} />
