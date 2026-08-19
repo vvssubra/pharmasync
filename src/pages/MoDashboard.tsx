@@ -340,7 +340,7 @@ export default function MoDashboard() {
                   <TableHead className="text-right">Current Stock</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Requires Approval</TableHead>
-                  <TableHead>Quota Remaining</TableHead>
+                  <TableHead>National Quota Remaining</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>

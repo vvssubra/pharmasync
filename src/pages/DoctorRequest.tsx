@@ -158,7 +158,7 @@ export default function DoctorRequest() {
       return;
     }
     if (quotaInfo?.exhausted) {
-      toast.error("Kuota tahunan ubat ini telah habis. Permohonan tidak boleh dihantar.");
+      toast.error("Kuota tahunan kebangsaan ubat ini telah habis. Permohonan tidak boleh dihantar.");
       return;
     }
     submitMutation.mutate(values);
@@ -320,7 +320,7 @@ export default function DoctorRequest() {
                 <Alert variant="destructive">
                   <AlertCircle className="h-4 w-4" />
                   <AlertDescription>
-                    Kuota tahunan ubat ini telah habis ({quotaInfo.used}/{quotaInfo.limit} permohonan). Permohonan baru tidak boleh dihantar.
+                    Kuota tahunan kebangsaan ubat ini telah habis ({quotaInfo.used}/{quotaInfo.limit} permohonan di seluruh negara). Permohonan baru tidak boleh dihantar.
                   </AlertDescription>
                 </Alert>
               )}
@@ -328,7 +328,7 @@ export default function DoctorRequest() {
                 <Alert className="border-amber-300 bg-amber-50 text-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
                   <Info className="h-4 w-4" />
                   <AlertDescription>
-                    Baki kuota rendah: {quotaInfo.remaining} lagi daripada {quotaInfo.limit} permohonan tahun ini.
+                    Baki kuota kebangsaan rendah: {quotaInfo.remaining} lagi daripada {quotaInfo.limit} permohonan tahun ini di seluruh negara (bukan hanya klinik ini).
                   </AlertDescription>
                 </Alert>
               )}
