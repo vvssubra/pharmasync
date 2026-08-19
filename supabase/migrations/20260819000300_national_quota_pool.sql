@@ -101,11 +101,14 @@ comment on table public.drug_quotas is
 -- national question and must return the same number whichever clinic asks.
 --
 -- The two halves keep their original meaning from 20260727000000 section 5,
--- widened from one clinic to all:
---   enrolments contribute sum(kuota) across every clinic;
+-- widened from one clinic to all, and de-duplicated by person on BOTH halves:
+--   enrolments contribute one kuota per digits-only IC across every clinic
+--   (max() where a person is enrolled at more than one clinic — see below);
 --   dispensing_requests contribute only digits-only ICs that are not already
 --   enrolled *anywhere*, so a patient enrolled at clinic A who is requested
 --   for at clinic B does not consume a second national slot.
+-- A person therefore consumes at most one slot no matter how many clinics
+-- know them, which is what "one national pool of patients" means.
 create or replace function public.drug_quota_used(
   p_clinic_id uuid,
   p_drug_id   uuid,
@@ -118,12 +121,27 @@ security definer
 set search_path = public
 as $$
   with enrolled as (
+    -- One row per PERSON, not per enrolment row. patient_registry is unique on
+    -- (clinic_id, no_ic), so the same human legitimately holds a separate
+    -- patient_registry row — and therefore a separate enrolment — at every
+    -- clinic that treats them. Under a national pool that is still ONE slot for
+    -- that person, so the per-clinic kuota values are collapsed by normalized
+    -- IC rather than summed; summing them would inflate `used` by one for every
+    -- extra clinic a patient is registered at.
+    --
+    -- max() is the right collapse, not min() or sum():
+    --   • a suspended enrolment (kuota = 0, "x AKTIF") at one clinic must not
+    --     erase an active slot (kuota = 1) the same person holds at another;
+    --   • a merged-duplicate enrolment (kuota > 1) keeps its intended weight.
+    -- This mirrors the dedupe the `dispensed` half below already does, so both
+    -- halves now count a person at most once.
     select regexp_replace(pr.no_ic, '\D', '', 'g') as ic,
-           dqp.kuota
+           max(dqp.kuota) as kuota
     from public.drug_quota_patients dqp
     join public.patient_registry pr on pr.id = dqp.patient_id
     where dqp.drug_id = p_drug_id
       and dqp.year    = p_year
+    group by regexp_replace(pr.no_ic, '\D', '', 'g')
   ),
   dispensed as (
     select distinct regexp_replace(dr.no_ic, '\D', '', 'g') as ic
@@ -223,15 +241,33 @@ as $$
   with params as (
     select coalesce(p_year, extract(year from now())::int) as y
   ),
-  enrolled as (
+  enrolled_rows as (
     select dqp.clinic_id,
            dqp.drug_id,
            regexp_replace(pr.no_ic, '\D', '', 'g') as ic,
-           dqp.kuota
+           dqp.kuota,
+           dqp.created_at
     from public.drug_quota_patients dqp
     join public.patient_registry pr on pr.id = dqp.patient_id
     cross join params p
     where dqp.year = p.y
+  ),
+  -- One row per (drug, person), matching the same collapse drug_quota_used()
+  -- applies: a person enrolled at several clinics still holds ONE national
+  -- slot, worth max(kuota). That single slot is attributed to the clinic
+  -- holding the winning enrolment (highest kuota, earliest enrolment on a
+  -- tie) — the enrolment-side counterpart of the "first clinic to request
+  -- wins" rule used for `dispensed` below. Without this the breakdown would
+  -- bill the same person to every clinic that enrolled them and would no
+  -- longer sum to the national total it is breaking down.
+  enrolled as (
+    select distinct on (er.drug_id, er.ic)
+           er.clinic_id,
+           er.drug_id,
+           er.ic,
+           er.kuota
+    from enrolled_rows er
+    order by er.drug_id, er.ic, er.kuota desc, er.created_at
   ),
   dispensed as (
     select distinct on (dr.drug_id, regexp_replace(dr.no_ic, '\D', '', 'g'))
@@ -277,7 +313,7 @@ comment on function public.get_quota_usage_by_clinic(integer) is
   'drug_quota_used() per (drug, year). Counts only — contains no patient data.';
 
 -- ── 6. enforce_dispensing_request_limits(): national gate + race guard ─────
--- Rewritten from 20260727000000 section 6. Three changes, nothing else:
+-- Rewritten from 20260727000000 section 6. Four changes, nothing else:
 --
 --   a) ADVISORY LOCK, taken as the very first statement of the function —
 --      before the drugs lookup, before the drug_quotas SELECT, and before
@@ -307,6 +343,10 @@ comment on function public.get_quota_usage_by_clinic(integer) is
 --      full. Leaving the probe clinic-scoped would reject exactly those
 --      patients while their slot sat counted against the limit.
 --
+--   d) FAIL CLOSED when hq_clinic_id() is NULL. See the inline comment — a
+--      missing HQ clinic would otherwise turn the `v_quota_limit is not null`
+--      guard into a silent global disable of quota enforcement.
+--
 -- is_pesara = false, status <> 'rejected' and the calendar-year window are
 -- untouched, as is the raise message text and the `if v_quota_limit is not
 -- null` guard (no HQ row for a drug = no quota = unlimited, as before).
@@ -323,6 +363,21 @@ begin
   -- (a) Serialize every concurrent insert for this (drug, year) before any
   --     quota read below. Must stay the first statement in this function.
   perform pg_advisory_xact_lock(hashtext(new.drug_id::text || ':' || v_year::text));
+
+  -- Fail closed if the HQ clinic is missing. hq_clinic_id() reads
+  -- clinics.is_hq, which a super_admin can clear at any time. If it returns
+  -- NULL the limit SELECT below matches no row, v_quota_limit stays NULL, and
+  -- the `if v_quota_limit is not null` guard skips enforcement entirely —
+  -- silently making EVERY controlled drug unlimited nationally, with no error
+  -- and nothing in the logs. An unconfigured HQ clinic is a broken deployment,
+  -- so refuse the write rather than quietly stop enforcing. Deliberately
+  -- placed before the is_blocked/is_pesara branches: a pesara request does not
+  -- consult the quota and is collateral here, but a deployment in this state
+  -- needs to surface loudly and immediately, not on the first non-pesara
+  -- request that happens along.
+  if public.hq_clinic_id() is null then
+    raise exception 'National HQ clinic is not configured — controlled-drug quota cannot be enforced';
+  end if;
 
   select is_blocked into v_blocked from public.drugs where id = new.drug_id;
   if v_blocked then
