@@ -17,6 +17,12 @@
 --             in this migration, so PostgREST writes from a logistic
 --             pharmacist are refused and the RPC (with its role check, its
 --             validation and its audit row) cannot be bypassed.
+--             Section 4 also removes the pre-existing clinic-admin write
+--             policies on drug_quotas, which since the national-pool migration
+--             would have let any admin sitting in the HQ clinic edit the
+--             national allocation directly — unvalidated and unaudited. After
+--             this migration the only writers of drug_quotas are the RPC and a
+--             super_admin break-glass path.
 
 -- ── 1. drug_quota_audit ─────────────────────────────────────────────────────
 -- Every change to a national quota limit, with its before/after values. The
@@ -50,18 +56,23 @@ create policy "HQ can view drug_quota_audit" on public.drug_quota_audit
 
 create index idx_drug_quota_audit_drug_year on public.drug_quota_audit (drug_id, year);
 
--- ── 2. set_national_drug_quota(): the only quota write path ─────────────────
+-- ── 2. set_national_drug_quota(): the audited quota write path ──────────────
 -- security definer because the caller (a logistic pharmacist) intentionally has
 -- NO write policy on drug_quotas — this function is the gate, and the role check
--- on its first line is what stands in for the missing policy.
+-- on its first line is what stands in for the missing policy. Together with
+-- section 4 this is the only writer of drug_quotas other than a super_admin
+-- acting directly, which is the codebase-wide break-glass convention.
 --
 -- There is deliberately no delete/clear variant. Setting p_quota_limit := 0 is
 -- how a drug is stopped: enforce_dispensing_request_limits() treats "no HQ row
 -- for this drug" as "no limit at all", so DELETEing the row would silently
 -- remove enforcement nationally rather than tighten it.
 --
--- On trg_stamp_clinic_id (20260723000200 section 3, still active on
--- drug_quotas): that BEFORE INSERT trigger overwrites new.clinic_id with
+-- On trg_stamp_clinic_id (trigger created in 20260723000200:74-75 and still
+-- active on drug_quotas; the LIVE function body is the third and latest
+-- definition, 20260727000000_drug_quota_patients.sql:37-55, which only adds the
+-- auth.uid() is null passthrough for superuser migrations and leaves the
+-- overwrite below intact): that BEFORE INSERT trigger overwrites new.clinic_id with
 -- public.user_clinic_id() for every caller who is not a super_admin, and
 -- security definer does NOT change that — auth.uid() still resolves to the
 -- human making the request. So a logistic pharmacist whose profile is not
@@ -133,8 +144,12 @@ begin
   -- Conflict target matches drug_quotas_clinic_drug_year_key, the unique
   -- constraint on (clinic_id, drug_id, year) added in 20260727000000 section 1
   -- and untouched by the national-pool migration.
-  insert into public.drug_quotas (clinic_id, drug_id, year, quota_limit, alert_threshold_pct)
-  values (v_hq, p_drug_id, p_year, p_quota_limit, p_alert_threshold_pct)
+  -- created_by mirrors drug_quota_audit.actor_id, and matches what the admin
+  -- UI wrote on rows created before this RPC existed. It is deliberately NOT
+  -- touched on the conflict path: it records who created the quota, while the
+  -- audit table records who changed it since.
+  insert into public.drug_quotas (clinic_id, drug_id, year, quota_limit, alert_threshold_pct, created_by)
+  values (v_hq, p_drug_id, p_year, p_quota_limit, p_alert_threshold_pct, auth.uid())
   on conflict (clinic_id, drug_id, year) do update
     set quota_limit         = excluded.quota_limit,
         alert_threshold_pct = excluded.alert_threshold_pct,
@@ -242,5 +257,60 @@ create policy "Clinic-scoped view drug_quota_patients" on public.drug_quota_pati
     or public.is_logistic_pharmacist()
     or clinic_id = public.user_clinic_id()
   );
+
+-- ── 4. drug_quotas writes: super_admin only ─────────────────────────────────
+-- The three write policies from 20260723000200_tenancy_3_rls.sql:147-167 (never
+-- redefined since — grepped) let a clinic admin insert/update/delete any
+-- drug_quotas row carrying their OWN clinic_id. That was correct while quotas
+-- were per-clinic. It stopped being correct at 20260819000300, which made the
+-- HQ clinic's row *the* national allocation for all 15 clinics: an admin whose
+-- profile sits in the HQ clinic — exactly where section 2's deployment
+-- requirement puts HQ staff — could then edit the national number straight
+-- through PostgREST, with none of the RPC's validation and no audit row. That
+-- defeats the entire purpose of drug_quota_audit, so the admin branch goes.
+--
+-- Note the clause being removed is an inline `exists (select 1 from
+-- public.user_roles ur where ur.user_id = auth.uid() and ur.role = 'admin')`
+-- ANDed with `clinic_id = public.user_clinic_id()`, not a call to
+-- public.is_admin() — read from the source before editing.
+--
+-- Safe under this plan: Task 12 retires the clinic-facing controlled-drug
+-- quota-write UI, and clinic admins were never meant to set a national figure.
+-- super_admin keeps a direct, unaudited write as break-glass, consistent with
+-- how that role is treated throughout this codebase (it already short-circuits
+-- every clinic-scoping policy). Policies are renamed to stop advertising an
+-- admin capability that no longer exists; the old names are dropped explicitly.
+--
+-- Before (all three, from 20260723000200):
+--     public.is_super_admin()
+--     or (clinic_id = public.user_clinic_id()
+--         and exists (select 1 from public.user_roles ur
+--                     where ur.user_id = auth.uid() and ur.role = 'admin'))
+-- After (all three):
+--     public.is_super_admin()
+--
+-- SELECT is untouched by this section — section 3 above already redefined it,
+-- and reading a quota was never the concern.
+
+drop policy if exists "Clinic admin can insert drug_quotas" on public.drug_quotas;
+drop policy if exists "Super admin can insert drug_quotas" on public.drug_quotas;
+create policy "Super admin can insert drug_quotas" on public.drug_quotas
+  for insert to authenticated
+  with check (public.is_super_admin());
+
+-- No WITH CHECK, matching the shape of the policy being replaced. For a
+-- predicate that reads no column of the row this is not a loosening: Postgres
+-- defaults an UPDATE policy's WITH CHECK to its USING expression.
+drop policy if exists "Clinic admin can update drug_quotas" on public.drug_quotas;
+drop policy if exists "Super admin can update drug_quotas" on public.drug_quotas;
+create policy "Super admin can update drug_quotas" on public.drug_quotas
+  for update to authenticated
+  using (public.is_super_admin());
+
+drop policy if exists "Clinic admin can delete drug_quotas" on public.drug_quotas;
+drop policy if exists "Super admin can delete drug_quotas" on public.drug_quotas;
+create policy "Super admin can delete drug_quotas" on public.drug_quotas
+  for delete to authenticated
+  using (public.is_super_admin());
 
 notify pgrst, 'reload schema';
