@@ -81,15 +81,37 @@
 -- were ever absent, `clinic_id <> NULL` is NULL, the whole AND-chain is NULL,
 -- and EVERY clinic admin at EVERY clinic loses drug_quotas writes: precisely
 -- the regression this migration exists to undo, reintroduced by a defensive
--- operator choice. `is distinct from` returns true instead, which is also the
--- semantically right answer: with no HQ clinic configured there is no national
--- row to protect, so no clinic's row needs excluding.
+-- operator choice. `is distinct from` returns true instead: with no HQ clinic
+-- configured the predicate has no clinic to exclude, so it excludes none. See
+-- the residual note below for what that does and does not cover.
 --
--- This is not a hole. The row being protected is the HQ clinic's row, and if
--- hq_clinic_id() is NULL there is no such row to write to; separately,
--- enforce_dispensing_request_limits() (20260819000300 section 6d) and
--- set_national_drug_quota() (20260819000400 section 2) both already fail closed
--- and loudly on a missing HQ clinic, so that state cannot go unnoticed.
+-- One residual, stated precisely rather than waved away. There are two ways
+-- hq_clinic_id() can return NULL and they are NOT equivalent:
+--
+--   a) The HQ clinics row is DELETED. Then its national drug_quotas rows are
+--      gone too (or the delete is refused by drug_quotas.clinic_id's FK while
+--      they exist), so there is no national row left to protect and nothing is
+--      reopened.
+--
+--   b) `update clinics set is_hq = false` on the HQ clinic — the row and ALL of
+--      its national drug_quotas rows survive, hq_clinic_id() starts returning
+--      NULL, `is distinct from` yields true, and an admin stationed at that
+--      now-ex-HQ clinic regains DIRECT PostgREST write access to the orphaned
+--      national rows. That is exactly the bypass this migration exists to
+--      close, and this predicate cannot close it: the predicate's only handle
+--      on "which clinic is HQ" is the flag that was just cleared.
+--
+-- (b) is accepted, not overlooked. Clearing is_hq is a super_admin action —
+-- `update clinics` is super_admin-only per 20260723000200:39-42 — and a
+-- super_admin already holds an unconditional direct write to drug_quotas
+-- through term 1 of this very predicate, so the action is taken by someone who
+-- did not need the bypass in the first place. Swapping in `<>` would not fix
+-- (b) either; it would only trade it for the far likelier regression of
+-- breaking every clinic's writes. The real mitigation is that the state is
+-- loud: enforce_dispensing_request_limits() (20260819000300 section 6d) and
+-- set_national_drug_quota() (20260819000400 section 2) both raise on a missing
+-- HQ clinic, so quota enforcement and the HQ dashboard stop working the moment
+-- is_hq is cleared. Anyone clearing it will know immediately.
 --
 -- `is distinct from public.hq_clinic_id()` is also the established idiom for
 -- "not the HQ clinic" in this branch — see 20260819000300:45 and :79.

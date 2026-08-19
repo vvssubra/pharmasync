@@ -41,9 +41,19 @@ export default function DrugQuotaDialog({ open, onOpenChange, drugId, drugName, 
   const [quotaInput, setQuotaInput] = useState<string>("");
   const [alertPctInput, setAlertPctInput] = useState<string>("20");
 
+  // Staff at the national HQ clinic ('Logistik PKDJB') have no drug_quotas
+  // write path for ANY drug: their row is stamped with the HQ clinic_id and
+  // the write policies exclude that clinic to keep the national pool behind
+  // set_national_drug_quota (see
+  // supabase/migrations/20260819000600_drug_quotas_clinic_admin_write.sql).
+  // `drugs` is global, so this dialog is reachable from HQ for any drug —
+  // offering the editable field would only produce an RLS error on save.
+  const isAtHqClinic = !!profile?.is_hq_clinic;
+  const quotaWriteBlocked = isControlled || isAtHqClinic;
+
   const { data: existing } = useQuery({
     queryKey: ["drug-quota", drugId, currentYear, profile?.clinic_id],
-    enabled: open && !isControlled,
+    enabled: open && !quotaWriteBlocked,
     queryFn: async () => {
       // drug_quotas is now clinic-scoped (a drug can hold a different quota
       // per clinic) — without this filter a super_admin, who can see every
@@ -133,6 +143,18 @@ export default function DrugQuotaDialog({ open, onOpenChange, drugId, drugName, 
               <p className="text-xs text-muted-foreground">
                 This drug requires specialist approval and is quota-pooled nationally across every clinic. Its
                 quota is set nationally by PKD Logistik on the Logistik HQ dashboard — not editable here.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+            </DialogFooter>
+          </>
+        ) : isAtHqClinic ? (
+          <>
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-muted-foreground">
+                Annual quotas are not set from the HQ clinic. Controlled drugs are pooled nationally and set on the
+                Logistik HQ dashboard; every other drug's quota is set by each clinic's own admin.
               </p>
             </div>
             <DialogFooter>

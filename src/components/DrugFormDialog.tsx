@@ -63,9 +63,20 @@ interface DrugFormDialogProps {
 
 export function DrugFormDialog({ open, onOpenChange, drug, nationalQuota }: DrugFormDialogProps) {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const isEdit = !!drug;
   const currentYear = new Date().getFullYear();
+  // Staff stationed at the national HQ clinic ('Logistik PKDJB') have NO
+  // drug_quotas write path at all — not just for controlled drugs. Their insert
+  // is stamped with the HQ clinic_id by trg_stamp_clinic_id and then refused by
+  // the write policies, which exclude the HQ clinic to keep the national pool
+  // behind set_national_drug_quota
+  // (supabase/migrations/20260819000600_drug_quotas_clinic_admin_write.sql).
+  // `drugs` is a global table, so an HQ admin can open this dialog for any
+  // drug; without this flag the upsert below would fire and fail — and since
+  // the `drugs` write above it has already committed, the user would get an
+  // error toast on an edit that actually succeeded.
+  const isAtHqClinic = !!profile?.is_hq_clinic;
   // perlu_kelulusan_pakar — controlled drugs are quota-pooled nationally
   // (supabase/migrations/20260819000300_national_quota_pool.sql) and set only
   // via set_national_drug_quota by logistic_pharmacist/super_admin. A clinic
@@ -75,9 +86,14 @@ export function DrugFormDialog({ open, onOpenChange, drug, nationalQuota }: Drug
   // treated as controlled here.
   const isControlled = isEdit && !!drug?.perlu_kelulusan_pakar;
 
+  // The two reasons this form must not touch drug_quotas. Both are RLS denials
+  // if attempted, so both gate the same three things: the read below, the
+  // upsert in the mutation, and the editable field in the form.
+  const quotaWriteBlocked = isControlled || isAtHqClinic;
+
   const { data: existingQuota } = useQuery({
     queryKey: ["drug-quota", drug?.id, currentYear],
-    enabled: open && isEdit && !isControlled,
+    enabled: open && isEdit && !quotaWriteBlocked,
     queryFn: async () => {
       const { data } = await supabase
         .from("drug_quotas")
@@ -161,10 +177,12 @@ export function DrugFormDialog({ open, onOpenChange, drug, nationalQuota }: Drug
         drugId = inserted.id;
       }
 
-      // Controlled drugs' quota is a national pool set only via
-      // set_national_drug_quota (Logistik HQ dashboard) — this form never
-      // writes drug_quotas for them; see isControlled above.
-      if (!isControlled) {
+      // Skipped for controlled drugs (national pool, set only via
+      // set_national_drug_quota from the Logistik HQ dashboard) and for any
+      // drug when the caller is stationed at the HQ clinic (no drug_quotas
+      // write path at all). Both would be RLS denials, and the `drugs` write
+      // above has already committed by this point — see quotaWriteBlocked.
+      if (!quotaWriteBlocked) {
         const { error: quotaError } = await supabase
           .from("drug_quotas")
           .upsert(
@@ -234,6 +252,9 @@ export function DrugFormDialog({ open, onOpenChange, drug, nationalQuota }: Drug
                 <FormMessage />
               </FormItem>
             )} />
+            {/* isControlled is checked first on purpose: both branches are
+                read-only, so when an HQ-stationed user opens a controlled drug
+                the national figure is the more useful of the two to show. */}
             {isControlled ? (
               <div className="space-y-1.5 rounded-md border bg-muted/40 p-3">
                 <p className="text-sm font-medium">National Quota — {currentYear}</p>
@@ -247,6 +268,15 @@ export function DrugFormDialog({ open, onOpenChange, drug, nationalQuota }: Drug
                 <p className="text-xs text-muted-foreground">
                   This drug requires specialist approval and is quota-pooled nationally. Set nationally by PKD
                   Logistik on the Logistik HQ dashboard — not editable here.
+                </p>
+              </div>
+            ) : isAtHqClinic ? (
+              <div className="space-y-1.5 rounded-md border bg-muted/40 p-3">
+                <p className="text-sm font-medium">Quota not set from HQ</p>
+                <p className="text-xs text-muted-foreground">
+                  Annual quotas are not set from the HQ clinic. Controlled drugs are pooled nationally and set on
+                  the Logistik HQ dashboard; every other drug's quota is set by each clinic's own admin. The rest
+                  of this drug's details save normally.
                 </p>
               </div>
             ) : (

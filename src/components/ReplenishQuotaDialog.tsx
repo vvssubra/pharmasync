@@ -34,9 +34,17 @@ interface Props {
 
 export default function ReplenishQuotaDialog({ open, onOpenChange, drugId, drugName, currentQuotaLimit, isControlled, nationalQuota }: Props) {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const currentYear = new Date().getFullYear();
   const [amountInput, setAmountInput] = useState<string>("");
+
+  // Same reason as DrugQuotaDialog: an HQ-stationed user has no drug_quotas
+  // write path for any drug, so replenishing from here can only end in an RLS
+  // denial — and the terimaan transaction that follows the upsert would never
+  // be reached, leaving the quota and the ledger disagreeing about what
+  // happened. See
+  // supabase/migrations/20260819000600_drug_quotas_clinic_admin_write.sql.
+  const isAtHqClinic = !!profile?.is_hq_clinic;
 
   useEffect(() => {
     if (open) setAmountInput("");
@@ -103,6 +111,24 @@ export default function ReplenishQuotaDialog({ open, onOpenChange, drugId, drugN
               </div>
               <p className="text-xs text-muted-foreground">
                 Set nationally by PKD Logistik on the Logistik HQ dashboard — not editable here.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+            </DialogFooter>
+          </>
+        ) : isAtHqClinic ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Quota — {drugName}</DialogTitle>
+              <DialogDescription>
+                Quotas are not replenished from the HQ clinic.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-muted-foreground">
+                Controlled drugs are pooled nationally and set on the Logistik HQ dashboard; every other drug's
+                quota is replenished by each clinic's own admin.
               </p>
             </div>
             <DialogFooter>
