@@ -23,6 +23,7 @@ const drugSchema = z.object({
   stok_min: z.coerce.number().int().min(0).optional().default(0),
   stok_reorder: z.coerce.number().int().min(0).optional().default(0),
   stok_max: z.coerce.number().int().min(0).optional().default(0),
+  unit_price: z.coerce.number().min(0).optional(),
 }).refine(
   (v) => v.stok_min <= v.stok_reorder,
   { message: "Min must not exceed Reorder level", path: ["stok_min"] },
@@ -40,6 +41,7 @@ interface Drug {
   stok_min?: number | null;
   stok_reorder?: number | null;
   stok_max?: number | null;
+  unit_price?: number | null;
 }
 
 interface DrugFormDialogProps {
@@ -76,6 +78,7 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
       stok_min: 0,
       stok_reorder: 0,
       stok_max: 0,
+      unit_price: undefined,
     },
   });
 
@@ -88,6 +91,7 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
           stok_min: drug.stok_min ?? 0,
           stok_reorder: drug.stok_reorder ?? 0,
           stok_max: drug.stok_max ?? 0,
+          unit_price: drug.unit_price ?? undefined,
         });
       } else {
         form.reset();
@@ -117,6 +121,7 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
             stok_min: values.stok_min,
             stok_reorder: values.stok_reorder,
             stok_max: values.stok_max,
+            unit_price: values.unit_price ?? null,
           })
           .eq("id", drug.id);
         if (error) throw error;
@@ -129,6 +134,7 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
             stok_min: values.stok_min,
             stok_reorder: values.stok_reorder,
             stok_max: values.stok_max,
+            unit_price: values.unit_price ?? null,
           }])
           .select("id")
           .single();
@@ -208,6 +214,22 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
               <FormItem>
                 <FormLabel>Number of Quota</FormLabel>
                 <FormControl><Input type="number" {...field} /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+            <FormField control={form.control} name="unit_price" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Unit Price (RM)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    placeholder="Optional"
+                    {...field}
+                    value={field.value ?? ""}
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )} />

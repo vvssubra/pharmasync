@@ -22,6 +22,7 @@ const ROUTE_PERMISSIONS: Array<{ prefix: string; roles: AppRole[] }> = [
   { prefix: "/terimaan",        roles: ["admin", "fms", "super_admin"] },
   { prefix: "/pesakit",         roles: ["admin", "fms", "pharmacist", "super_admin"] },
   { prefix: "/laporan",         roles: ["admin", "fms", "pharmacist", "super_admin"] },
+  { prefix: "/logistik",        roles: ["logistic_pharmacist", "super_admin"] },
   { prefix: "/",                roles: ["admin", "fms", "mo", "pharmacist", "super_admin"] },
   // NB /change-password is deliberately absent: it is open to every signed-in
   // user and short-circuits before this table is consulted (see below).

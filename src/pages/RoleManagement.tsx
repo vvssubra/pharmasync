@@ -42,9 +42,10 @@ const ROLE_LABELS: Record<string, string> = {
   mo: "Medical Officer",
   pharmacist: "Pharmacist",
   super_admin: "Super Admin",
+  logistic_pharmacist: "Logistic Pharmacist",
 };
 
-const ASSIGNABLE_ROLES = ["admin", "fms", "mo", "pharmacist"] as const;
+const ASSIGNABLE_ROLES = ["admin", "fms", "mo", "pharmacist", "logistic_pharmacist"] as const;
 
 // The user_roles.role column is the Postgres `app_role` enum, so a plain string
 // cannot be upserted. Narrow whatever the Select produced back to a real role.

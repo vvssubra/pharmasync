@@ -7,7 +7,7 @@ import {
   corsHeaders,
 } from "../_shared/security.ts";
 
-const ALLOWED_ROLES = ["admin", "fms", "mo", "pharmacist"] as const;
+const ALLOWED_ROLES = ["admin", "fms", "mo", "pharmacist", "logistic_pharmacist"] as const;
 
 const CreateUserSchema = z.object({
   action: z.literal("create_user"),
