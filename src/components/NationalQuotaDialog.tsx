@@ -15,6 +15,13 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
+// PKDJB allocates this drug's national quota as a rate — a fixed amount per
+// FMS (Family Medicine Specialist) unit — rather than a single number an
+// admin has to reverse-engineer by hand. 29 is today's district FMS count,
+// offered as the starting suggestion; it is fully editable per drug, same as
+// the quota-per-FMS figure it's multiplied by.
+const DEFAULT_FMS_COUNT = 29;
+
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -27,6 +34,15 @@ interface Props {
    * dialog is only ever opened from a row that is already on screen, so a
    * second read of the same data would just be a redundant round trip.
    */
+  currentFmsCount: number | null;
+  currentQuotaPerFms: number | null;
+  /**
+   * The enforced total as it stands today. Only used to surface a note when
+   * a quota was set before the FMS-count x quota-per-FMS model existed (i.e.
+   * currentFmsCount/currentQuotaPerFms are both null but a total is already
+   * being enforced) — saving here always replaces it with fmsCount x
+   * quotaPerFms, never reads it back as an input.
+   */
   currentQuotaLimit: number | null;
   currentAlertThresholdPct: number | null;
 }
@@ -37,29 +53,39 @@ export default function NationalQuotaDialog({
   drugId,
   drugName,
   year,
+  currentFmsCount,
+  currentQuotaPerFms,
   currentQuotaLimit,
   currentAlertThresholdPct,
 }: Props) {
   const queryClient = useQueryClient();
-  const [quotaInput, setQuotaInput] = useState<string>("");
+  const [fmsCountInput, setFmsCountInput] = useState<string>("");
+  const [quotaPerFmsInput, setQuotaPerFmsInput] = useState<string>("");
   const [alertPctInput, setAlertPctInput] = useState<string>("20");
 
   useEffect(() => {
     if (!open) return;
-    setQuotaInput(currentQuotaLimit != null ? String(currentQuotaLimit) : "");
+    setFmsCountInput(currentFmsCount != null ? String(currentFmsCount) : String(DEFAULT_FMS_COUNT));
+    setQuotaPerFmsInput(currentQuotaPerFms != null ? String(currentQuotaPerFms) : "");
     setAlertPctInput(currentAlertThresholdPct != null ? String(currentAlertThresholdPct) : "20");
-  }, [open, currentQuotaLimit, currentAlertThresholdPct]);
+  }, [open, currentFmsCount, currentQuotaPerFms, currentAlertThresholdPct]);
+
+  const fmsCount = parseInt(fmsCountInput, 10);
+  const quotaPerFms = parseInt(quotaPerFmsInput, 10);
+  const computedTotal = !isNaN(fmsCount) && !isNaN(quotaPerFms) ? fmsCount * quotaPerFms : null;
+  const showLegacyNote = currentFmsCount == null && currentQuotaPerFms == null && currentQuotaLimit != null;
 
   const save = useMutation({
     mutationFn: async () => {
-      const limit = parseInt(quotaInput, 10);
-      if (isNaN(limit) || limit < 0) throw new Error("Invalid quota value");
+      if (isNaN(fmsCount) || fmsCount < 0) throw new Error("Invalid FMS count");
+      if (isNaN(quotaPerFms) || quotaPerFms < 0) throw new Error("Invalid quota per FMS");
       const alertPct = parseInt(alertPctInput, 10);
       if (isNaN(alertPct) || alertPct < 0 || alertPct > 100) throw new Error("Invalid alert threshold");
       const { error } = await supabase.rpc("set_national_drug_quota", {
         p_drug_id: drugId,
         p_year: year,
-        p_quota_limit: limit,
+        p_fms_count: fmsCount,
+        p_quota_per_fms: quotaPerFms,
         p_alert_threshold_pct: alertPct,
       });
       if (error) throw error;
@@ -91,19 +117,38 @@ export default function NationalQuotaDialog({
         </DialogHeader>
         <div className="space-y-4 py-2">
           <p className="text-sm text-muted-foreground">
-            Set the maximum number of patients that may receive this controlled drug in {year}, pooled across every clinic nationally.
+            Set the {year} national quota for this controlled drug as FMS count × quota per FMS, pooled across every clinic nationally.
           </p>
+          {showLegacyNote && (
+            <p className="text-xs text-muted-foreground">
+              Current enforced total: {currentQuotaLimit} (set before the FMS calculator existed — saving here replaces it).
+            </p>
+          )}
           <div className="space-y-1.5">
-            <Label htmlFor="national-quota-input">National Annual Patient Quota</Label>
+            <Label htmlFor="national-fms-count-input">FMS Count</Label>
             <Input
-              id="national-quota-input"
+              id="national-fms-count-input"
               type="number"
               min={0}
-              value={quotaInput}
-              onChange={e => setQuotaInput(e.target.value)}
-              placeholder="e.g. 100"
+              value={fmsCountInput}
+              onChange={e => setFmsCountInput(e.target.value)}
+              placeholder="e.g. 29"
             />
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="national-quota-per-fms-input">Quota per FMS</Label>
+            <Input
+              id="national-quota-per-fms-input"
+              type="number"
+              min={0}
+              value={quotaPerFmsInput}
+              onChange={e => setQuotaPerFmsInput(e.target.value)}
+              placeholder="e.g. 10"
+            />
+          </div>
+          <p className="text-sm font-medium">
+            {computedTotal != null ? `= ${computedTotal} total` : "Enter both fields to see the total"}
+          </p>
           <div className="space-y-1.5">
             <Label htmlFor="national-alert-threshold-input">Low-Quota Alert Threshold (%)</Label>
             <Input
@@ -122,7 +167,7 @@ export default function NationalQuotaDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={() => save.mutate()} disabled={save.isPending || quotaInput === "" || alertPctInput === ""}>
+          <Button onClick={() => save.mutate()} disabled={save.isPending || fmsCountInput === "" || quotaPerFmsInput === "" || alertPctInput === ""}>
             {save.isPending ? "Saving..." : "Save National Quota"}
           </Button>
         </DialogFooter>

@@ -49,6 +49,8 @@ type EditTarget = {
   drugId: string;
   drugName: string;
   quotaLimit: number;
+  fmsCount: number | null;
+  quotaPerFms: number | null;
   alertThresholdPct: number;
 };
 
@@ -297,6 +299,8 @@ export default function LogistikDashboard() {
                                   drugId: row.drug_id,
                                   drugName: row.drug.drug_name,
                                   quotaLimit: row.quota_limit,
+                                  fmsCount: row.fms_count,
+                                  quotaPerFms: row.quota_per_fms,
                                   alertThresholdPct: row.alert_threshold_pct,
                                 })
                               }
@@ -469,6 +473,8 @@ export default function LogistikDashboard() {
         drugId={editTarget?.drugId ?? ""}
         drugName={editTarget?.drugName ?? ""}
         year={currentYear}
+        currentFmsCount={editTarget?.fmsCount ?? null}
+        currentQuotaPerFms={editTarget?.quotaPerFms ?? null}
         currentQuotaLimit={editTarget?.quotaLimit ?? null}
         currentAlertThresholdPct={editTarget?.alertThresholdPct ?? null}
       />

@@ -257,9 +257,13 @@ export type Database = {
           created_at: string
           drug_id: string | null
           id: string
+          new_fms_count: number | null
           new_limit: number | null
+          new_quota_per_fms: number | null
           new_threshold_pct: number | null
+          old_fms_count: number | null
           old_limit: number | null
+          old_quota_per_fms: number | null
           old_threshold_pct: number | null
           year: number | null
         }
@@ -268,9 +272,13 @@ export type Database = {
           created_at?: string
           drug_id?: string | null
           id?: string
+          new_fms_count?: number | null
           new_limit?: number | null
+          new_quota_per_fms?: number | null
           new_threshold_pct?: number | null
+          old_fms_count?: number | null
           old_limit?: number | null
+          old_quota_per_fms?: number | null
           old_threshold_pct?: number | null
           year?: number | null
         }
@@ -279,9 +287,13 @@ export type Database = {
           created_at?: string
           drug_id?: string | null
           id?: string
+          new_fms_count?: number | null
           new_limit?: number | null
+          new_quota_per_fms?: number | null
           new_threshold_pct?: number | null
+          old_fms_count?: number | null
           old_limit?: number | null
+          old_quota_per_fms?: number | null
           old_threshold_pct?: number | null
           year?: number | null
         }
@@ -300,8 +312,10 @@ export type Database = {
           clinic_id: string
           created_by: string | null
           drug_id: string
+          fms_count: number | null
           id: string
           quota_limit: number
+          quota_per_fms: number | null
           updated_at: string
           year: number
         }
@@ -310,8 +324,10 @@ export type Database = {
           clinic_id?: string
           created_by?: string | null
           drug_id: string
+          fms_count?: number | null
           id?: string
           quota_limit: number
+          quota_per_fms?: number | null
           updated_at?: string
           year: number
         }
@@ -320,8 +336,10 @@ export type Database = {
           clinic_id?: string
           created_by?: string | null
           drug_id?: string
+          fms_count?: number | null
           id?: string
           quota_limit?: number
+          quota_per_fms?: number | null
           updated_at?: string
           year?: number
         }
@@ -768,7 +786,9 @@ export type Database = {
           alert_threshold_pct: number
           clinic_id: string
           drug_id: string
+          fms_count: number | null
           quota_limit: number
+          quota_per_fms: number | null
           remaining: number
           used: number
           year: number
@@ -822,7 +842,8 @@ export type Database = {
         Args: {
           p_drug_id: string
           p_year: number
-          p_quota_limit: number
+          p_fms_count: number
+          p_quota_per_fms: number
           p_alert_threshold_pct?: number | null
         }
         Returns: undefined
