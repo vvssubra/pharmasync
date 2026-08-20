@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import RoleManagement from "./RoleManagement";
 
@@ -380,5 +381,93 @@ describe("RoleManagement — logistic_pharmacist is super_admin-only", () => {
 
     await screen.findByRole("option", { name: "Medical Officer" });
     expect(screen.queryByRole("option", { name: "Logistic Pharmacist" })).toBeNull();
+  });
+});
+
+// Wrong-email signups are the reason delete exists: an MO registers with a
+// personal address, then re-registers with their MOH one, leaving a dead
+// account behind.
+describe("Deleting an account", () => {
+  function deleteButtonFor(u: MockUser) {
+    return screen.queryByRole("button", { name: new RegExp(`delete ${u.full_name}`, "i") });
+  }
+
+  it("is not offered to a plain admin", async () => {
+    mockUsers = [APPROVED, PENDING];
+    renderPage("admin");
+    await waitFor(() => expect(within(pendingCard()).getByText("Dr Baru")).toBeTruthy());
+    expect(deleteButtonFor(PENDING)).toBeNull();
+  });
+
+  it("is offered to super_admin on a pending signup", async () => {
+    mockUsers = [APPROVED, PENDING];
+    renderPage("super_admin");
+    await waitFor(() => expect(within(pendingCard()).getByText("Dr Baru")).toBeTruthy());
+    expect(deleteButtonFor(PENDING)).toBeTruthy();
+  });
+
+  it("holds the delete until the email is typed back, then posts delete_user", async () => {
+    mockUsers = [APPROVED, PENDING];
+    renderPage("super_admin");
+    await waitFor(() => expect(within(pendingCard()).getByText("Dr Baru")).toBeTruthy());
+
+    fireEvent.click(deleteButtonFor(PENDING)!);
+    await screen.findByText("Delete this account?");
+
+    const confirmButton = screen.getByRole("button", { name: /delete account/i });
+    expect(confirmButton).toBeDisabled();
+
+    // A near miss stays disabled — the guard is the exact address.
+    fireEvent.change(screen.getByLabelText(/to confirm/i), { target: { value: "newmo@kk.m" } });
+    expect(confirmButton).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/to confirm/i), { target: { value: PENDING.email } });
+    expect(confirmButton).toBeEnabled();
+
+    fireEvent.click(confirmButton);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = lastFetchBody();
+    expect(body.action).toBe("delete_user");
+    expect(body.user_id).toBe(PENDING.user_id);
+  });
+
+  it("shows the server's reason in the dialog when records hold the account down", async () => {
+    const blocked = "This account authored records that must keep their author: 12 dispensing requests.";
+    vi.stubGlobal("fetch", vi.fn(() =>
+      Promise.resolve({ ok: false, json: () => Promise.resolve({ error: blocked }) })
+    ));
+    mockUsers = [APPROVED, PENDING];
+    renderPage("super_admin");
+    await waitFor(() => expect(within(pendingCard()).getByText("Dr Baru")).toBeTruthy());
+
+    fireEvent.click(deleteButtonFor(PENDING)!);
+    await screen.findByText("Delete this account?");
+    fireEvent.change(screen.getByLabelText(/to confirm/i), { target: { value: PENDING.email } });
+    fireEvent.click(screen.getByRole("button", { name: /delete account/i }));
+
+    expect(await screen.findByText(blocked)).toBeTruthy();
+    // Still open, so the reason can be read and acted on.
+    expect(screen.getByText("Delete this account?")).toBeTruthy();
+  });
+
+  it("offers delete in the row menu, but never for yourself or another super_admin", async () => {
+    const user = userEvent.setup();
+    mockUsers = [APPROVED, OTHER_MO, SUPER];
+    renderPage("super_admin");
+    await waitFor(() => expect(within(usersCard()).getByText(/NISHANTHINI/)).toBeTruthy());
+
+    await user.click(screen.getByRole("button", { name: /actions for NISHANTHINI/i }));
+    expect(await screen.findByRole("menuitem", { name: /delete user/i })).toBeTruthy();
+    await user.keyboard("{Escape}");
+
+    // APPROVED is the signed-in user in renderPage().
+    await user.click(screen.getByRole("button", { name: /actions for Dr Admin/i }));
+    await screen.findByText(/cannot change your own role/i);
+    expect(screen.queryByRole("menuitem", { name: /delete user/i })).toBeNull();
+    await user.keyboard("{Escape}");
+
+    await user.click(screen.getByRole("button", { name: /actions for Subra/i }));
+    await waitFor(() => expect(screen.getByRole("menu")).toBeTruthy());
+    expect(screen.queryByRole("menuitem", { name: /delete user/i })).toBeNull();
   });
 });

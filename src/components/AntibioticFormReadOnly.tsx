@@ -1,6 +1,24 @@
 import { Check, Minus } from "lucide-react";
 import type { ChecklistState } from "@/lib/doseQuery";
+import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+
+// The NAG 2024 pathway verdict the form stored at submission time. Shown here
+// (inside the form) rather than in the approval queues, so the reviewer reads
+// it alongside the checklist that produced it.
+const NAG_BADGE_CONFIG: Record<string, { label: string; cls: string }> = {
+  supported:        { label: "✅ Supported",        cls: "bg-green-100 text-green-700 border-green-300" },
+  review:           { label: "⚠ Review",            cls: "bg-amber-100 text-amber-700 border-amber-300" },
+  not_supported:    { label: "❌ Not supported",    cls: "bg-red-100 text-red-700 border-red-300" },
+  refer_specialist: { label: "💬 Refer specialist", cls: "bg-blue-100 text-blue-700 border-blue-300" },
+  unavailable:      { label: "— Unavailable",       cls: "bg-gray-100 text-gray-600 border-gray-300" },
+};
+
+function NagBadge({ result }: { result?: string | null }) {
+  if (!result) return <span className="text-muted-foreground">—</span>;
+  const c = NAG_BADGE_CONFIG[result] ?? { label: result, cls: "" };
+  return <Badge variant="outline" className={`text-[10px] ${c.cls}`}>{c.label}</Badge>;
+}
 
 // checklist_data lands in the DB as Json; when present it has the shape the
 // form writes (ChecklistState plus the computed Centor total). Every access
@@ -25,6 +43,7 @@ interface AntibioticFormViewerProps {
     drug_allergy?: boolean | null;
     drug_allergy_detail?: string | null;
     antibiotic_regimen?: string | null;
+    pathway_check_result?: string | null;
     fms_code?: string | null;
     health_ed_compliance?: boolean | null;
     health_ed_sideeffect?: boolean | null;
@@ -67,6 +86,10 @@ export function AntibioticFormReadOnly({ form }: AntibioticFormViewerProps) {
         </div>
         <Field label="Drug Allergy" value={form.drug_allergy ? `Yes — ${form.drug_allergy_detail || ""}` : "No / NKDA"} />
         <Field label="Antibiotic Regimen" value={form.antibiotic_regimen || "—"} />
+        <div className="flex justify-between gap-2">
+          <span className="text-muted-foreground">NAG Check</span>
+          <NagBadge result={form.pathway_check_result} />
+        </div>
         {form.fms_code && <Field label="FMS Code" value={form.fms_code} />}
         <div className="flex gap-4">
           <span className="text-muted-foreground">Health Ed:</span>

@@ -58,6 +58,31 @@ const ResetPasswordSchema = z.object({
   password: z.string().min(6).max(72),
 });
 
+const DeleteUserSchema = z.object({
+  action: z.literal("delete_user"),
+  user_id: z.string().uuid(),
+});
+
+// Every table whose FK to auth.users is plain REFERENCES — no ON DELETE
+// CASCADE — so a row here makes the auth delete fail with a foreign-key
+// violation. They are the authorship trail on clinical and inventory records,
+// deliberately kept unbreakable: the account can lose access, the record
+// cannot lose its author. Checked up front so the caller gets "this MO has 12
+// dispensing requests" instead of GoTrue's opaque "Database error deleting
+// user". profiles, user_roles, ai_rate_limits and push_subscriptions DO
+// cascade, so they need no check and clean themselves up.
+const BLOCKING_REFERENCES: { table: string; column: string; label: string }[] = [
+  { table: "transactions",        column: "created_by",      label: "stock transactions" },
+  { table: "dispensing_requests", column: "submitted_by",    label: "dispensing requests" },
+  { table: "antibiotic_forms",    column: "submitted_by",    label: "antibiotic forms submitted" },
+  { table: "antibiotic_forms",    column: "specialist_id",   label: "antibiotic forms reviewed" },
+  { table: "antibiotic_forms",    column: "acknowledged_by", label: "antibiotic forms acknowledged" },
+  { table: "drugs",               column: "created_by",      label: "drug records created" },
+  { table: "drug_quotas",         column: "created_by",      label: "drug quotas set" },
+  { table: "drug_quota_patients", column: "created_by",      label: "quota patients added" },
+  { table: "ai_audit_logs",       column: "user_id",         label: "AI audit log entries" },
+];
+
 // GoTrue's wording is "A user with this email address has already been
 // registered" — an exact "already registered" test misses it and turns a
 // duplicate into a 500, which reads as a real outage to any caller looping
@@ -186,6 +211,97 @@ Deno.serve(async (req) => {
     }
     return new Response(
       JSON.stringify({ success: true }),
+      { status: 200, headers: { ...cors, "Content-Type": "application/json" } },
+    );
+  }
+
+  // ── Delete user ───────────────────────────────────────────────────────────
+  if (action === "delete_user") {
+    // Deliberately narrower than the admin gate at step 2. Account deletion is
+    // irreversible and spans clinics, so a clinic-scoped admin cannot reach it
+    // even for their own members — only super_admin.
+    if (callerRole !== "super_admin") {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: super_admin role required" }),
+        { status: 403, headers: { ...cors, "Content-Type": "application/json" } },
+      );
+    }
+
+    const parsed = DeleteUserSchema.safeParse(body);
+    if (!parsed.success) {
+      return new Response(
+        JSON.stringify({ error: "Validation failed", details: parsed.error.flatten() }),
+        { status: 400, headers: { ...cors, "Content-Type": "application/json" } },
+      );
+    }
+    const { user_id } = parsed.data;
+
+    if (user_id === userId) {
+      return new Response(
+        JSON.stringify({ error: "You cannot delete your own account." }),
+        { status: 400, headers: { ...cors, "Content-Type": "application/json" } },
+      );
+    }
+
+    const supabase = adminClient();
+
+    // A super_admin is the only account that can restore access after a
+    // mistake, so one cannot delete another. Demote first, then delete.
+    const { data: targetRole } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user_id)
+      .maybeSingle();
+    if (targetRole?.role === "super_admin") {
+      return new Response(
+        JSON.stringify({ error: "A super_admin account cannot be deleted. Change the role first." }),
+        { status: 403, headers: { ...cors, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Pre-flight the FK trail — see BLOCKING_REFERENCES.
+    const counts = await Promise.all(
+      BLOCKING_REFERENCES.map(async (ref) => {
+        const { count, error } = await supabase
+          .from(ref.table)
+          .select("*", { count: "exact", head: true })
+          .eq(ref.column, user_id);
+        if (error) throw new Error(`Could not check ${ref.table}: ${error.message}`);
+        return { label: ref.label, count: count ?? 0 };
+      }),
+    ).catch((err: Error) => err);
+
+    if (counts instanceof Error) {
+      return new Response(
+        JSON.stringify({ error: counts.message }),
+        { status: 500, headers: { ...cors, "Content-Type": "application/json" } },
+      );
+    }
+
+    const blockers = counts.filter((c) => c.count > 0);
+    if (blockers.length > 0) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "This account authored records that must keep their author: " +
+            blockers.map((b) => `${b.count} ${b.label}`).join(", ") +
+            ". Set the role to Unassigned instead — that removes all access and keeps the history intact.",
+          blockers,
+        }),
+        { status: 409, headers: { ...cors, "Content-Type": "application/json" } },
+      );
+    }
+
+    const { error: deleteError } = await supabase.auth.admin.deleteUser(user_id);
+    if (deleteError) {
+      return new Response(
+        JSON.stringify({ error: deleteError.message }),
+        { status: 500, headers: { ...cors, "Content-Type": "application/json" } },
+      );
+    }
+
+    return new Response(
+      JSON.stringify({ success: true, user_id }),
       { status: 200, headers: { ...cors, "Content-Type": "application/json" } },
     );
   }
