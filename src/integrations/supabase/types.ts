@@ -146,16 +146,19 @@ export type Database = {
         Row: {
           created_at: string
           id: string
+          is_hq: boolean
           name: string
         }
         Insert: {
           created_at?: string
           id?: string
+          is_hq?: boolean
           name: string
         }
         Update: {
           created_at?: string
           id?: string
+          is_hq?: boolean
           name?: string
         }
         Relationships: []
@@ -242,6 +245,49 @@ export type Database = {
           },
           {
             foreignKeyName: "dispensing_requests_drug_id_fkey"
+            columns: ["drug_id"]
+            referencedRelation: "drugs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      drug_quota_audit: {
+        Row: {
+          actor_id: string | null
+          created_at: string
+          drug_id: string | null
+          id: string
+          new_limit: number | null
+          new_threshold_pct: number | null
+          old_limit: number | null
+          old_threshold_pct: number | null
+          year: number | null
+        }
+        Insert: {
+          actor_id?: string | null
+          created_at?: string
+          drug_id?: string | null
+          id?: string
+          new_limit?: number | null
+          new_threshold_pct?: number | null
+          old_limit?: number | null
+          old_threshold_pct?: number | null
+          year?: number | null
+        }
+        Update: {
+          actor_id?: string | null
+          created_at?: string
+          drug_id?: string | null
+          id?: string
+          new_limit?: number | null
+          new_threshold_pct?: number | null
+          old_limit?: number | null
+          old_threshold_pct?: number | null
+          year?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drug_quota_audit_drug_id_fkey"
             columns: ["drug_id"]
             referencedRelation: "drugs"
             referencedColumns: ["id"]
@@ -383,6 +429,7 @@ export type Database = {
           stok_min: number | null
           stok_reorder: number | null
           unit_pengukuran: string
+          unit_price: number | null
           updated_at: string
         }
         Insert: {
@@ -400,6 +447,7 @@ export type Database = {
           stok_min?: number | null
           stok_reorder?: number | null
           unit_pengukuran?: string
+          unit_price?: number | null
           updated_at?: string
         }
         Update: {
@@ -417,6 +465,7 @@ export type Database = {
           stok_min?: number | null
           stok_reorder?: number | null
           unit_pengukuran?: string
+          unit_price?: number | null
           updated_at?: string
         }
         Relationships: []
@@ -729,6 +778,33 @@ export type Database = {
         Args: never
         Returns: { full_name: string; user_id: string }[]
       }
+      get_master_patient_registry: {
+        Args: {
+          p_search?: string | null
+          p_limit?: number | null
+          p_offset?: number | null
+        }
+        Returns: {
+          clinic_count: number
+          clinic_names: string[]
+          display_ic: string
+          first_seen: string
+          last_seen: string
+          normalized_ic: string
+          patient_name: string
+          total_count: number
+        }[]
+      }
+      get_quota_usage_by_clinic: {
+        Args: { p_year?: number | null }
+        Returns: {
+          clinic_id: string
+          clinic_name: string
+          drug_id: string
+          used: number
+          year: number
+        }[]
+      }
       get_unassigned_user_count: { Args: never; Returns: number }
       has_role: {
         Args: {
@@ -737,9 +813,20 @@ export type Database = {
         }
         Returns: boolean
       }
+      hq_clinic_id: { Args: never; Returns: string }
       is_admin: { Args: never; Returns: boolean }
+      is_logistic_pharmacist: { Args: never; Returns: boolean }
       is_pharmacist: { Args: never; Returns: boolean }
       is_super_admin: { Args: never; Returns: boolean }
+      set_national_drug_quota: {
+        Args: {
+          p_drug_id: string
+          p_year: number
+          p_quota_limit: number
+          p_alert_threshold_pct?: number | null
+        }
+        Returns: undefined
+      }
       user_clinic_id: { Args: never; Returns: string }
     }
     Enums: {
@@ -752,6 +839,7 @@ export type Database = {
         | "fms"
         | "mo"
         | "super_admin"
+        | "logistic_pharmacist"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -888,6 +976,7 @@ export const Constants = {
         "fms",
         "mo",
         "super_admin",
+        "logistic_pharmacist",
       ],
     },
   },

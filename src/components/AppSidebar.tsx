@@ -1,4 +1,4 @@
-import { Home, Pill, PackagePlus, FileText, Bell, Users, Stethoscope, ShieldCheck, UserCog, BarChart2, ClipboardList, Archive, Baby, ShieldAlert } from "lucide-react";
+import { Home, Pill, PackagePlus, FileText, Bell, Users, Stethoscope, ShieldCheck, UserCog, BarChart2, ClipboardList, Archive, Baby, ShieldAlert, Warehouse } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,6 +26,7 @@ type NavItem = {
 
 const items: NavItem[] = [
   { title: "Dashboard",       url: "/",                   icon: Home,          roles: ["admin", "pharmacist"] },
+  { title: "Logistik HQ",     url: "/logistik",           icon: Warehouse,     roles: ["logistic_pharmacist"] },
   { title: "FMS Dashboard",   url: "/fms",                icon: BarChart2,     showBadge: true, roles: ["admin", "fms"] },
   { title: "MO Dashboard",    url: "/mo",                 icon: Stethoscope,   roles: ["admin", "mo"] },
   { title: "New Requests",    url: "/fulfilment",         icon: Bell,          showBadge: true, roles: ["admin", "fms", "pharmacist"] },

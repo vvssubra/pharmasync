@@ -152,3 +152,31 @@ describe("QuotaBenchmarkCard", () => {
     expect(screen.queryByText("71")).not.toBeInTheDocument();
   });
 });
+
+// get_drug_quota_usage returns NATIONAL per-drug rows since
+// 20260819000300_national_quota_pool.sql, so every figure on this card — the
+// total, the balance and the peer average — is a national one. Labelling them
+// as this clinic's own was the misreading this test pins down.
+describe("QuotaBenchmarkCard — national scope labelling", () => {
+  it("labels the totals and the peer average as national, not clinic-scoped", () => {
+    const usage = makeUsage();
+    const peer = makeUsage({ drug_id: "drug-peer", used: 15 });
+    render(
+      <QuotaBenchmarkCard
+        drugId="drug-novomix"
+        drugName="Insulin Novomix"
+        year={2026}
+        availableYears={[2026]}
+        onYearChange={noop}
+        usage={usage}
+        allUsage={new Map([["drug-novomix", usage], ["drug-peer", peer]])}
+        prevUsage={undefined}
+        drugNamesById={new Map([["drug-novomix", "Insulin Novomix"], ["drug-peer", "Ubat Peer"]])}
+      />
+    );
+    expect(screen.getByText(/Jumlah Kuota Kebangsaan/)).toBeInTheDocument();
+    expect(screen.getByText(/Baki Kebangsaan/)).toBeInTheDocument();
+    expect(screen.getByText("Purata kebangsaan")).toBeInTheDocument();
+    expect(screen.queryByText("Purata klinik")).toBeNull();
+  });
+});

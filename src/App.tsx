@@ -30,6 +30,7 @@ import ChangePassword from "@/pages/ChangePassword";
 import PaedsDoseCalculator from "@/pages/PaedsDoseCalculator";
 import G6pdDeficiency from "@/pages/G6pdDeficiency";
 import Survey from "@/pages/Survey";
+import LogistikDashboard from "@/pages/LogistikDashboard";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ function RoleRedirect() {
   const { role } = useAuth();
   if (role === "fms") return <Navigate to="/fms" replace />;
   if (role === "mo") return <Navigate to="/mo" replace />;
+  if (role === "logistic_pharmacist") return <Navigate to="/logistik" replace />;
   return <Dashboard />;
 }
 
@@ -89,6 +91,8 @@ const App = () => (
             <Route path="/pesakit" element={<ProtectedRoute><AppLayout><PatientRegistry /></AppLayout></ProtectedRoute>} />
             <Route path="/laporan" element={<ProtectedRoute><AppLayout><Laporan /></AppLayout></ProtectedRoute>} />
             <Route path="/role-management" element={<ProtectedRoute><AppLayout><RoleManagement /></AppLayout></ProtectedRoute>} />
+            {/* Logistic pharmacist HQ dashboard */}
+            <Route path="/logistik" element={<ProtectedRoute><AppLayout><LogistikDashboard /></AppLayout></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

@@ -266,10 +266,15 @@ export default function Dashboard() {
       {/* Section 3 — Drug Stock Table */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base font-semibold">
-            Drug Stock Status
-            {statusFilter && <span className="ml-2 font-normal text-sm text-muted-foreground">— filtered to {statusFilter}</span>}
-          </CardTitle>
+          <div>
+            <CardTitle className="text-base font-semibold">
+              Drug Stock Status
+              {statusFilter && <span className="ml-2 font-normal text-sm text-muted-foreground">— filtered to {statusFilter}</span>}
+            </CardTitle>
+            <p className="mt-1 text-xs font-normal text-muted-foreground">
+              Controlled drugs show remaining national quota (shared across all clinics), not this clinic's stock.
+            </p>
+          </div>
           {statusFilter && (
             <Button variant="ghost" size="sm" className="text-xs" onClick={() => setStatusFilter(null)}>
               Clear filter
@@ -303,7 +308,19 @@ export default function Dashboard() {
                 return (
                   <TableRow key={d.id}>
                     <TableCell className="font-medium max-w-[200px] truncate">{d.drug_name}</TableCell>
-                    <TableCell className="text-right font-bold">{d.balance}</TableCell>
+                    <TableCell className="text-right font-bold">
+                      {d.balance}
+                      {/* For a controlled drug this column is remaining annual
+                          patient quota, and since the pool went national
+                          (20260819000300_national_quota_pool.sql) that figure is
+                          shared with every other clinic — not this clinic's own
+                          position. Unlabelled it reads as local stock. */}
+                      {d.isQuotaBased && (
+                        <span className="block text-[10px] font-normal text-muted-foreground">
+                          national quota left
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cfg.badgeClass}>{d.status}</Badge>
                     </TableCell>

@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { getErrorMessage } from "@/lib/errors";
 
 const drugSchema = z.object({
   drug_name: z.string().trim().min(1, "Drug name is required").max(200),
@@ -23,6 +24,7 @@ const drugSchema = z.object({
   stok_min: z.coerce.number().int().min(0).optional().default(0),
   stok_reorder: z.coerce.number().int().min(0).optional().default(0),
   stok_max: z.coerce.number().int().min(0).optional().default(0),
+  unit_price: z.coerce.number().min(0).optional(),
 }).refine(
   (v) => v.stok_min <= v.stok_reorder,
   { message: "Min must not exceed Reorder level", path: ["stok_min"] },
@@ -40,30 +42,78 @@ interface Drug {
   stok_min?: number | null;
   stok_reorder?: number | null;
   stok_max?: number | null;
+  unit_price?: number | null;
+  /** perlu_kelulusan_pakar — see the isControlled comment below. */
+  perlu_kelulusan_pakar?: boolean | null;
+}
+
+interface NationalQuota {
+  quota_limit: number;
+  used: number;
+  remaining: number;
+  alert_threshold_pct: number;
 }
 
 interface DrugFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   drug?: Drug | null;
+  /** National quota/usage for this drug this year, e.g. from useDrugQuotaUsage's byDrugId on the calling page. Only read when the drug is controlled. */
+  nationalQuota?: NationalQuota | null;
 }
 
-export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps) {
+export function DrugFormDialog({ open, onOpenChange, drug, nationalQuota }: DrugFormDialogProps) {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const isEdit = !!drug;
   const currentYear = new Date().getFullYear();
+  // Staff stationed at the national HQ clinic ('Logistik PKDJB') have NO
+  // drug_quotas write path at all — not just for controlled drugs. Their insert
+  // is stamped with the HQ clinic_id by trg_stamp_clinic_id and then refused by
+  // the write policies, which exclude the HQ clinic to keep the national pool
+  // behind set_national_drug_quota
+  // (supabase/migrations/20260819000600_drug_quotas_clinic_admin_write.sql).
+  // `drugs` is a global table, so an HQ admin can open this dialog for any
+  // drug; without this flag the upsert below would fire and fail — and since
+  // the `drugs` write above it has already committed, the user would get an
+  // error toast on an edit that actually succeeded.
+  const isAtHqClinic = !!profile?.is_hq_clinic;
+  // perlu_kelulusan_pakar — controlled drugs are quota-pooled nationally
+  // (supabase/migrations/20260819000300_national_quota_pool.sql) and set only
+  // via set_national_drug_quota by logistic_pharmacist/super_admin. A clinic
+  // admin's direct drug_quotas upsert below is now denied by RLS for these
+  // drugs, so this dialog shows the national figure read-only instead. A new
+  // (not-yet-saved) drug has no perlu_kelulusan_pakar yet, so it is never
+  // treated as controlled here.
+  const isControlled = isEdit && !!drug?.perlu_kelulusan_pakar;
 
-  const { data: existingQuota } = useQuery({
-    queryKey: ["drug-quota", drug?.id, currentYear],
-    enabled: open && isEdit,
+  // The two reasons this form must not touch drug_quotas. Both are RLS denials
+  // if attempted, so both gate the same three things: the read below, the
+  // upsert in the mutation, and the editable field in the form.
+  const quotaWriteBlocked = isControlled || isAtHqClinic;
+
+  const { data: existingQuota, error: existingQuotaError } = useQuery({
+    queryKey: ["drug-quota", drug?.id, currentYear, profile?.clinic_id],
+    // Also requires a clinic: drug_quotas rows are stamped with the caller's
+    // clinic_id, so a user with none (super_admin) has no row of their own to
+    // pre-fill from and no write path either.
+    enabled: open && isEdit && !quotaWriteBlocked && !!profile?.clinic_id,
     queryFn: async () => {
-      const { data } = await supabase
+      // clinic_id filter is not optional. Since the national pool landed, a
+      // drug can hold BOTH an HQ row and a legacy per-clinic row for the same
+      // (drug_id, year); a viewer who can see more than one clinic's rows would
+      // then get 2+ rows back and maybeSingle() errors. That error used to be
+      // dropped on the floor by destructuring only `data`, and the form quietly
+      // pre-filled 0 — i.e. offered to overwrite a real quota with zero. Match
+      // DrugQuotaDialog: scope to this clinic, and let the error surface.
+      const { data, error } = await supabase
         .from("drug_quotas")
         .select("quota_limit")
         .eq("drug_id", drug!.id)
         .eq("year", currentYear)
+        .eq("clinic_id", profile!.clinic_id!)
         .maybeSingle();
+      if (error) throw error;
       return data as { quota_limit: number } | null;
     },
   });
@@ -76,6 +126,7 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
       stok_min: 0,
       stok_reorder: 0,
       stok_max: 0,
+      unit_price: undefined,
     },
   });
 
@@ -88,6 +139,7 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
           stok_min: drug.stok_min ?? 0,
           stok_reorder: drug.stok_reorder ?? 0,
           stok_max: drug.stok_max ?? 0,
+          unit_price: drug.unit_price ?? undefined,
         });
       } else {
         form.reset();
@@ -117,6 +169,7 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
             stok_min: values.stok_min,
             stok_reorder: values.stok_reorder,
             stok_max: values.stok_max,
+            unit_price: values.unit_price ?? null,
           })
           .eq("id", drug.id);
         if (error) throw error;
@@ -129,6 +182,7 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
             stok_min: values.stok_min,
             stok_reorder: values.stok_reorder,
             stok_max: values.stok_max,
+            unit_price: values.unit_price ?? null,
           }])
           .select("id")
           .single();
@@ -136,32 +190,39 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
         drugId = inserted.id;
       }
 
-      const { error: quotaError } = await supabase
-        .from("drug_quotas")
-        .upsert(
-          { drug_id: drugId, year: currentYear, quota_limit: values.quota_limit },
-          { onConflict: "clinic_id,drug_id,year" },
-        );
-      if (quotaError) throw quotaError;
+      // Skipped for controlled drugs (national pool, set only via
+      // set_national_drug_quota from the Logistik HQ dashboard) and for any
+      // drug when the caller is stationed at the HQ clinic (no drug_quotas
+      // write path at all). Both would be RLS denials, and the `drugs` write
+      // above has already committed by this point — see quotaWriteBlocked.
+      if (!quotaWriteBlocked) {
+        const { error: quotaError } = await supabase
+          .from("drug_quotas")
+          .upsert(
+            { drug_id: drugId, year: currentYear, quota_limit: values.quota_limit },
+            { onConflict: "clinic_id,drug_id,year" },
+          );
+        if (quotaError) throw quotaError;
 
-      // Opening balance = allocated quota. Seed it once, only if this drug has never
-      // had a stock movement recorded (avoids clobbering a real ledger on edit).
-      if (values.quota_limit > 0) {
-        const { count, error: countError } = await supabase
-          .from("transactions")
-          .select("id", { count: "exact", head: true })
-          .eq("drug_id", drugId);
-        if (countError) throw countError;
-        if (!count) {
-          const { error: baliError } = await supabase.from("transactions").insert({
-            drug_id: drugId,
-            jenis: "baki_awal",
-            kuantiti: values.quota_limit,
-            tarikh: format(new Date(), "yyyy-MM-dd"),
-            created_by: user?.id,
-            catatan: "Auto-seeded from annual quota",
-          });
-          if (baliError) throw baliError;
+        // Opening balance = allocated quota. Seed it once, only if this drug has never
+        // had a stock movement recorded (avoids clobbering a real ledger on edit).
+        if (values.quota_limit > 0) {
+          const { count, error: countError } = await supabase
+            .from("transactions")
+            .select("id", { count: "exact", head: true })
+            .eq("drug_id", drugId);
+          if (countError) throw countError;
+          if (!count) {
+            const { error: baliError } = await supabase.from("transactions").insert({
+              drug_id: drugId,
+              jenis: "baki_awal",
+              kuantiti: values.quota_limit,
+              tarikh: format(new Date(), "yyyy-MM-dd"),
+              created_by: user?.id,
+              catatan: "Auto-seeded from annual quota",
+            });
+            if (baliError) throw baliError;
+          }
         }
       }
     },
@@ -204,10 +265,64 @@ export function DrugFormDialog({ open, onOpenChange, drug }: DrugFormDialogProps
                 <FormMessage />
               </FormItem>
             )} />
-            <FormField control={form.control} name="quota_limit" render={({ field }) => (
+            {/* isControlled is checked first on purpose: both branches are
+                read-only, so when an HQ-stationed user opens a controlled drug
+                the national figure is the more useful of the two to show. */}
+            {isControlled ? (
+              <div className="space-y-1.5 rounded-md border bg-muted/40 p-3">
+                <p className="text-sm font-medium">National Quota — {currentYear}</p>
+                {nationalQuota ? (
+                  <p className="text-sm text-muted-foreground">
+                    {nationalQuota.remaining} / {nationalQuota.quota_limit} remaining
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No national quota set for {currentYear} yet.</p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  This drug requires specialist approval and is quota-pooled nationally. Set nationally by PKD
+                  Logistik on the Logistik HQ dashboard — not editable here.
+                </p>
+              </div>
+            ) : isAtHqClinic ? (
+              <div className="space-y-1.5 rounded-md border bg-muted/40 p-3">
+                <p className="text-sm font-medium">Quota not set from HQ</p>
+                <p className="text-xs text-muted-foreground">
+                  Annual quotas are not set from the HQ clinic. Controlled drugs are pooled nationally and set on
+                  the Logistik HQ dashboard. Drugs that do not require specialist approval carry no quota at all —
+                  nothing limits how many patients may receive them. The rest of this drug's details save normally.
+                </p>
+              </div>
+            ) : (
+              <FormField control={form.control} name="quota_limit" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Number of Quota</FormLabel>
+                  <FormControl><Input type="number" {...field} /></FormControl>
+                  {/* Without this the field silently shows 0 when the read
+                      failed, which reads as "no quota set" and invites saving
+                      a zero over a real value. */}
+                  {existingQuotaError && (
+                    <p className="text-xs text-destructive">
+                      Could not load this drug's current quota ({getErrorMessage(existingQuotaError, "unknown error")}).
+                      Saving will overwrite it with whatever is shown here.
+                    </p>
+                  )}
+                  <FormMessage />
+                </FormItem>
+              )} />
+            )}
+            <FormField control={form.control} name="unit_price" render={({ field }) => (
               <FormItem>
-                <FormLabel>Number of Quota</FormLabel>
-                <FormControl><Input type="number" {...field} /></FormControl>
+                <FormLabel>Unit Price (RM)</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    placeholder="Optional"
+                    {...field}
+                    value={field.value ?? ""}
+                  />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )} />

@@ -636,7 +636,7 @@ export default function FmsDashboard() {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <ShieldCheck className="h-4 w-4" />
-            Controlled Drug Annual Quota
+            Controlled Drug Annual Quota (National)
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
@@ -647,8 +647,8 @@ export default function FmsDashboard() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Drug Name</TableHead>
-                  <TableHead className="text-right">Annual Quota</TableHead>
-                  <TableHead className="text-right">Patients Served YTD</TableHead>
+                  <TableHead className="text-right">National Annual Quota</TableHead>
+                  <TableHead className="text-right">Patients Served YTD (National)</TableHead>
                   <TableHead className="text-right">Remaining</TableHead>
                   <TableHead>Projected Exhaustion</TableHead>
                   <TableHead>Status</TableHead>

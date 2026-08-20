@@ -27,7 +27,7 @@ interface Props {
   availableYears: number[];
   onYearChange: (year: number) => void;
   usage: DrugQuotaUsage | undefined;
-  /** Every quota drug's usage this year — drives the clinic average and the competitors list. */
+  /** Every quota drug's national usage this year — drives the national average and the competitors list. */
   allUsage: Map<string, DrugQuotaUsage>;
   prevUsage: DrugQuotaUsage | undefined;
   /** drug_id -> drug_name, for labeling entries in allUsage. */
@@ -73,9 +73,13 @@ export function QuotaBenchmarkCard({
   const percentageChange =
     prevUsage && prevUsage.used > 0 ? Math.round(((usage.used - prevUsage.used) / prevUsage.used) * 100) : null;
 
-  // "Purata klinik" compares against the *other* quota drugs, not this one —
-  // including the selected drug in its own average would trivially equal
-  // mainValue whenever it's the only quota drug configured (a common state).
+  // Compares against the *other* quota drugs, not this one — including the
+  // selected drug in its own average would trivially equal mainValue whenever
+  // it's the only quota drug configured (a common state). The rows come from
+  // get_drug_quota_usage, which since
+  // 20260819000300_national_quota_pool.sql returns NATIONAL per-drug figures,
+  // so this average is across drugs nationally, not across this clinic —
+  // hence "Purata kebangsaan" rather than the old "Purata klinik".
   const peerRows = Array.from(allUsage.values()).filter((r) => r.drug_id !== drugId);
   const benchmarkAverage = peerRows.length > 0 ? Math.round(peerRows.reduce((sum, r) => sum + r.used, 0) / peerRows.length) : 0;
 
@@ -130,7 +134,7 @@ export function QuotaBenchmarkCard({
       percentageChange={percentageChange}
       percentageChangeLabel="berbanding tahun lalu"
       benchmarkAverage={benchmarkAverage}
-      benchmarkLabel="Purata klinik"
+      benchmarkLabel="Purata kebangsaan"
       competitors={competitors}
       competitorsLabel="Ubat lain berkuota"
       performanceLevels={performanceLevels}
@@ -154,9 +158,9 @@ export function QuotaBenchmarkCard({
       subHeader={
         <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
           <span>
-            Jumlah Kuota: <span className="font-semibold text-foreground">{usage.quota_limit}</span>
+            Jumlah Kuota Kebangsaan: <span className="font-semibold text-foreground">{usage.quota_limit}</span>
             {" · "}
-            Baki: <span className="font-semibold text-foreground">{displayRemaining}</span>
+            Baki Kebangsaan: <span className="font-semibold text-foreground">{displayRemaining}</span>
           </span>
           <Badge variant="outline" className={QUOTA_BADGE_CLASS[state]}>
             {BADGE_LABEL[state]}

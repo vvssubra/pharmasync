@@ -43,16 +43,37 @@ export default function PatientRegistry() {
   const [refillOpen, setRefillOpen] = useState(false);
   const [refillInitial, setRefillInitial] = useState<{ id?: string; name: string; ic: string } | null>(null);
 
+  // Server-computed usage, shared with every other quota-badge page in the app.
+  // Since 20260819000300_national_quota_pool.sql this RPC returns the NATIONAL
+  // rows (the HQ clinic's), one per drug, not this clinic's own.
+  const { byDrugId: quotaUsageByDrug, isLoading: usageLoading } = useDrugQuotaUsage(year);
+  const { byDrugId: prevYearUsageByDrug } = useDrugQuotaUsage(year - 1);
+
   // Drugs that carry an annual quota in the selected year — drives the selector.
+  //
+  // Sourced from the national rows above rather than from a direct drug_quotas
+  // read. A direct read returns whatever RLS lets this clinic see, which is its
+  // own legacy per-clinic rows — dead data since the pool went national. Two
+  // failures followed from that: a drug PKD Logistik adds to the pool never
+  // appeared here (this clinic has no legacy row for it), and drugs whose only
+  // row is a stale per-clinic one appeared with no usage figures at all.
+  const nationalQuotaDrugIds = useMemo(
+    () => Array.from(quotaUsageByDrug.keys()).sort(),
+    [quotaUsageByDrug],
+  );
+
   const { data: quotaDrugs = [], isLoading: drugsLoading } = useQuery({
-    queryKey: ["quota-drugs", year],
+    queryKey: ["quota-drugs", year, nationalQuotaDrugIds],
+    enabled: nationalQuotaDrugIds.length > 0,
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("drug_quotas")
-        .select("drug_id, drugs!inner(id, drug_name, unit_pengukuran)")
-        .eq("year", year);
+        .from("drugs")
+        .select("id, drug_name, unit_pengukuran")
+        .in("id", nationalQuotaDrugIds);
       if (error) throw error;
-      return (data as unknown as QuotaDrug[]).sort((a, b) => a.drugs.drug_name.localeCompare(b.drugs.drug_name));
+      return (data ?? [])
+        .map((d): QuotaDrug => ({ drug_id: d.id, drugs: d }))
+        .sort((a, b) => a.drugs.drug_name.localeCompare(b.drugs.drug_name));
     },
   });
 
@@ -62,10 +83,6 @@ export default function PatientRegistry() {
     () => new Map(quotaDrugs.map((d) => [d.drug_id, d.drugs.drug_name])),
     [quotaDrugs]
   );
-
-  // Server-computed usage, shared with every other quota-badge page in the app.
-  const { byDrugId: quotaUsageByDrug, isLoading: usageLoading } = useDrugQuotaUsage(year);
-  const { byDrugId: prevYearUsageByDrug } = useDrugQuotaUsage(year - 1);
   const usage = quotaUsageByDrug.get(effectiveDrugId);
   const prevUsage = prevYearUsageByDrug.get(effectiveDrugId);
 
@@ -134,13 +151,19 @@ export default function PatientRegistry() {
         </Button>
       </div>
 
-      {!drugsLoading && quotaDrugs.length === 0 ? (
+      {/* usageLoading too: the drug list is derived from the usage RPC now, so
+          it is legitimately empty while that first call is in flight. */}
+      {!drugsLoading && !usageLoading && quotaDrugs.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground space-y-2">
-            <p>Tiada ubat berkuota untuk tahun {year}.</p>
-            <Button variant="link" asChild>
-              <a href="/drugs">Tetapkan kuota di Senarai Ubat</a>
-            </Button>
+            <p>Tiada ubat berkuota kebangsaan untuk tahun {year}.</p>
+            {/* No link to /drugs any more: the national pool is set only by PKD
+                Logistik through the Logistik HQ dashboard, so pointing a clinic
+                admin at Senarai Ubat would send them to a field they cannot
+                edit for controlled drugs. */}
+            <p className="text-xs">
+              Kuota kebangsaan ditetapkan oleh PKD Logistik.
+            </p>
           </CardContent>
         </Card>
       ) : (

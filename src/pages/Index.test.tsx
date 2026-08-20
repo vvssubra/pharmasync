@@ -123,3 +123,36 @@ describe("Index dashboard English text", () => {
     expect(screen.getAllByText("View All")).toHaveLength(1);
   });
 });
+
+// The Balance column shows remaining annual quota for a controlled drug rather
+// than shelf stock, and since 20260819000300_national_quota_pool.sql that quota
+// is one pool shared by every clinic. Unlabelled, the number reads as this
+// clinic's own position.
+describe("Index dashboard — controlled drugs show a NATIONAL balance", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("marks a quota-based balance as national and says so above the table", async () => {
+    const { supabase } = await import("@/integrations/supabase/client");
+    ROWS.drugs = [
+      ...DRUGS,
+      { id: "d-controlled", drug_name: "Insulin Novomix", unit_pengukuran: "vial", stok_min: 0, stok_reorder: 0, stok_max: 0, perlu_kelulusan_pakar: true },
+    ];
+    vi.mocked(supabase.rpc).mockResolvedValue({
+      data: [{
+        clinic_id: "hq", drug_id: "d-controlled", year: new Date().getFullYear(),
+        quota_limit: 100, alert_threshold_pct: 20, used: 71, remaining: 29,
+      }],
+      error: null,
+    } as never);
+
+    renderIndex();
+
+    await waitFor(() => expect(screen.getByText("Insulin Novomix")).toBeInTheDocument());
+    expect(screen.getByText("national quota left")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Controlled drugs show remaining national quota \(shared across all clinics\)/)
+    ).toBeInTheDocument();
+
+    ROWS.drugs = DRUGS;
+  });
+});

@@ -31,5 +31,13 @@ jobs:
       # of the fix that cleared the no-explicit-any backlog; only the 8
       # react-refresh warnings in shadcn ui files remain, and warnings do not
       # fail eslint's exit code.
+      #
+      # VITE_SUPABASE_URL/KEY below are placeholders, not secrets — tests mock
+      # every Supabase call, but src/integrations/supabase/client.ts calls
+      # createClient() at import time, which throws on an empty URL. Any
+      # well-formed value satisfies it.
       - name: Verify
+        env:
+          VITE_SUPABASE_URL: "http://localhost:54321"
+          VITE_SUPABASE_PUBLISHABLE_KEY: "test-placeholder-key"
         run: npm run verify

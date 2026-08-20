@@ -7,7 +7,25 @@ import {
   corsHeaders,
 } from "../_shared/security.ts";
 
-const ALLOWED_ROLES = ["admin", "fms", "mo", "pharmacist"] as const;
+const ALLOWED_ROLES = ["admin", "fms", "mo", "pharmacist", "logistic_pharmacist"] as const;
+
+// logistic_pharmacist is the only role in ALLOWED_ROLES whose scope is NATIONAL
+// rather than clinic-scoped: it governs the shared controlled-drug quota pool
+// every clinic draws from (supabase/migrations/20260819000300_national_quota_
+// pool.sql) and can read every clinic's dispensing/patient data
+// (20260819000400_logistic_access.sql). The database closes this escalation
+// path for the direct write surface — the clinic-admin user_roles policy and
+// approve_clinic_member() both exclude it (20260819000100_logistic_role_
+// helpers.sql) — but the invite path below writes user_roles with a
+// SERVICE-ROLE client, which bypasses RLS entirely. Without the check below a
+// plain clinic admin could mint a national quota writer through this endpoint.
+// So this one role needs a stricter gate than the endpoint's general
+// "admin or super_admin".
+const SUPER_ADMIN_ONLY_ROLES: readonly string[] = ["logistic_pharmacist"];
+
+function isRoleGrantAllowed(role: string, callerRole: string | null) {
+  return !SUPER_ADMIN_ONLY_ROLES.includes(role) || callerRole === "super_admin";
+}
 
 const CreateUserSchema = z.object({
   action: z.literal("create_user"),
@@ -298,6 +316,17 @@ Deno.serve(async (req) => {
       );
     }
     const { full_name, email, role, clinic_id, redirect_to } = parsed.data;
+
+    // See SUPER_ADMIN_ONLY_ROLES: the user_roles upsert further down runs as
+    // service_role, so RLS cannot stop a clinic admin here. Checked before the
+    // auth user is created so a refused grant leaves nothing behind.
+    if (!isRoleGrantAllowed(role, callerRole)) {
+      return new Response(
+        JSON.stringify({ error: "Forbidden: only a super admin may assign the logistic pharmacist role" }),
+        { status: 403, headers: { ...cors, "Content-Type": "application/json" } },
+      );
+    }
+
     const supabase = adminClient();
 
     // Same clinic resolution as create_user: plain admin is pinned to their
@@ -392,6 +421,19 @@ Deno.serve(async (req) => {
   }
 
   const { full_name, email, password, role, clinic_id } = parsed.data;
+
+  // See SUPER_ADMIN_ONLY_ROLES. This path assigns the role through
+  // approve_clinic_member() as the caller, so the database would refuse it too
+  // — but only after the auth user has been created and then rolled back by a
+  // delete. Refusing up front keeps the rejection cheap and, more importantly,
+  // does not depend on that RPC's gate staying correct.
+  if (!isRoleGrantAllowed(role, callerRole)) {
+    return new Response(
+      JSON.stringify({ error: "Forbidden: only a super admin may assign the logistic pharmacist role" }),
+      { status: 403, headers: { ...cors, "Content-Type": "application/json" } },
+    );
+  }
+
   const supabase = adminClient();
 
   // ── 4. Resolve target clinic ────────────────────────────────────────────────

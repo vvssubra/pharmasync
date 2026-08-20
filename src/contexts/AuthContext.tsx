@@ -2,12 +2,29 @@ import { createContext, useContext, useEffect, useState, useRef, type ReactNode 
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
-export type AppRole = "admin" | "fms" | "mo" | "pharmacist" | "specialist" | "super_admin";
+export type AppRole = "admin" | "fms" | "mo" | "pharmacist" | "specialist" | "super_admin" | "logistic_pharmacist";
 
 interface Profile {
   full_name: string;
   clinic_id: string | null;
   clinic_name: string;
+  // clinics.is_hq for the user's OWN clinic — true only for staff stationed at
+  // the national HQ clinic, 'Logistik PKDJB'
+  // (supabase/migrations/20260819000010_hq_clinic.sql).
+  //
+  // The HQ clinic holds the national controlled-drug quota pool, and the
+  // drug_quotas write policies exclude it by design
+  // (20260819000600_drug_quotas_clinic_admin_write.sql): EVERY direct
+  // drug_quotas write from an HQ-stationed user is denied by RLS, controlled
+  // drug or not, because trg_stamp_clinic_id stamps the row with the HQ
+  // clinic_id. The clinic-level quota dialogs read this to stop offering a
+  // write that cannot succeed. Carried on the profile rather than fetched per
+  // dialog so there is no window where the flag is still loading and a dialog
+  // guesses wrong.
+  //
+  // False when the user has no clinic: they have no drug_quotas access at all,
+  // which the clinic_id term of those same policies already handles.
+  is_hq_clinic: boolean;
   // The clinic the user asked for. A request, not a grant — an admin promotes
   // it to clinic_id. Null for OAuth signups, which carry no clinic metadata.
   pending_clinic_id: string | null;
@@ -69,7 +86,7 @@ async function loadProfileAndRole(
     // ambiguous embed rather than picking one.
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select("full_name, clinic_id, pending_clinic_id, clinics!profiles_clinic_id_fkey(name)")
+      .select("full_name, clinic_id, pending_clinic_id, clinics!profiles_clinic_id_fkey(name, is_hq)")
       .eq("user_id", userId)
       .maybeSingle();
 
@@ -80,6 +97,7 @@ async function loadProfileAndRole(
         full_name: profileData.full_name,
         clinic_id: profileData.clinic_id,
         clinic_name: profileData.clinics?.name ?? "",
+        is_hq_clinic: profileData.clinics?.is_hq ?? false,
         pending_clinic_id: profileData.pending_clinic_id ?? null,
       });
     }
