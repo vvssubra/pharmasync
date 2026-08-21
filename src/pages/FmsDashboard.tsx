@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
+import { useClinicDrugSettings, resolveDrugSettings } from "@/hooks/useClinicDrugSettings";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
@@ -181,7 +182,7 @@ export default function FmsDashboard() {
       const [{ data: drugs }, { data: txns }] = await Promise.all([
         supabase
           .from("drugs")
-          .select("id, drug_name, unit_pengukuran, stok_min, stok_reorder, stok_max, perlu_kelulusan_pakar")
+          .select("id, drug_name, unit_pengukuran, perlu_kelulusan_pakar")
           .eq("is_active", true)
           .order("drug_name"),
         supabase
@@ -256,6 +257,7 @@ export default function FmsDashboard() {
   // Server-computed usage — dedupes by IC and includes enrolments, so it
   // agrees with DoctorRequest/MoDashboard/SpecialistDashboard/DrugMaster.
   const { byDrugId: quotaUsageByDrug } = useDrugQuotaUsage(currentYear);
+  const { byDrugId: settingsByDrugId } = useClinicDrugSettings();
 
   // Pesara patients are exempt from quota entirely — kept as its own query,
   // not part of drug_quota_used()/get_drug_quota_usage().
@@ -319,9 +321,11 @@ export default function FmsDashboard() {
   // Controlled drugs (insulin under the FMS quota register) aren't tracked by
   // physical stock thresholds — Critical/Low/Normal must come from remaining
   // annual quota instead. Non-controlled drugs keep the physical-stock status.
-  const effectiveStatus = (d: typeof drugStock[number]) =>
-    quotaDerivedStatus(d.perlu_kelulusan_pakar, quotaUsageByDrug.get(d.id))
-    ?? stockStatus(d.current_stock, d.stok_min ?? 0, d.stok_reorder ?? 0);
+  const effectiveStatus = (d: typeof drugStock[number]) => {
+    const settings = resolveDrugSettings(settingsByDrugId, d.id);
+    return quotaDerivedStatus(d.perlu_kelulusan_pakar, quotaUsageByDrug.get(d.id))
+      ?? stockStatus(d.current_stock, settings.stok_min, settings.stok_reorder);
+  };
 
   // Drug Stock Quota table shows remaining annual quota for controlled
   // drugs instead of physical vial count — physical stock isn't the

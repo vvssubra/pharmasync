@@ -8,6 +8,7 @@ import { Check, ChevronsUpDown, AlertCircle, CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatIC, formatICInput } from "@/lib/ic";
 import { computeStockByDrug } from "@/lib/stock";
+import { useClinicDrugSettings, resolveDrugSettings } from "@/hooks/useClinicDrugSettings";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,7 +59,7 @@ export function RefillWalkinDialog({ open, onOpenChange, patients, initialPatien
     queryFn: async () => {
       const { data, error } = await supabase
         .from("drugs")
-        .select("id, drug_name, unit_pengukuran, stok_min")
+        .select("id, drug_name, unit_pengukuran")
         .eq("is_active", true)
         .order("drug_name");
       if (error) throw error;
@@ -78,12 +79,13 @@ export function RefillWalkinDialog({ open, onOpenChange, patients, initialPatien
   });
 
   const stockMap = useMemo(() => computeStockByDrug(allTx), [allTx]);
+  const { byDrugId: settingsByDrugId } = useClinicDrugSettings();
 
   const selectedDrug = drugs.find(d => d.id === refillDrugId);
   const currentStock = refillDrugId ? (stockMap.get(refillDrugId) ?? 0) : 0;
   const afterStock = currentStock - refillQty;
   const stockExceeded = refillQty > currentStock;
-  const belowMin = afterStock < (selectedDrug?.stok_min ?? 0);
+  const belowMin = afterStock < resolveDrugSettings(settingsByDrugId, refillDrugId).stok_min;
 
   // Radix's onOpenChange only fires for *internal* close events (Escape,
   // overlay click) — the parent flips `open` directly to launch the dialog,

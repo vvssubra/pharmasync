@@ -5,11 +5,19 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Index from "./Index";
 
 // Drugs chosen so getStatus() (Index.tsx) yields one of each status we assert:
-// baki < min -> CRITICAL, baki < reorder -> LOW, baki > max -> EXCESS.
+// baki < min -> CRITICAL, baki < reorder -> LOW, baki > max -> EXCESS. Stock
+// thresholds live on clinic_drug_settings (drug_id-keyed), not on the drugs
+// row itself — see CLINIC_DRUG_SETTINGS below.
 const DRUGS = [
-  { id: "d-critical", drug_name: "Amoxicillin 250mg", unit_pengukuran: "tablet", stok_min: 100, stok_reorder: 150, stok_max: 500, perlu_kelulusan_pakar: false },
-  { id: "d-low",      drug_name: "Paracetamol 500mg", unit_pengukuran: "tablet", stok_min: 50,  stok_reorder: 200, stok_max: 800, perlu_kelulusan_pakar: false },
-  { id: "d-excess",   drug_name: "Metformin 500mg",   unit_pengukuran: "tablet", stok_min: 20,  stok_reorder: 40,  stok_max: 100, perlu_kelulusan_pakar: false },
+  { id: "d-critical", drug_name: "Amoxicillin 250mg", unit_pengukuran: "tablet", perlu_kelulusan_pakar: false },
+  { id: "d-low",      drug_name: "Paracetamol 500mg", unit_pengukuran: "tablet", perlu_kelulusan_pakar: false },
+  { id: "d-excess",   drug_name: "Metformin 500mg",   unit_pengukuran: "tablet", perlu_kelulusan_pakar: false },
+];
+
+const CLINIC_DRUG_SETTINGS = [
+  { drug_id: "d-critical", stok_min: 100, stok_reorder: 150, stok_max: 500, is_blocked: false },
+  { drug_id: "d-low",      stok_min: 50,  stok_reorder: 200, stok_max: 800, is_blocked: false },
+  { drug_id: "d-excess",   stok_min: 20,  stok_reorder: 40,  stok_max: 100, is_blocked: false },
 ];
 
 const TRANSACTIONS = [
@@ -29,6 +37,7 @@ const TRANSACTIONS = [
 // itself, so `data` is undefined and the dashboard renders zero rows.
 const ROWS: Record<string, unknown[]> = {
   drugs: DRUGS,
+  clinic_drug_settings: CLINIC_DRUG_SETTINGS,
   transactions: TRANSACTIONS,
   dispensing_requests: [],
   antibiotic_forms: [],
@@ -58,8 +67,12 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
+// profile.clinic_id must be non-null: useClinicDrugSettings treats a null
+// clinic_id as scope-ambiguous (the super_admin case) and returns an empty
+// settings map rather than guessing, which would silently zero out every
+// threshold this file's tests assert on.
 vi.mock("@/contexts/AuthContext", () => ({
-  useAuth: vi.fn(() => ({ role: "admin", user: null, profile: null, loading: false })),
+  useAuth: vi.fn(() => ({ role: "admin", user: null, profile: { clinic_id: "c1" }, loading: false })),
 }));
 
 const { useAuth } = await import("@/contexts/AuthContext");
@@ -116,7 +129,7 @@ describe("Index dashboard English text", () => {
   });
 
   it("hides the Recent Activity 'View All' link for pharmacist (/terimaan is no longer reachable for that role), keeps the Recent Dispensing one (/laporan still is)", async () => {
-    (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({ role: "pharmacist", user: null, profile: null, loading: false });
+    (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({ role: "pharmacist", user: null, profile: { clinic_id: "c1" }, loading: false });
     renderIndex();
     await waitFor(() => expect(screen.getAllByText("CRITICAL").length).toBeGreaterThan(0));
     // Only one "View All" link should remain — Recent Dispensing's, to /laporan.

@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
+import { useClinicDrugSettings, resolveDrugSettings } from "@/hooks/useClinicDrugSettings";
 import { quotaDerivedStatus } from "@/lib/quotaHelpers";
 import { computeStockByDrug } from "@/lib/stock";
 import { Pill, FileCheck } from "lucide-react";
@@ -67,6 +68,7 @@ export default function Dashboard() {
 
   const currentYear = new Date().getFullYear();
   const { byDrugId: quotaUsageByDrug } = useDrugQuotaUsage(currentYear);
+  const { byDrugId: settingsByDrugId } = useClinicDrugSettings();
 
   // Fetch drugs. The key is namespaced because this projection differs from
   // Terimaan's and DrugMaster's; sharing a bare ["drugs"] key made them serve
@@ -75,7 +77,7 @@ export default function Dashboard() {
   const { data: drugs } = useQuery({
     queryKey: ["drugs", "dashboard"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("drugs").select("id, drug_name, unit_pengukuran, stok_min, stok_reorder, stok_max, perlu_kelulusan_pakar").eq("is_active", true);
+      const { data, error } = await supabase.from("drugs").select("id, drug_name, unit_pengukuran, perlu_kelulusan_pakar").eq("is_active", true);
       if (error) throw error;
       return data;
     },
@@ -132,8 +134,9 @@ export default function Dashboard() {
     }
 
     return drugs.map((d) => {
+      const settings = resolveDrugSettings(settingsByDrugId, d.id);
       const entry = { baki: bakiByDrug.get(d.id) ?? 0, lastDate: lastDateByDrug.get(d.id) ?? null };
-      const physicalStatus = getStatus(entry.baki, d.stok_min ?? 0, d.stok_reorder ?? 0, d.stok_max ?? 0);
+      const physicalStatus = getStatus(entry.baki, settings.stok_min, settings.stok_reorder, settings.stok_max);
       // Controlled drugs (insulin under the FMS quota register) aren't
       // tracked by physical stock thresholds — Critical/Low/Normal must come
       // from remaining annual quota instead.
@@ -148,14 +151,14 @@ export default function Dashboard() {
       const balance = isQuotaBased ? quotaUsage!.remaining : entry.baki;
       const pctMax = isQuotaBased
         ? (quotaUsage!.quota_limit > 0 ? Math.max(0, Math.min(100, Math.round((quotaUsage!.remaining / quotaUsage!.quota_limit) * 100))) : 0)
-        : (d.stok_max > 0 ? Math.min(Math.round((entry.baki / d.stok_max) * 100), 100) : 0);
+        : (settings.stok_max > 0 ? Math.min(Math.round((entry.baki / settings.stok_max) * 100), 100) : 0);
       return {
         id: d.id,
         drug_name: d.drug_name,
         unit_pengukuran: d.unit_pengukuran,
-        stok_min: d.stok_min ?? 0,
-        stok_reorder: d.stok_reorder ?? 0,
-        stok_max: d.stok_max ?? 0,
+        stok_min: settings.stok_min,
+        stok_reorder: settings.stok_reorder,
+        stok_max: settings.stok_max,
         baki: entry.baki,
         balance,
         pctMax,
@@ -164,7 +167,7 @@ export default function Dashboard() {
         lastUpdated: entry.lastDate,
       };
     }).sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
-  }, [drugs, transactions, quotaUsageByDrug]);
+  }, [drugs, transactions, quotaUsageByDrug, settingsByDrugId]);
 
   // Activity feed
   const activityFeed = useMemo(() => {

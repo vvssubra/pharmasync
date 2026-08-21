@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
+import { useClinicDrugSettings, resolveDrugSettings } from "@/hooks/useClinicDrugSettings";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { FileText, Plus, Search, Pencil, Ban, RotateCcw, BookOpen, CalendarRange, Lock, Unlock, PackagePlus, MoreHorizontal } from "lucide-react";
@@ -65,6 +66,7 @@ export default function DrugMaster() {
   // Server-computed usage — also fixes this page's previous omission of the
   // is_pesara filter, which made it disagree with DoctorRequest's number.
   const { byDrugId: quotaUsageByDrug } = useDrugQuotaUsage(currentYear);
+  const { byDrugId: settingsByDrugId } = useClinicDrugSettings();
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
@@ -78,13 +80,21 @@ export default function DrugMaster() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  // LOCAL block only — "we don't stock it at this clinic". drugs.is_blocked
+  // is the separate NATIONAL block (MOH withdrawal); this page's toggle has
+  // never had authority over that and now writes its own clinic's row
+  // instead of the shared drugs one. Upsert, not update: the row may not
+  // exist yet (a clinic created after Migration A's backfill, or the very
+  // first time this clinic blocks this drug).
   const blockMutation = useMutation({
     mutationFn: async ({ id, is_blocked }: { id: string; is_blocked: boolean }) => {
-      const { error } = await supabase.from("drugs").update({ is_blocked }).eq("id", id);
+      const { error } = await supabase
+        .from("clinic_drug_settings")
+        .upsert({ drug_id: id, is_blocked }, { onConflict: "clinic_id,drug_id" });
       if (error) throw error;
     },
     onSuccess: (_data, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["drugs"] });
+      queryClient.invalidateQueries({ queryKey: ["clinic-drug-settings"] });
       queryClient.invalidateQueries({ queryKey: ["drugs-for-request"] });
       toast.success(vars.is_blocked ? "Drug blocked — MO can no longer request it" : "Drug unblocked");
     },
@@ -159,6 +169,7 @@ export default function DrugMaster() {
               ) : (
                 filtered.map((drug) => {
                   const quotaRow = quotaUsageByDrug.get(drug.id);
+                  const localBlocked = resolveDrugSettings(settingsByDrugId, drug.id).is_blocked;
                   return (
                     <TableRow key={drug.id} className={drug.is_active ? "" : "opacity-50"}>
                       <TableCell className="font-medium">
@@ -189,7 +200,7 @@ export default function DrugMaster() {
                           <Badge variant={drug.is_active ? "default" : "secondary"}>
                             {drug.is_active ? "Active" : "Inactive"}
                           </Badge>
-                          {drug.is_blocked && (
+                          {localBlocked && (
                             <Badge variant="outline" className="border-red-500 text-red-600 dark:text-red-400 text-xs">
                               Blocked
                             </Badge>
@@ -242,9 +253,9 @@ export default function DrugMaster() {
                               {(role === "admin" || role === "super_admin") && (
                                 <DropdownMenuItem
                                   className="min-h-[44px]"
-                                  onClick={() => blockMutation.mutate({ id: drug.id, is_blocked: !drug.is_blocked })}
+                                  onClick={() => blockMutation.mutate({ id: drug.id, is_blocked: !localBlocked })}
                                 >
-                                  {drug.is_blocked
+                                  {localBlocked
                                     ? <><Unlock className="mr-2 h-4 w-4" /> Unblock requests</>
                                     : <><Lock className="mr-2 h-4 w-4" /> Block requests</>}
                                 </DropdownMenuItem>

@@ -137,9 +137,13 @@ interface DrugRow {
   id: string;
   drug_name: string;
   unit_pengukuran: string;
-  stok_min: number | null;
-  stok_reorder: number | null;
   perlu_kelulusan_pakar: boolean | null;
+}
+
+interface SettingsRow {
+  drug_id: string;
+  stok_min: number;
+  stok_reorder: number;
 }
 
 async function buildStockSection(supabase: SupabaseClient, question: string): Promise<string | null> {
@@ -150,17 +154,27 @@ async function buildStockSection(supabase: SupabaseClient, question: string): Pr
   //
   // Quota usage is fetched alongside because controlled drugs are reported on
   // quota, not shelf stock — see the basis note below.
+  //
+  // Thresholds come from clinic_drug_settings, not drugs.stok_* — supabase is
+  // a callerScopedClient (see _shared/security.ts), so RLS already scopes
+  // this to the caller's own clinic (or refuses upstream for an ambiguous
+  // multi-clinic super_admin — see index.ts's scopeLabel check), unlike the
+  // frontend hook this mirrors, which has to guard that itself.
   const year = new Date().getFullYear();
-  const [{ data: drugs }, { data: txns }, { data: quotaRows }] = await Promise.all([
-    supabase.from("drugs").select("id, drug_name, unit_pengukuran, stok_min, stok_reorder, perlu_kelulusan_pakar").eq("is_active", true),
+  const [{ data: drugs }, { data: txns }, { data: quotaRows }, { data: settingsRows }] = await Promise.all([
+    supabase.from("drugs").select("id, drug_name, unit_pengukuran, perlu_kelulusan_pakar").eq("is_active", true),
     supabase.from("transactions").select("drug_id, jenis, kuantiti, tarikh, created_at"),
     supabase.rpc("get_drug_quota_usage", { p_year: year }),
+    supabase.from("clinic_drug_settings").select("drug_id, stok_min, stok_reorder"),
   ]);
   const drugRows = (drugs ?? []) as DrugRow[];
   if (drugRows.length === 0) return null;
 
   const quotaByDrug = new Map<string, QuotaRow>();
   for (const q of (quotaRows ?? []) as QuotaRow[]) quotaByDrug.set(q.drug_id, q);
+
+  const settingsByDrug = new Map<string, SettingsRow>();
+  for (const s of (settingsRows ?? []) as SettingsRow[]) settingsByDrug.set(s.drug_id, s);
 
   const balances = computeStockByDrug(txns ?? []);
   const computed = drugRows.map((d) => {
@@ -190,8 +204,9 @@ async function buildStockSection(supabase: SupabaseClient, question: string): Pr
       };
     }
     const balance = balances.get(d.id) ?? 0;
-    const min = d.stok_min ?? 0;
-    const reorder = d.stok_reorder ?? 0;
+    const settings = settingsByDrug.get(d.id);
+    const min = settings?.stok_min ?? 0;
+    const reorder = settings?.stok_reorder ?? 0;
     const rate = avgDailyOut(txns ?? [], d.id, 90);
     return {
       drug: d.drug_name,

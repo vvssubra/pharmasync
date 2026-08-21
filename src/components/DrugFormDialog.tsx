@@ -17,6 +17,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { getErrorMessage } from "@/lib/errors";
+import { useClinicDrugSettings, resolveDrugSettings } from "@/hooks/useClinicDrugSettings";
+
+// Dual-write window: thresholds also mirror onto the legacy drugs.stok_*
+// columns this release. Safe only because clinic #2 does not exist yet —
+// every writer in this window is Kempas, so writing Kempas's value onto the
+// global drugs row is a no-op in meaning. Remove this constant (and the
+// spread below) in the same release as the 15-clinic-scaling plan's
+// Migration C, which drops drugs.stok_min/stok_reorder/stok_max — this dual
+// write must not survive past that release, or it starts overwriting
+// Kempas's row with whichever clinic saved a drug last.
+const DUAL_WRITE_LEGACY_DRUG_COLUMNS = true;
 
 const drugSchema = z.object({
   drug_name: z.string().trim().min(1, "Drug name is required").max(200),
@@ -92,6 +103,19 @@ export function DrugFormDialog({ open, onOpenChange, drug, nationalQuota }: Drug
   // upsert in the mutation, and the editable field in the form.
   const quotaWriteBlocked = isControlled || isAtHqClinic;
 
+  // Thresholds are clinic-owned (clinic_drug_settings). A caller with no
+  // clinic (super_admin) has no clinic to write a settings row for — the
+  // upsert below is skipped for them and the value only reaches the legacy
+  // drugs.stok_* columns via the dual write, same as before this table
+  // existed. resolveDrugSettings falls back to the legacy drugs.stok_*
+  // value (not the all-zero default) so scope-ambiguous callers editing an
+  // existing drug still see its real current thresholds pre-filled.
+  const { byDrugId: settingsByDrugId, scopeAmbiguous: settingsScopeAmbiguous } = useClinicDrugSettings();
+  const settingsWriteBlocked = settingsScopeAmbiguous;
+  const currentSettings = drug && !settingsScopeAmbiguous
+    ? resolveDrugSettings(settingsByDrugId, drug.id)
+    : { stok_min: drug?.stok_min ?? 0, stok_reorder: drug?.stok_reorder ?? 0, stok_max: drug?.stok_max ?? 0 };
+
   const { data: existingQuota, error: existingQuotaError } = useQuery({
     queryKey: ["drug-quota", drug?.id, currentYear, profile?.clinic_id],
     // Also requires a clinic: drug_quotas rows are stamped with the caller's
@@ -136,15 +160,20 @@ export function DrugFormDialog({ open, onOpenChange, drug, nationalQuota }: Drug
         form.reset({
           drug_name: drug.drug_name,
           quota_limit: existingQuota?.quota_limit ?? 0,
-          stok_min: drug.stok_min ?? 0,
-          stok_reorder: drug.stok_reorder ?? 0,
-          stok_max: drug.stok_max ?? 0,
+          stok_min: currentSettings.stok_min,
+          stok_reorder: currentSettings.stok_reorder,
+          stok_max: currentSettings.stok_max,
           unit_price: drug.unit_price ?? undefined,
         });
       } else {
         form.reset();
       }
     }
+    // Deliberately excludes currentSettings: it would re-run this reset on
+    // every settings refetch (refetchInterval: 30000) and clobber whatever
+    // the user is mid-typing. Only `open` toggling and the drug identity
+    // changing should re-seed the form.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, drug, existingQuota, form]);
 
   const mutation = useMutation({
@@ -160,16 +189,22 @@ export function DrugFormDialog({ open, onOpenChange, drug, nationalQuota }: Drug
         throw new Error("DUPLICATE");
       }
 
+      // Identity lives on drugs (district formulary, HQ-owned in later
+      // tasks). Thresholds live on clinic_drug_settings (clinic-owned) —
+      // written separately below. DUAL_WRITE_LEGACY_DRUG_COLUMNS also mirrors
+      // them onto drugs.stok_* this release only; see that constant's comment.
+      const legacyThresholdColumns = DUAL_WRITE_LEGACY_DRUG_COLUMNS
+        ? { stok_min: values.stok_min, stok_reorder: values.stok_reorder, stok_max: values.stok_max }
+        : {};
+
       let drugId: string;
       if (isEdit && drug) {
         const { error } = await supabase
           .from("drugs")
           .update({
             drug_name: values.drug_name,
-            stok_min: values.stok_min,
-            stok_reorder: values.stok_reorder,
-            stok_max: values.stok_max,
             unit_price: values.unit_price ?? null,
+            ...legacyThresholdColumns,
           })
           .eq("id", drug.id);
         if (error) throw error;
@@ -179,15 +214,31 @@ export function DrugFormDialog({ open, onOpenChange, drug, nationalQuota }: Drug
           .from("drugs")
           .insert([{
             drug_name: values.drug_name,
-            stok_min: values.stok_min,
-            stok_reorder: values.stok_reorder,
-            stok_max: values.stok_max,
             unit_price: values.unit_price ?? null,
+            ...legacyThresholdColumns,
           }])
           .select("id")
           .single();
         if (error) throw error;
         drugId = inserted.id;
+      }
+
+      // Thresholds: clinic-owned. Skipped when the caller has no clinic to
+      // scope the write to (settingsWriteBlocked — see its declaration
+      // above); the legacy dual write above still carries the value this
+      // release. onConflict target matches
+      // clinic_drug_settings_clinic_drug_key (20260821000100). clinic_id is
+      // omitted from the payload: trg_stamp_clinic_id (BEFORE INSERT) stamps
+      // it before the ON CONFLICT arbiter evaluates, the same reason the
+      // drug_quotas upsert below already omits it.
+      if (!settingsWriteBlocked) {
+        const { error: settingsError } = await supabase
+          .from("clinic_drug_settings")
+          .upsert(
+            { drug_id: drugId, stok_min: values.stok_min, stok_reorder: values.stok_reorder, stok_max: values.stok_max },
+            { onConflict: "clinic_id,drug_id" },
+          );
+        if (settingsError) throw settingsError;
       }
 
       // Skipped for controlled drugs (national pool, set only via

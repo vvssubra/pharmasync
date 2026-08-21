@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { computeStock } from "@/lib/stock";
+import { useClinicDrugSettings, resolveDrugSettings } from "@/hooks/useClinicDrugSettings";
 
 type LedgerRow = {
   id: string;
@@ -93,6 +94,9 @@ export default function DrugLedger() {
     },
     enabled: !!id,
   });
+
+  const { byDrugId: settingsByDrugId } = useClinicDrugSettings();
+  const settings = resolveDrugSettings(settingsByDrugId, id ?? "");
 
   const isLoading = drugLoading || txLoading;
 
@@ -199,7 +203,7 @@ export default function DrugLedger() {
     );
   }
 
-  const level = getBakiLevel(currentBaki, drug.stok_min ?? 0, drug.stok_max ?? 9999);
+  const level = getBakiLevel(currentBaki, settings.stok_min, settings.stok_max);
 
   return (
     <div className="space-y-6">
@@ -213,7 +217,7 @@ export default function DrugLedger() {
           <span>Code No.: <strong className="text-foreground">{drug.no_kod || "-"}</strong></span>
           <span>Unit: <strong className="text-foreground capitalize">{drug.unit_pengukuran}</strong></span>
           <span>Group: <strong className="text-foreground">{drug.kumpulan || "-"}</strong></span>
-          <span>Stock Levels: <strong className="text-foreground">{drug.stok_min}/{drug.stok_reorder}/{drug.stok_max}</strong></span>
+          <span>Stock Levels: <strong className="text-foreground">{settings.stok_min}/{settings.stok_reorder}/{settings.stok_max}</strong></span>
         </div>
       </div>
 
@@ -344,7 +348,7 @@ export default function DrugLedger() {
                   const isTerimaan = row.jenis === "terimaan";
                   const isBakiAwal = row.jenis === "baki_awal";
                   const isKeluaran = row.jenis === "keluaran";
-                  const bakiBelowMin = row.bakiQty < (drug.stok_min ?? 0);
+                  const bakiBelowMin = row.bakiQty < settings.stok_min;
 
                   return (
                     <TableRow

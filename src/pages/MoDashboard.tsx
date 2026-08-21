@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
+import { useClinicDrugSettings, resolveDrugSettings } from "@/hooks/useClinicDrugSettings";
 import { quotaDerivedStatus } from "@/lib/quotaHelpers";
 import { computeStock } from "@/lib/stock";
 import { cn } from "@/lib/utils";
@@ -91,20 +92,14 @@ export default function MoDashboard() {
       const [{ data: drugs }, { data: txns }] = await Promise.all([
         supabase
           .from("drugs")
-          .select("id, drug_name, unit_pengukuran, stok_min, stok_reorder, perlu_kelulusan_pakar")
+          .select("id, drug_name, unit_pengukuran, perlu_kelulusan_pakar")
           .eq("is_active", true)
           .order("drug_name"),
         supabase
           .from("transactions")
           .select("drug_id, jenis, kuantiti, tarikh, created_at"),
       ]);
-      return (drugs ?? []).map(d => {
-        const stock = computeStock(d.id, txns ?? []);
-        let physicalStatus = "normal";
-        if (stock <= (d.stok_min ?? 0)) physicalStatus = "critical";
-        else if (stock <= (d.stok_reorder ?? 0)) physicalStatus = "low";
-        return { ...d, current_stock: stock, physicalStatus };
-      });
+      return (drugs ?? []).map(d => ({ ...d, current_stock: computeStock(d.id, txns ?? []) }));
     },
   });
 
@@ -115,14 +110,22 @@ export default function MoDashboard() {
   // (usage is meant to be deducted the moment a request is submitted, not
   // only once the pharmacist fulfils it).
   const { byDrugId: quotaUsageByDrug } = useDrugQuotaUsage(currentYear);
+  const { byDrugId: settingsByDrugId } = useClinicDrugSettings();
 
   // Controlled drugs (insulin under the FMS quota register) aren't tracked by
   // physical stock thresholds — Critical/Low/Normal must come from remaining
   // annual quota instead. Non-controlled drugs keep the physical-stock status.
-  const drugStock = useMemo(() => rawDrugStock.map(d => ({
-    ...d,
-    status: quotaDerivedStatus(d.perlu_kelulusan_pakar, quotaUsageByDrug.get(d.id)) ?? d.physicalStatus,
-  })), [rawDrugStock, quotaUsageByDrug]);
+  const drugStock = useMemo(() => rawDrugStock.map(d => {
+    const settings = resolveDrugSettings(settingsByDrugId, d.id);
+    let physicalStatus = "normal";
+    if (d.current_stock <= settings.stok_min) physicalStatus = "critical";
+    else if (d.current_stock <= settings.stok_reorder) physicalStatus = "low";
+    return {
+      ...d,
+      physicalStatus,
+      status: quotaDerivedStatus(d.perlu_kelulusan_pakar, quotaUsageByDrug.get(d.id)) ?? physicalStatus,
+    };
+  }), [rawDrugStock, quotaUsageByDrug, settingsByDrugId]);
 
   // My recent requests
   const { data: myRequests = [], isLoading: reqLoading } = useQuery({
