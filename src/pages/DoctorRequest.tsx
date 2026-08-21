@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
+import { useClinicDrugSettings, resolveDrugSettings } from "@/hooks/useClinicDrugSettings";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { computeStock } from "@/lib/stock";
@@ -71,6 +72,7 @@ export default function DoctorRequest() {
   // Annual quota usage per drug — server-computed (enrolments + dispensing
   // requests, deduped by IC) so it agrees with every other dashboard.
   const { byDrugId: quotaUsageByDrug } = useDrugQuotaUsage(currentYear);
+  const { byDrugId: settingsByDrugId } = useClinicDrugSettings();
 
   // Compute current stock for selected drug
   const form = useForm<FormValues>({
@@ -101,7 +103,11 @@ export default function DoctorRequest() {
     return { limit, used, remaining, exhausted, lowQuota };
   }, [watchDrugId, watchIsPesara, quotaUsageByDrug]);
 
-  const adminBlocked = !!selectedDrug?.is_blocked;
+  // Effective block = national (drugs.is_blocked, e.g. MOH withdrawal) OR
+  // local (clinic_drug_settings.is_blocked, "we don't stock it here").
+  const nationalBlocked = !!selectedDrug?.is_blocked;
+  const localBlocked = !!selectedDrug && resolveDrugSettings(settingsByDrugId, selectedDrug.id).is_blocked;
+  const adminBlocked = nationalBlocked || localBlocked;
   const quotaBlocked = !!quotaInfo?.exhausted || adminBlocked;
 
   const exhaustedDrugIds = useMemo(() => {
@@ -112,7 +118,10 @@ export default function DoctorRequest() {
     return ids;
   }, [quotaUsageByDrug]);
 
-  const blockedDrugIds = useMemo(() => new Set(drugs.filter(d => d.is_blocked).map(d => d.id)), [drugs]);
+  const blockedDrugIds = useMemo(
+    () => new Set(drugs.filter(d => d.is_blocked || resolveDrugSettings(settingsByDrugId, d.id).is_blocked).map(d => d.id)),
+    [drugs, settingsByDrugId],
+  );
 
   const { data: currentStock } = useQuery({
     queryKey: ["drug-stock", watchDrugId],

@@ -16,6 +16,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import { useClinicScope } from "@/hooks/useClinicScope";
+import { ClinicScopeSelect } from "@/components/ClinicScopeSelect";
 
 // A single transaction row (with joined drug name/unit) used to derive every report below.
 interface TxRow {
@@ -93,13 +95,24 @@ export default function Laporan() {
     },
   });
 
+  // Which clinic every report on this page is about. All four cards group the
+  // ledger by drug_id alone, so a super_admin's unscoped read would fold 15
+  // clinics into one row per drug — a number that reads as a single clinic's
+  // and belongs to none of them. See useClinicScope.
+  const { isSuperAdmin, clinicId, clinics, setClinicId, ready } = useClinicScope();
+
   // Fetch every transaction (with joined drug info) once; all report tables derive from this ledger.
+  // clinic_id is in the key as well as the filter, so switching clinics cannot
+  // serve the previous clinic's cached ledger; `enabled` keeps the unscoped
+  // version from running at all.
   const { data: allTx = [], isLoading: txLoading } = useQuery({
-    queryKey: ["laporan-transactions"],
+    queryKey: ["laporan-transactions", clinicId],
+    enabled: ready,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("transactions")
         .select("drug_id, jenis, kuantiti, tarikh, created_at, nama_pegawai, nama_pesakit, no_ic, jumlah_rm, drugs(drug_name, unit_pengukuran)")
+        .eq("clinic_id", clinicId!)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data ?? []) as unknown as TxRow[];
@@ -169,9 +182,15 @@ export default function Laporan() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Reports</h1>
-        <p className="text-sm text-muted-foreground">Generate reports and export data</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Reports</h1>
+          <p className="text-sm text-muted-foreground">Generate reports and export data</p>
+        </div>
+        {/* super_admin only — every other role has one clinic and no choice. */}
+        {isSuperAdmin && (
+          <ClinicScopeSelect clinics={clinics} value={clinicId} onChange={setClinicId} />
+        )}
       </div>
 
       {/* 4 Report Cards — 2x2 */}

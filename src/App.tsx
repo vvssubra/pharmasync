@@ -25,6 +25,7 @@ import PharmacistFulfilment from "@/pages/PharmacistFulfilment";
 import AntibioticArchive from "@/pages/AntibioticArchive";
 import PatientRegistry from "@/pages/PatientRegistry";
 import RoleManagement from "@/pages/RoleManagement";
+import Clinics from "@/pages/Clinics";
 import ResetPassword from "@/pages/ResetPassword";
 import ChangePassword from "@/pages/ChangePassword";
 import PaedsDoseCalculator from "@/pages/PaedsDoseCalculator";
@@ -91,6 +92,8 @@ const App = () => (
             <Route path="/pesakit" element={<ProtectedRoute><AppLayout><PatientRegistry /></AppLayout></ProtectedRoute>} />
             <Route path="/laporan" element={<ProtectedRoute><AppLayout><Laporan /></AppLayout></ProtectedRoute>} />
             <Route path="/role-management" element={<ProtectedRoute><AppLayout><RoleManagement /></AppLayout></ProtectedRoute>} />
+            {/* super_admin only — see ROUTE_PERMISSIONS in ProtectedRoute. */}
+            <Route path="/clinics" element={<ProtectedRoute><AppLayout><Clinics /></AppLayout></ProtectedRoute>} />
             {/* Logistic pharmacist HQ dashboard */}
             <Route path="/logistik" element={<ProtectedRoute><AppLayout><LogistikDashboard /></AppLayout></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />

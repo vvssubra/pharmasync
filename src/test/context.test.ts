@@ -84,7 +84,8 @@ describe("buildDataFacts", () => {
   it("never includes patient names or ICs, even though the underlying tables have them", async () => {
     const supabase = mockSupabase(
       {
-        drugs: [{ id: "d1", drug_name: "Amoxicillin 500mg", unit_pengukuran: "Capsule", stok_min: 200, stok_reorder: 400 }],
+        drugs: [{ id: "d1", drug_name: "Amoxicillin 500mg", unit_pengukuran: "Capsule" }],
+        clinic_drug_settings: [{ drug_id: "d1", stok_min: 200, stok_reorder: 400 }],
         transactions: [{ drug_id: "d1", jenis: "keluaran", kuantiti: 5, tarikh: "2026-01-01" }],
         dispensing_requests: [{ status: "pending_pharmacy", patient_name: "Ahmad bin Ali", no_ic: "900101-01-1234" }],
         antibiotic_forms: [{ status: "pending_specialist", patient_name: "Siti binti Osman", diagnosis: "confidential clinical detail" }],
@@ -103,9 +104,8 @@ describe("buildDataFacts", () => {
       id: `d${i}`,
       drug_name: `Drug ${i}`,
       unit_pengukuran: "Tablet",
-      stok_min: 100,
-      stok_reorder: 200,
     }));
+    const clinicDrugSettings = drugs.map((d) => ({ drug_id: d.id, stok_min: 100, stok_reorder: 200 }));
     // First 20 drugs critical (below min), the rest have no transactions ->
     // balance 0 -> also critical by this drug's own min/reorder... so give
     // the remaining 80 a healthy balance via a baki_awal instead.
@@ -114,7 +114,7 @@ describe("buildDataFacts", () => {
       ...drugs.slice(20).map((d) => ({ drug_id: d.id, jenis: "baki_awal", kuantiti: 500, tarikh: "2026-01-01" })), // normal
     ];
     const supabase = mockSupabase(
-      { drugs, transactions, dispensing_requests: [], antibiotic_forms: [] },
+      { drugs, clinic_drug_settings: clinicDrugSettings, transactions, dispensing_requests: [], antibiotic_forms: [] },
       { get_drug_quota_usage: [] },
     );
     const result = await buildDataFacts(supabase, "admin", "u1", "which drugs are low?", "KK Kempas");
@@ -133,7 +133,7 @@ describe("buildDataFacts", () => {
     const remaining = 16;
     const supabase = mockSupabase(
       {
-        drugs: [{ id: "d1", drug_name: "Novomix 30 FlexPen", unit_pengukuran: "Pen", stok_min: 0, stok_reorder: 0 }],
+        drugs: [{ id: "d1", drug_name: "Novomix 30 FlexPen", unit_pengukuran: "Pen" }],
         transactions: [],
         dispensing_requests: [],
         antibiotic_forms: [],
@@ -167,7 +167,7 @@ describe("buildDataFacts", () => {
     const supabase = mockSupabase(
       {
         clinics: [{ name: "Klinik Kesihatan Kempas" }],
-        drugs: [{ id: "d1", drug_name: "Novomix 30 FlexPen", unit_pengukuran: "Pen", stok_min: 0, stok_reorder: 0 }],
+        drugs: [{ id: "d1", drug_name: "Novomix 30 FlexPen", unit_pengukuran: "Pen" }],
         transactions: [],
         dispensing_requests: [],
         antibiotic_forms: [],
@@ -199,7 +199,7 @@ describe("buildDataFacts", () => {
       {
         clinics: [{ name: "Klinik Kesihatan Kempas" }],
         drugs: [
-          { id: "d1", drug_name: "Insulin Aspart NOVOMIX", unit_pengukuran: "Pen", stok_min: 0, stok_reorder: 0, perlu_kelulusan_pakar: true },
+          { id: "d1", drug_name: "Insulin Aspart NOVOMIX", unit_pengukuran: "Pen", perlu_kelulusan_pakar: true },
         ],
         transactions: [],
         dispensing_requests: [],
@@ -238,8 +238,8 @@ describe("buildDataFacts", () => {
       {
         clinics: [{ name: "KK Kempas" }],
         drugs: [
-          { id: "d1", drug_name: "Insulin Aspart NOVOMIX", unit_pengukuran: "Pen", stok_min: 0, stok_reorder: 0, perlu_kelulusan_pakar: true },
-          { id: "d2", drug_name: "Insulin Detemir LEVEMIR", unit_pengukuran: "Pen", stok_min: 0, stok_reorder: 0, perlu_kelulusan_pakar: true },
+          { id: "d1", drug_name: "Insulin Aspart NOVOMIX", unit_pengukuran: "Pen", perlu_kelulusan_pakar: true },
+          { id: "d2", drug_name: "Insulin Detemir LEVEMIR", unit_pengukuran: "Pen", perlu_kelulusan_pakar: true },
         ],
         transactions: [],
         dispensing_requests: [],
@@ -266,7 +266,7 @@ describe("buildDataFacts", () => {
       {
         clinics: [{ name: "KK" }],
         drugs: [
-          { id: "d9", drug_name: "Paracetamol 500mg", unit_pengukuran: "Tablet", stok_min: 100, stok_reorder: 200, perlu_kelulusan_pakar: false },
+          { id: "d9", drug_name: "Paracetamol 500mg", unit_pengukuran: "Tablet", perlu_kelulusan_pakar: false },
         ],
         transactions: [],
         dispensing_requests: [],

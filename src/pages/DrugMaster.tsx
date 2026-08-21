@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
+import { useClinicDrugSettings, resolveDrugSettings } from "@/hooks/useClinicDrugSettings";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import { FileText, Plus, Search, Pencil, Ban, RotateCcw, BookOpen, CalendarRange, Lock, Unlock, PackagePlus, MoreHorizontal } from "lucide-react";
@@ -47,6 +48,12 @@ export default function DrugMaster() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const currentYear = new Date().getFullYear();
+  // Matches the drugs INSERT/UPDATE RLS predicate exactly
+  // (20260821000200_clinic_drug_settings_enforcement.sql section 3): drugs
+  // is now the HQ-owned district formulary. A non-HQ admin still owns their
+  // clinic's thresholds and local block via clinic_drug_settings, gated
+  // separately below — this flag only covers identity/is_active/is_blocked.
+  const isHqRole = role === "super_admin" || role === "logistic_pharmacist";
 
   // Namespaced — this query selects * and, unlike the other two, does not
   // filter on is_active. Prefix invalidation on ["drugs"] still applies.
@@ -65,6 +72,7 @@ export default function DrugMaster() {
   // Server-computed usage — also fixes this page's previous omission of the
   // is_pesara filter, which made it disagree with DoctorRequest's number.
   const { byDrugId: quotaUsageByDrug } = useDrugQuotaUsage(currentYear);
+  const { byDrugId: settingsByDrugId } = useClinicDrugSettings();
 
   const toggleMutation = useMutation({
     mutationFn: async ({ id, is_active }: { id: string; is_active: boolean }) => {
@@ -78,13 +86,21 @@ export default function DrugMaster() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  // LOCAL block only — "we don't stock it at this clinic". drugs.is_blocked
+  // is the separate NATIONAL block (MOH withdrawal); this page's toggle has
+  // never had authority over that and now writes its own clinic's row
+  // instead of the shared drugs one. Upsert, not update: the row may not
+  // exist yet (a clinic created after Migration A's backfill, or the very
+  // first time this clinic blocks this drug).
   const blockMutation = useMutation({
     mutationFn: async ({ id, is_blocked }: { id: string; is_blocked: boolean }) => {
-      const { error } = await supabase.from("drugs").update({ is_blocked }).eq("id", id);
+      const { error } = await supabase
+        .from("clinic_drug_settings")
+        .upsert({ drug_id: id, is_blocked }, { onConflict: "clinic_id,drug_id" });
       if (error) throw error;
     },
     onSuccess: (_data, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["drugs"] });
+      queryClient.invalidateQueries({ queryKey: ["clinic-drug-settings"] });
       queryClient.invalidateQueries({ queryKey: ["drugs-for-request"] });
       toast.success(vars.is_blocked ? "Drug blocked — MO can no longer request it" : "Drug unblocked");
     },
@@ -112,9 +128,11 @@ export default function DrugMaster() {
           <h1 className="text-2xl font-semibold text-foreground">Drug Master</h1>
           <p className="text-sm text-muted-foreground">Monitored drug list (KEW.PS-3)</p>
         </div>
-        <Button onClick={handleAdd}>
-          <Plus className="mr-1 h-4 w-4" /> Add Drug
-        </Button>
+        {isHqRole && (
+          <Button onClick={handleAdd}>
+            <Plus className="mr-1 h-4 w-4" /> Add Drug
+          </Button>
+        )}
       </div>
 
       <div className="relative w-full sm:max-w-sm">
@@ -159,6 +177,7 @@ export default function DrugMaster() {
               ) : (
                 filtered.map((drug) => {
                   const quotaRow = quotaUsageByDrug.get(drug.id);
+                  const localBlocked = resolveDrugSettings(settingsByDrugId, drug.id).is_blocked;
                   return (
                     <TableRow key={drug.id} className={drug.is_active ? "" : "opacity-50"}>
                       <TableCell className="font-medium">
@@ -190,6 +209,11 @@ export default function DrugMaster() {
                             {drug.is_active ? "Active" : "Inactive"}
                           </Badge>
                           {drug.is_blocked && (
+                            <Badge variant="outline" className="border-red-700 text-red-700 dark:text-red-500 text-xs">
+                              Blocked nationally
+                            </Badge>
+                          )}
+                          {localBlocked && (
                             <Badge variant="outline" className="border-red-500 text-red-600 dark:text-red-400 text-xs">
                               Blocked
                             </Badge>
@@ -217,18 +241,20 @@ export default function DrugMaster() {
                               <DropdownMenuItem className="min-h-[44px]" onClick={() => handleEdit(drug)}>
                                 <Pencil className="mr-2 h-4 w-4" /> Edit
                               </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="min-h-[44px]"
-                                onClick={() =>
-                                  drug.is_active
-                                    ? setDeactivateTarget(drug)
-                                    : toggleMutation.mutate({ id: drug.id, is_active: true })
-                                }
-                              >
-                                {drug.is_active
-                                  ? <><Ban className="mr-2 h-4 w-4" /> Deactivate</>
-                                  : <><RotateCcw className="mr-2 h-4 w-4" /> Reactivate</>}
-                              </DropdownMenuItem>
+                              {isHqRole && (
+                                <DropdownMenuItem
+                                  className="min-h-[44px]"
+                                  onClick={() =>
+                                    drug.is_active
+                                      ? setDeactivateTarget(drug)
+                                      : toggleMutation.mutate({ id: drug.id, is_active: true })
+                                  }
+                                >
+                                  {drug.is_active
+                                    ? <><Ban className="mr-2 h-4 w-4" /> Deactivate</>
+                                    : <><RotateCcw className="mr-2 h-4 w-4" /> Reactivate</>}
+                                </DropdownMenuItem>
+                              )}
                               {(role === "admin" || role === "super_admin") && (
                                 <DropdownMenuItem className="min-h-[44px]" onClick={() => setQuotaTarget(drug)}>
                                   <CalendarRange className="mr-2 h-4 w-4" /> Set Annual Quota
@@ -242,9 +268,9 @@ export default function DrugMaster() {
                               {(role === "admin" || role === "super_admin") && (
                                 <DropdownMenuItem
                                   className="min-h-[44px]"
-                                  onClick={() => blockMutation.mutate({ id: drug.id, is_blocked: !drug.is_blocked })}
+                                  onClick={() => blockMutation.mutate({ id: drug.id, is_blocked: !localBlocked })}
                                 >
-                                  {drug.is_blocked
+                                  {localBlocked
                                     ? <><Unlock className="mr-2 h-4 w-4" /> Unblock requests</>
                                     : <><Lock className="mr-2 h-4 w-4" /> Block requests</>}
                                 </DropdownMenuItem>

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { formatDistanceToNow, startOfDay, format } from "date-fns";
 import { AlertTriangle, Check } from "lucide-react";
 import { computeStockByDrug } from "@/lib/stock";
+import { useClinicDrugSettings, resolveDrugSettings } from "@/hooks/useClinicDrugSettings";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,7 +39,6 @@ type FulfilmentRow = Tables<"dispensing_requests"> & {
     id: string;
     drug_name: string;
     unit_pengukuran: string;
-    stok_min: number | null;
     perlu_kelulusan_pakar: boolean;
   } | null;
 };
@@ -47,6 +47,7 @@ type AbFormRow = Tables<"antibiotic_forms">;
 export default function PharmacistFulfilment() {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
+  const { byDrugId: settingsByDrugId } = useClinicDrugSettings();
   const [fulfillTarget, setFulfillTarget] = useState<FulfilmentRow | null>(null);
   const [rejectTarget, setRejectTarget] = useState<FulfilmentRow | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -60,7 +61,7 @@ export default function PharmacistFulfilment() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("dispensing_requests")
-        .select("*, drugs(id, drug_name, unit_pengukuran, stok_min, perlu_kelulusan_pakar)")
+        .select("*, drugs(id, drug_name, unit_pengukuran, perlu_kelulusan_pakar)")
         .in("status", ["pending_pharmacy", "fulfilled"])
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -215,7 +216,7 @@ export default function PharmacistFulfilment() {
             const drug = req.drugs;
             const currentStock = stockMap.get(req.drug_id) ?? 0;
             const afterStock = currentStock - req.quantity;
-            const belowMin = afterStock < (drug?.stok_min ?? 0);
+            const belowMin = afterStock < resolveDrugSettings(settingsByDrugId, req.drug_id).stok_min;
             const outOfStock = currentStock <= 0;
             const isSpecialistApproved = drug?.perlu_kelulusan_pakar;
             const isDeferred = !!req.deferred_date;

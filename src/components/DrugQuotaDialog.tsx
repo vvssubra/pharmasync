@@ -105,7 +105,9 @@ export default function DrugQuotaDialog({ open, onOpenChange, drugId, drugName, 
             created_by: user?.id,
             catatan: "Auto-seeded from annual quota",
           });
-          if (baliError) throw baliError;
+          // 23505 = a concurrent writer already seeded this clinic's opening
+          // balance for this drug (idx_one_baki_awal_per_clinic_drug) — fine.
+          if (baliError && baliError.code !== "23505") throw baliError;
         }
       }
     },

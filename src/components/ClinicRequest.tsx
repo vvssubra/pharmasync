@@ -25,10 +25,19 @@ export function ClinicRequest() {
   const { user, signOut, refreshProfile } = useAuth();
   const [clinicId, setClinicId] = useState("");
 
+  // is_hq excluded: 'Logistik PKDJB' is the national HQ clinic, staffed only by
+  // logistic pharmacists a super_admin provisions directly. Offering it here
+  // lets anyone request membership of the clinic that owns the national quota
+  // pool. RoleManagement's picker stays unfiltered — a super_admin does
+  // legitimately provision HQ staff.
   const { data: clinics = [] } = useQuery({
     queryKey: ["clinics-request"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("clinics").select("id, name").order("name");
+      const { data, error } = await supabase
+        .from("clinics")
+        .select("id, name")
+        .eq("is_hq", false)
+        .order("name");
       if (error) throw error;
       return data ?? [];
     },
@@ -51,7 +60,7 @@ export function ClinicRequest() {
       <Card className="w-full max-w-sm text-center">
         <CardHeader>
           <CardTitle className="text-xl">Pilih Klinik Anda</CardTitle>
-          <CardDescription>Digital Bin Card — Klinik Kesihatan Kempas</CardDescription>
+          <CardDescription>Digital Bin Card — PKD Johor Bahru</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">

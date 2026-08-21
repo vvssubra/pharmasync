@@ -1,4 +1,4 @@
-import { Home, Pill, PackagePlus, FileText, Bell, Users, Stethoscope, ShieldCheck, UserCog, BarChart2, ClipboardList, Archive, Baby, ShieldAlert, Warehouse } from "lucide-react";
+import { Home, Pill, PackagePlus, FileText, Bell, Users, Stethoscope, ShieldCheck, UserCog, BarChart2, ClipboardList, Archive, Baby, ShieldAlert, Warehouse, Building2 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,12 +41,22 @@ const items: NavItem[] = [
   { title: "G6PD",            url: "/g6pd",               icon: ShieldAlert,   roles: ["admin", "fms", "mo", "pharmacist"] },
   { title: "Abx Archive",     url: "/abx-archive",        icon: Archive,       roles: ["admin", "fms", "pharmacist"] },
   { title: "Role Management", url: "/role-management",    icon: UserCog,       showBadge: true, roles: ["admin"] },
+  // Empty roles: the filter below admits super_admin unconditionally, so this
+  // is how a super_admin-only entry is spelled — matching /clinics'
+  // ROUTE_PERMISSIONS entry, which is super_admin only too.
+  { title: "Clinics",         url: "/clinics",            icon: Building2,     roles: [] },
 ];
 
 export function AppSidebar() {
   const { state, isMobile, setOpenMobile } = useSidebar();
-  const { role } = useAuth();
+  const { role, profile } = useAuth();
   const collapsed = state === "collapsed";
+
+  // Whose data the user is actually looking at. Was hardcoded to one clinic,
+  // which is a lie at every other clinic and at HQ. super_admin has clinic_id
+  // NULL by design and does span every clinic, so they get a label rather than
+  // a blank. Matches TopNavbar.
+  const scopeLabel = role === "super_admin" ? "All clinics" : profile?.clinic_name;
 
   // On phones the sidebar is a Sheet overlaying the page, and nothing was
   // closing it on navigation — so tapping a nav item left the drawer sitting on
@@ -129,8 +139,13 @@ export function AppSidebar() {
         </div>
         {!collapsed && (
           <span className="text-sm font-semibold tracking-tight leading-tight">
-            <span className="shimmer-emerald-on-dark text-base font-bold">PharmaSync</span><br />
-            <span className="text-xs font-normal text-sidebar-foreground/70">KK Kempas</span>
+            <span className="shimmer-emerald-on-dark text-base font-bold">PharmaSync</span>
+            {scopeLabel && (
+              <>
+                <br />
+                <span className="text-xs font-normal text-sidebar-foreground/70">{scopeLabel}</span>
+              </>
+            )}
           </span>
         )}
       </div>

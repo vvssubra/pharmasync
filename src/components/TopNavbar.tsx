@@ -19,9 +19,16 @@ export function TopNavbar() {
         <SidebarTrigger className="text-muted-foreground hover:text-foreground" />
         <div className="hidden sm:block">
           <p className="shimmer-emerald text-base font-bold leading-tight">PharmaSync</p>
-          <p className="text-xs text-muted-foreground">
-            {profile?.clinic_name || "Klinik Kesihatan Kempas"}
-          </p>
+          {/* No fallback clinic name. A hardcoded one told a super_admin —
+              whose clinic_id is NULL by design — that they were looking at one
+              particular clinic's data while they were in fact looking at every
+              clinic's. Say "All clinics" for them, and nothing at all when
+              there is no clinic to name. */}
+          {(role === "super_admin" || profile?.clinic_name) && (
+            <p className="text-xs text-muted-foreground">
+              {role === "super_admin" ? "All clinics" : profile?.clinic_name}
+            </p>
+          )}
         </div>
       </div>
 

@@ -1,8 +1,13 @@
 // supabase/functions/push-notify/index.ts
 //
-// Sends a Web Push notification to every approver (fms / admin / super_admin)
-// when an MO's submission enters the specialist queue. Called by the pg_net
-// triggers in 20260730000000_push_notifications.sql — NOT by the browser.
+// Sends a Web Push notification to every approver (fms / admin) at the
+// submitting clinic when an MO's submission enters the specialist queue.
+// Called by the pg_net triggers in 20260730000000_push_notifications.sql —
+// NOT by the browser. super_admin is deliberately excluded from
+// NOTIFY_ROLES: their clinic_id is NULL by design, so scoping to "their
+// own clinic" would always be zero recipients anyway, and leaving them
+// listed invites a future `or clinic_id is null` escape hatch that
+// restores the old cross-clinic broadcast.
 //
 // Auth model: this endpoint is machine-to-machine only. The trigger sends
 // x-push-secret (a random value set via ALTER DATABASE, mirrored into this
@@ -18,7 +23,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.46.0";
 import * as webpush from "https://esm.sh/jsr/@negrel/webpush@0.5.0";
 
-const NOTIFY_ROLES = ["fms", "admin", "super_admin"];
+const NOTIFY_ROLES = ["fms", "admin"];
 
 // Deliberately no patient identifiers: lock screens are readable by whoever is
 // holding the phone. The queue page has the details.
@@ -101,15 +106,44 @@ Deno.serve(async (req) => {
   );
 
   // Who rings: a targeted event addresses exactly one user (the submitting MO
-  // on rejection); everything else broadcasts to the approver roles. A user
-  // with several devices has several subscription rows; all of them ring.
+  // on rejection); everything else broadcasts to the approver roles at the
+  // triggering row's own clinic. A user with several devices has several
+  // subscription rows; all of them ring.
   let userIds: string[];
   if (targetUser) {
     userIds = [targetUser];
   } else {
+    // Resolved here (not in the trigger) because this function is already
+    // service-role and authoritative, and it takes effect the moment it
+    // deploys regardless of which trigger version is installed — migrations
+    // and functions ship on separate manual paths. Fail closed: any lookup
+    // miss means no clinic to scope to, so no broadcast.
+    const { data: row, error: rowErr } = await supabase
+      .from(table)
+      .select("clinic_id")
+      .eq("id", rowId)
+      .maybeSingle();
+    const clinicId = (row as { clinic_id?: string } | null)?.clinic_id;
+    if (rowErr || !clinicId) {
+      return new Response(JSON.stringify({ sent: 0, pruned: 0 }), { status: 200 });
+    }
+
+    const { data: clinicProfiles, error: profilesErr } = await supabase
+      .from("profiles")
+      .select("user_id")
+      .eq("clinic_id", clinicId);
+    if (profilesErr) {
+      return new Response(JSON.stringify({ error: profilesErr.message }), { status: 500 });
+    }
+    const clinicUserIds = (clinicProfiles ?? []).map((p) => p.user_id);
+    if (clinicUserIds.length === 0) {
+      return new Response(JSON.stringify({ sent: 0, pruned: 0 }), { status: 200 });
+    }
+
     const { data: roles, error: rolesErr } = await supabase
       .from("user_roles")
       .select("user_id")
+      .in("user_id", clinicUserIds)
       .in("role", NOTIFY_ROLES);
     if (rolesErr) {
       return new Response(JSON.stringify({ error: rolesErr.message }), { status: 500 });

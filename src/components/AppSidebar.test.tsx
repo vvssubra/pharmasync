@@ -54,11 +54,14 @@ function makeQueryClient() {
   });
 }
 
-function renderSidebar(role: "pharmacist" | "doctor" | "specialist" | "fms" | "admin" | "super_admin") {
+function renderSidebar(
+  role: "pharmacist" | "doctor" | "fms" | "admin" | "super_admin",
+  profile: object | null = { full_name: "Test User", clinic_id: "clinic-1", clinic_name: "KK Kempas" },
+) {
   (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
     user: { id: "user-1" },
     role,
-    profile: { full_name: "Test User", clinic_id: "clinic-1", clinic_name: "KK Kempas" },
+    profile,
     loading: false,
     session: null,
     signOut: vi.fn(),
@@ -147,5 +150,33 @@ describe("AppSidebar unassigned-user badge", () => {
     renderSidebar("pharmacist");
     await waitFor(() => expect(screen.getByTestId("sidebar")).toBeInTheDocument());
     expect(supabase.rpc).not.toHaveBeenCalled();
+  });
+});
+
+// The sidebar header used to read "KK Kempas" for everyone, hardcoded. At any
+// of the other 14 clinics that is simply the wrong clinic's name over the
+// right clinic's data.
+describe("AppSidebar clinic scope label", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("names the signed-in user's own clinic", () => {
+    renderSidebar("admin", { full_name: "Test User", clinic_id: "clinic-2", clinic_name: "KK Larkin" });
+    expect(screen.getByText("KK Larkin")).toBeInTheDocument();
+    expect(screen.queryByText("KK Kempas")).not.toBeInTheDocument();
+  });
+
+  // super_admin has clinic_id NULL by design and does span every clinic, so
+  // naming one particular clinic for them is a lie about what they are seeing.
+  it("says 'All clinics' for super_admin rather than naming one", () => {
+    renderSidebar("super_admin", { full_name: "Root", clinic_id: null, clinic_name: "" });
+    expect(screen.getByText("All clinics")).toBeInTheDocument();
+  });
+
+  it("names no clinic at all when there is none to name", () => {
+    renderSidebar("admin", { full_name: "Test User", clinic_id: null, clinic_name: "" });
+    expect(screen.queryByText("All clinics")).not.toBeInTheDocument();
+    expect(screen.queryByText("KK Kempas")).not.toBeInTheDocument();
+    // The product name still renders — only the clinic line is suppressed.
+    expect(screen.getByText("PharmaSync")).toBeInTheDocument();
   });
 });

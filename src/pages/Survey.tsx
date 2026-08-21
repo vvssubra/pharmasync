@@ -198,7 +198,7 @@ export default function Survey() {
               Submit another response
             </button>
           </div>
-          <p className="survey-footer">Klinik Kesihatan Kempas — Digital Bin Card System</p>
+          <p className="survey-footer">PKD Johor Bahru — Digital Bin Card System</p>
         </div>
       </div>
     );
@@ -330,7 +330,7 @@ export default function Survey() {
           </p>
         </form>
 
-        <p className="survey-footer">Klinik Kesihatan Kempas — Digital Bin Card System</p>
+        <p className="survey-footer">PKD Johor Bahru — Digital Bin Card System</p>
       </div>
     </div>
   );
