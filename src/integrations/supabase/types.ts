@@ -142,6 +142,55 @@ export type Database = {
           },
         ]
       }
+      clinic_drug_settings: {
+        Row: {
+          clinic_id: string
+          created_at: string
+          drug_id: string
+          id: string
+          is_blocked: boolean
+          stok_max: number
+          stok_min: number
+          stok_reorder: number
+          updated_at: string
+        }
+        Insert: {
+          clinic_id?: string
+          created_at?: string
+          drug_id: string
+          id?: string
+          is_blocked?: boolean
+          stok_max?: number
+          stok_min?: number
+          stok_reorder?: number
+          updated_at?: string
+        }
+        Update: {
+          clinic_id?: string
+          created_at?: string
+          drug_id?: string
+          id?: string
+          is_blocked?: boolean
+          stok_max?: number
+          stok_min?: number
+          stok_reorder?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clinic_drug_settings_clinic_id_fkey"
+            columns: ["clinic_id"]
+            referencedRelation: "clinics"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clinic_drug_settings_drug_id_fkey"
+            columns: ["drug_id"]
+            referencedRelation: "drugs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clinics: {
         Row: {
           created_at: string
