@@ -8,21 +8,30 @@ const KEMPAS = "00000000-0000-0000-0000-000000000001";
 const update = vi.fn(() => ({ eq: eqAfterUpdate }));
 const eqAfterUpdate = vi.fn(() => Promise.resolve({ error: null }));
 
+// Filters the clinics picker applies, as [column, value]. The HQ clinic must
+// never be offered here, and the filter is invisible from the rendered output
+// (the mock decides what comes back), so it is asserted directly.
+const clinicFilters: [string, unknown][] = [];
+
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: vi.fn((table: string) => {
       if (table === "clinics") {
-        return {
-          select: vi.fn(() => ({
-            order: vi.fn(() => Promise.resolve({
-              data: [
-                { id: KEMPAS, name: "Klinik Kesihatan Kempas" },
-                { id: "clinic-2", name: "Klinik Kesihatan Skudai" },
-              ],
-              error: null,
-            })),
+        const builder = {
+          select: vi.fn(() => builder),
+          eq: vi.fn((col: string, val: unknown) => {
+            clinicFilters.push([col, val]);
+            return builder;
+          }),
+          order: vi.fn(() => Promise.resolve({
+            data: [
+              { id: KEMPAS, name: "Klinik Kesihatan Kempas" },
+              { id: "clinic-2", name: "Klinik Kesihatan Skudai" },
+            ],
+            error: null,
           })),
         };
+        return builder;
       }
       return { update };
     }),
@@ -63,6 +72,7 @@ function renderRequest() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clinicFilters.length = 0;
   eqAfterUpdate.mockResolvedValue({ error: null });
 });
 
@@ -72,6 +82,14 @@ describe("ClinicRequest", () => {
     openSelect();
     await waitFor(() => expect(screen.getByText("Klinik Kesihatan Kempas")).toBeInTheDocument());
     expect(screen.getByText("Klinik Kesihatan Skudai")).toBeInTheDocument();
+  });
+
+  // 'Logistik PKDJB' owns the national controlled-drug quota pool and is
+  // staffed only by logistic pharmacists a super_admin provisions directly.
+  // Offering it in a self-service picker lets anyone request their way into it.
+  it("never offers the HQ clinic", async () => {
+    renderRequest();
+    await waitFor(() => expect(clinicFilters).toContainEqual(["is_hq", false]));
   });
 
   it("cannot be submitted before a clinic is picked", async () => {

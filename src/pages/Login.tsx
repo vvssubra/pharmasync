@@ -20,11 +20,16 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
 
   // Clinic picker for signup — clinics table is anon-readable so this loads
-  // before the user is authenticated.
+  // before the user is authenticated. is_hq excluded for the same reason as
+  // ClinicRequest's picker: nobody self-serves into the national HQ clinic.
   const { data: clinics } = useQuery({
     queryKey: ["clinics-signup"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("clinics").select("id, name").order("name");
+      const { data, error } = await supabase
+        .from("clinics")
+        .select("id, name")
+        .eq("is_hq", false)
+        .order("name");
       if (error) throw error;
       return data;
     },

@@ -1,4 +1,4 @@
-import { Home, Pill, PackagePlus, FileText, Bell, Users, Stethoscope, ShieldCheck, UserCog, BarChart2, ClipboardList, Archive, Baby, ShieldAlert, Warehouse } from "lucide-react";
+import { Home, Pill, PackagePlus, FileText, Bell, Users, Stethoscope, ShieldCheck, UserCog, BarChart2, ClipboardList, Archive, Baby, ShieldAlert, Warehouse, Building2 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,6 +41,10 @@ const items: NavItem[] = [
   { title: "G6PD",            url: "/g6pd",               icon: ShieldAlert,   roles: ["admin", "fms", "mo", "pharmacist"] },
   { title: "Abx Archive",     url: "/abx-archive",        icon: Archive,       roles: ["admin", "fms", "pharmacist"] },
   { title: "Role Management", url: "/role-management",    icon: UserCog,       showBadge: true, roles: ["admin"] },
+  // Empty roles: the filter below admits super_admin unconditionally, so this
+  // is how a super_admin-only entry is spelled — matching /clinics'
+  // ROUTE_PERMISSIONS entry, which is super_admin only too.
+  { title: "Clinics",         url: "/clinics",            icon: Building2,     roles: [] },
 ];
 
 export function AppSidebar() {

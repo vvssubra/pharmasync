@@ -45,6 +45,7 @@ function renderWithRouter(
         <Route path="/fulfilment"      element={<ProtectedRoute><div>Permintaan Baharu page</div></ProtectedRoute>} />
         <Route path="/request"         element={<ProtectedRoute><div>Doctor Request page</div></ProtectedRoute>} />
         <Route path="/role-management" element={<ProtectedRoute><div>Role Management page</div></ProtectedRoute>} />
+        <Route path="/clinics"         element={<ProtectedRoute><div>Clinics page</div></ProtectedRoute>} />
         <Route path="/drugs"           element={<ProtectedRoute><div>Drugs page</div></ProtectedRoute>} />
         <Route path="/fms"             element={<ProtectedRoute><div>FMS Dashboard page</div></ProtectedRoute>} />
         <Route path="/mo"              element={<ProtectedRoute><div>MO Dashboard page</div></ProtectedRoute>} />
@@ -142,6 +143,24 @@ describe("ProtectedRoute", () => {
       renderWithRouter("/specialist", { user: { id: "1" }, role: "fms", loading: false });
       expect(screen.getByText("Specialist page")).toBeInTheDocument();
     });
+  });
+
+  // Creating and renaming clinics is deployment-wide, not clinic-scoped: a
+  // clinic admin provisioning another clinic is exactly the boundary this
+  // route exists to hold. /clinics must also sit above "/" in
+  // ROUTE_PERMISSIONS, or that catch-all entry claims it and admits everyone.
+  describe("/clinics is super_admin only", () => {
+    it("allows access for super_admin", () => {
+      renderWithRouter("/clinics", { user: { id: "1" }, role: "super_admin", loading: false });
+      expect(screen.getByText("Clinics page")).toBeInTheDocument();
+    });
+    it.each(["admin", "fms", "mo", "pharmacist", "logistic_pharmacist"] as const)(
+      "blocks access for %s",
+      (role) => {
+        renderWithRouter("/clinics", { user: { id: "1" }, role, loading: false });
+        expect(screen.getByRole("heading", { name: /No Permission/i })).toBeInTheDocument();
+      },
+    );
   });
 
   describe("loading state", () => {
