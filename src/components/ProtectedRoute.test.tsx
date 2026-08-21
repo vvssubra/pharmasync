@@ -149,6 +149,19 @@ describe("ProtectedRoute", () => {
   // clinic admin provisioning another clinic is exactly the boundary this
   // route exists to hold. /clinics must also sit above "/" in
   // ROUTE_PERMISSIONS, or that catch-all entry claims it and admits everyone.
+  // Regression: RoleRedirect (App.tsx) bounces logistic_pharmacist to
+  // /logistik, but it renders INSIDE ProtectedRoute on "/". While "/" omitted
+  // that role, ProtectedRoute short-circuited to NoPermission and the redirect
+  // never ran — the first logistic pharmacist account ever created logged in
+  // and hit "No Permission".
+  describe("logistic_pharmacist", () => {
+    it("is admitted to / so RoleRedirect can forward them to /logistik", () => {
+      renderWithRouter("/", { user: { id: "1" }, role: "logistic_pharmacist", loading: false });
+      expect(screen.queryByRole("heading", { name: /No Permission/i })).not.toBeInTheDocument();
+      expect(screen.getByText("Dashboard")).toBeInTheDocument();
+    });
+  });
+
   describe("/clinics is super_admin only", () => {
     it("allows access for super_admin", () => {
       renderWithRouter("/clinics", { user: { id: "1" }, role: "super_admin", loading: false });
