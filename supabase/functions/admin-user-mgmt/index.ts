@@ -13,14 +13,13 @@ const ALLOWED_ROLES = ["admin", "fms", "mo", "pharmacist", "logistic_pharmacist"
 // rather than clinic-scoped: it governs the shared controlled-drug quota pool
 // every clinic draws from (supabase/migrations/20260819000300_national_quota_
 // pool.sql) and can read every clinic's dispensing/patient data
-// (20260819000400_logistic_access.sql). The database closes this escalation
-// path for the direct write surface — the clinic-admin user_roles policy and
-// approve_clinic_member() both exclude it (20260819000100_logistic_role_
-// helpers.sql) — but the invite path below writes user_roles with a
-// SERVICE-ROLE client, which bypasses RLS entirely. Without the check below a
-// plain clinic admin could mint a national quota writer through this endpoint.
-// So this one role needs a stricter gate than the endpoint's general
-// "admin or super_admin".
+// (20260819000400_logistic_access.sql). Both grant paths here now run through
+// approve_clinic_member(), which refuses this role for anyone who is not a
+// super_admin (20260821000300), so the database is the real gate. This check
+// stays as the front door: it refuses before an auth user is created, so a
+// forbidden grant leaves nothing to roll back, and it does not depend on that
+// RPC's gate staying correct. This one role needs a stricter gate than the
+// endpoint's general "admin or super_admin".
 const SUPER_ADMIN_ONLY_ROLES: readonly string[] = ["logistic_pharmacist"];
 
 function isRoleGrantAllowed(role: string, callerRole: string | null) {
@@ -317,9 +316,10 @@ Deno.serve(async (req) => {
     }
     const { full_name, email, role, clinic_id, redirect_to } = parsed.data;
 
-    // See SUPER_ADMIN_ONLY_ROLES: the user_roles upsert further down runs as
-    // service_role, so RLS cannot stop a clinic admin here. Checked before the
-    // auth user is created so a refused grant leaves nothing behind.
+    // See SUPER_ADMIN_ONLY_ROLES. approve_clinic_member() below would refuse
+    // this too, but only after the invite has gone out and the auth user has
+    // been created and then rolled back by a delete. Checked up front so a
+    // refused grant leaves nothing behind — and never emails the invitee.
     if (!isRoleGrantAllowed(role, callerRole)) {
       return new Response(
         JSON.stringify({ error: "Forbidden: only a super admin may assign the logistic pharmacist role" }),
@@ -393,14 +393,35 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { error: roleError } = await supabase
-      .from("user_roles")
-      .upsert({ user_id: invited.user.id, role }, { onConflict: "user_id" });
+    // Same RPC create_user uses, for the same reason and with the same
+    // caller-scoped client — see the comment at step 6 of that path.
+    //
+    // This used to be a service-role `user_roles` upsert, which granted the
+    // role but never touched profiles: handle_new_user() parks the invite's
+    // clinic in pending_clinic_id and leaves clinic_id NULL (see
+    // 20260724000000 section 3), so the invitee accepted their invite and
+    // landed on Pending Approval — waiting on an admin who had already
+    // approved them by sending the invite. handle_new_user() itself is
+    // deliberately left alone: it cannot tell client-supplied metadata from
+    // admin-supplied, and weakening it would re-open self-service clinic
+    // grants.
+    //
+    // Net strengthening, not just a fix: the grant now runs under the RPC's
+    // own gate (which for a plain admin IGNORES target_clinic and pins to
+    // their own clinic), and one RLS-bypassing service-role write is gone.
+    // The profile row is already there — handle_new_user() is a synchronous
+    // AFTER INSERT on auth.users, as create_user already relies on.
+    const { error: assignError } = await callerClient(req.headers.get("authorization")!)
+      .rpc("approve_clinic_member", {
+        target_user: invited.user.id,
+        target_role: role,
+        target_clinic: targetClinicId,
+      });
 
-    if (roleError) {
+    if (assignError) {
       await supabase.auth.admin.deleteUser(invited.user.id);
       return new Response(
-        JSON.stringify({ error: "Failed to assign role. Invite rolled back." }),
+        JSON.stringify({ error: `Failed to assign clinic and role. Invite rolled back. ${assignError.message}` }),
         { status: 500, headers: { ...cors, "Content-Type": "application/json" } },
       );
     }
