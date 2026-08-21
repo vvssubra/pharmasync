@@ -48,6 +48,12 @@ export default function DrugMaster() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const currentYear = new Date().getFullYear();
+  // Matches the drugs INSERT/UPDATE RLS predicate exactly
+  // (20260821000200_clinic_drug_settings_enforcement.sql section 3): drugs
+  // is now the HQ-owned district formulary. A non-HQ admin still owns their
+  // clinic's thresholds and local block via clinic_drug_settings, gated
+  // separately below — this flag only covers identity/is_active/is_blocked.
+  const isHqRole = role === "super_admin" || role === "logistic_pharmacist";
 
   // Namespaced — this query selects * and, unlike the other two, does not
   // filter on is_active. Prefix invalidation on ["drugs"] still applies.
@@ -122,9 +128,11 @@ export default function DrugMaster() {
           <h1 className="text-2xl font-semibold text-foreground">Drug Master</h1>
           <p className="text-sm text-muted-foreground">Monitored drug list (KEW.PS-3)</p>
         </div>
-        <Button onClick={handleAdd}>
-          <Plus className="mr-1 h-4 w-4" /> Add Drug
-        </Button>
+        {isHqRole && (
+          <Button onClick={handleAdd}>
+            <Plus className="mr-1 h-4 w-4" /> Add Drug
+          </Button>
+        )}
       </div>
 
       <div className="relative w-full sm:max-w-sm">
@@ -200,6 +208,11 @@ export default function DrugMaster() {
                           <Badge variant={drug.is_active ? "default" : "secondary"}>
                             {drug.is_active ? "Active" : "Inactive"}
                           </Badge>
+                          {drug.is_blocked && (
+                            <Badge variant="outline" className="border-red-700 text-red-700 dark:text-red-500 text-xs">
+                              Blocked nationally
+                            </Badge>
+                          )}
                           {localBlocked && (
                             <Badge variant="outline" className="border-red-500 text-red-600 dark:text-red-400 text-xs">
                               Blocked
@@ -228,18 +241,20 @@ export default function DrugMaster() {
                               <DropdownMenuItem className="min-h-[44px]" onClick={() => handleEdit(drug)}>
                                 <Pencil className="mr-2 h-4 w-4" /> Edit
                               </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="min-h-[44px]"
-                                onClick={() =>
-                                  drug.is_active
-                                    ? setDeactivateTarget(drug)
-                                    : toggleMutation.mutate({ id: drug.id, is_active: true })
-                                }
-                              >
-                                {drug.is_active
-                                  ? <><Ban className="mr-2 h-4 w-4" /> Deactivate</>
-                                  : <><RotateCcw className="mr-2 h-4 w-4" /> Reactivate</>}
-                              </DropdownMenuItem>
+                              {isHqRole && (
+                                <DropdownMenuItem
+                                  className="min-h-[44px]"
+                                  onClick={() =>
+                                    drug.is_active
+                                      ? setDeactivateTarget(drug)
+                                      : toggleMutation.mutate({ id: drug.id, is_active: true })
+                                  }
+                                >
+                                  {drug.is_active
+                                    ? <><Ban className="mr-2 h-4 w-4" /> Deactivate</>
+                                    : <><RotateCcw className="mr-2 h-4 w-4" /> Reactivate</>}
+                                </DropdownMenuItem>
+                              )}
                               {(role === "admin" || role === "super_admin") && (
                                 <DropdownMenuItem className="min-h-[44px]" onClick={() => setQuotaTarget(drug)}>
                                   <CalendarRange className="mr-2 h-4 w-4" /> Set Annual Quota

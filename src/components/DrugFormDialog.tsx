@@ -75,9 +75,17 @@ interface DrugFormDialogProps {
 
 export function DrugFormDialog({ open, onOpenChange, drug, nationalQuota }: DrugFormDialogProps) {
   const queryClient = useQueryClient();
-  const { user, profile } = useAuth();
+  const { user, profile, role } = useAuth();
   const isEdit = !!drug;
   const currentYear = new Date().getFullYear();
+  // Matches the drugs INSERT/UPDATE RLS predicate exactly
+  // (20260821000200_clinic_drug_settings_enforcement.sql section 3): drugs
+  // is the HQ-owned district formulary now. A non-HQ admin can still open
+  // this dialog (DrugMaster's Edit action isn't gated — only Add Drug is),
+  // but drug_name/unit_price go read-only below; the RLS write would be
+  // denied outright otherwise. Thresholds stay editable — those are the
+  // caller's own clinic_drug_settings row, untouched by this narrowing.
+  const isHqRole = role === "super_admin" || role === "logistic_pharmacist";
   // Staff stationed at the national HQ clinic ('Logistik PKDJB') have NO
   // drug_quotas write path at all — not just for controlled drugs. Their insert
   // is stamped with the HQ clinic_id by trg_stamp_clinic_id and then refused by
@@ -189,27 +197,39 @@ export function DrugFormDialog({ open, onOpenChange, drug, nationalQuota }: Drug
         throw new Error("DUPLICATE");
       }
 
-      // Identity lives on drugs (district formulary, HQ-owned in later
-      // tasks). Thresholds live on clinic_drug_settings (clinic-owned) —
-      // written separately below. DUAL_WRITE_LEGACY_DRUG_COLUMNS also mirrors
-      // them onto drugs.stok_* this release only; see that constant's comment.
+      // Identity lives on drugs (district formulary, HQ-owned — drugs
+      // INSERT/UPDATE RLS is is_super_admin() or is_logistic_pharmacist()
+      // only, per 20260821000200_clinic_drug_settings_enforcement.sql
+      // section 3). Thresholds live on clinic_drug_settings (clinic-owned)
+      // — written separately below. DUAL_WRITE_LEGACY_DRUG_COLUMNS also
+      // mirrors them onto drugs.stok_* this release only; see that
+      // constant's comment.
       const legacyThresholdColumns = DUAL_WRITE_LEGACY_DRUG_COLUMNS
         ? { stok_min: values.stok_min, stok_reorder: values.stok_reorder, stok_max: values.stok_max }
         : {};
 
       let drugId: string;
       if (isEdit && drug) {
-        const { error } = await supabase
-          .from("drugs")
-          .update({
-            drug_name: values.drug_name,
-            unit_price: values.unit_price ?? null,
-            ...legacyThresholdColumns,
-          })
-          .eq("id", drug.id);
-        if (error) throw error;
         drugId = drug.id;
+        // A non-HQ caller has drug_name/unit_price read-only in the form
+        // below and skips this write entirely — attempting it would be an
+        // RLS denial on the whole row, including the threshold mirror,
+        // which would wrongly fail their (valid) clinic_drug_settings save
+        // further down.
+        if (isHqRole) {
+          const { error } = await supabase
+            .from("drugs")
+            .update({
+              drug_name: values.drug_name,
+              unit_price: values.unit_price ?? null,
+              ...legacyThresholdColumns,
+            })
+            .eq("id", drug.id);
+          if (error) throw error;
+        }
       } else {
+        // Only reachable by HQ: DrugMaster hides "Add Drug" for everyone
+        // else, and RLS would refuse this insert regardless.
         const { data: inserted, error } = await supabase
           .from("drugs")
           .insert([{
@@ -314,7 +334,12 @@ export function DrugFormDialog({ open, onOpenChange, drug, nationalQuota }: Drug
             <FormField control={form.control} name="drug_name" render={({ field }) => (
               <FormItem>
                 <FormLabel>Drug Name *</FormLabel>
-                <FormControl><Input {...field} /></FormControl>
+                <FormControl><Input {...field} disabled={!isHqRole} /></FormControl>
+                {!isHqRole && (
+                  <p className="text-xs text-muted-foreground">
+                    Set by PKD Logistik — your clinic's stock thresholds below still save normally.
+                  </p>
+                )}
                 <FormMessage />
               </FormItem>
             )} />
@@ -374,6 +399,7 @@ export function DrugFormDialog({ open, onOpenChange, drug, nationalQuota }: Drug
                     placeholder="Optional"
                     {...field}
                     value={field.value ?? ""}
+                    disabled={!isHqRole}
                   />
                 </FormControl>
                 <FormMessage />
