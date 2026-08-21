@@ -37,10 +37,10 @@ export default defineConfig(({ mode }) => ({
       },
       manifest: {
         id: "/",
-        name: "PharmaSync — Klinik Kesihatan Kempas",
+        name: "PharmaSync — PKD Johor Bahru",
         short_name: "PharmaSync",
         description:
-          "Digital Bin Card System for Klinik Kesihatan Kempas pharmacy inventory management.",
+          "Digital Bin Card System for Johor Bahru district clinic pharmacy inventory management.",
         // "/" is deliberate and role-aware: RoleRedirect in src/App.tsx sends fms
         // to /fms, mo to /mo, and everyone else to the dashboard. Do not "improve"
         // this to a concrete route.

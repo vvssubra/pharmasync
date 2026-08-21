@@ -139,8 +139,11 @@ export default function Login() {
             <Pill className="h-6 w-6 text-emerald-300" />
           </div>
           <div className="leading-tight">
-            <p className="text-sm font-semibold tracking-wide">KLINIK KESIHATAN KEMPAS</p>
-            <p className="text-xs text-emerald-200/60">PEJABAT KESIHATAN JOHOR BAHRU</p>
+            {/* District identity, not a clinic's. Nobody is signed in yet, so
+                there is no clinic to name — and naming one tells staff at the
+                other 14 they are in the wrong place. */}
+            <p className="text-sm font-semibold tracking-wide">PEJABAT KESIHATAN JOHOR BAHRU</p>
+            <p className="text-xs text-emerald-200/60">DIGITAL BIN CARD SYSTEM</p>
           </div>
         </div>
 
@@ -153,7 +156,7 @@ export default function Login() {
             PharmaSync
           </h1>
           <p className="mt-4 text-[15px] leading-relaxed text-emerald-50/70">
-            Drug monitoring &amp; inventory for Klinik Kesihatan Kempas — control stock,
+            Drug monitoring &amp; inventory for Johor Bahru district clinics — control stock,
             drug requests, and antibiotic approvals in one place, precise and auditable.
           </p>
 
@@ -189,7 +192,7 @@ export default function Login() {
             </div>
             <div className="leading-tight">
               <p className="shimmer-emerald text-lg font-bold tracking-tight">PharmaSync</p>
-              <p className="text-xs text-slate-500">Klinik Kesihatan Kempas</p>
+              <p className="text-xs text-slate-500">PKD Johor Bahru</p>
             </div>
           </div>
 
