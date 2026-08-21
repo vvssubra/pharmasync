@@ -41,22 +41,34 @@ const ROWS: Record<string, unknown[]> = {
   transactions: TRANSACTIONS,
   dispensing_requests: [],
   antibiotic_forms: [],
+  clinics: [
+    { id: "c1", name: "KK Kempas" },
+    { id: "c2", name: "KK Larkin" },
+  ],
 };
 
-function builder(data: unknown[]) {
+// Every filter the page applies, as [table, column, value]. The clinic scoping
+// is invisible from the rendered output (the mock decides what comes back), so
+// it has to be asserted directly. Reset in beforeEach.
+const filters: [string, string, unknown][] = [];
+
+function builder(table: string, data: unknown[]) {
   const promise = Promise.resolve({ data, error: null, count: data.length });
   return Object.assign(promise, {
-    select: () => builder(data),
-    eq: () => builder(data),
-    is: () => builder(data),
-    order: () => builder(data),
-    limit: () => builder(data),
+    select: () => builder(table, data),
+    eq: (col: string, val: unknown) => {
+      filters.push([table, col, val]);
+      return builder(table, data);
+    },
+    is: () => builder(table, data),
+    order: () => builder(table, data),
+    limit: () => builder(table, data),
   });
 }
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
-    from: vi.fn((table: string) => builder(ROWS[table] ?? [])),
+    from: vi.fn((table: string) => builder(table, ROWS[table] ?? [])),
     // useDrugQuotaUsage calls this; without it the hook throws and the whole
     // dashboard suspends on an error boundary.
     rpc: vi.fn(() => Promise.resolve({ data: [], error: null })),
@@ -95,7 +107,7 @@ function renderIndex() {
 }
 
 describe("Index dashboard English text", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => { vi.clearAllMocks(); filters.length = 0; });
 
   // These assertions await: React Query resolves on a microtask, so the badges
   // are not in the DOM on the first synchronous pass.
@@ -142,7 +154,7 @@ describe("Index dashboard English text", () => {
 // is one pool shared by every clinic. Unlabelled, the number reads as this
 // clinic's own position.
 describe("Index dashboard — controlled drugs show a NATIONAL balance", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => { vi.clearAllMocks(); filters.length = 0; });
 
   it("marks a quota-based balance as national and says so above the table", async () => {
     const { supabase } = await import("@/integrations/supabase/client");
@@ -167,5 +179,55 @@ describe("Index dashboard — controlled drugs show a NATIONAL balance", () => {
     ).toBeInTheDocument();
 
     ROWS.drugs = DRUGS;
+  });
+});
+
+// Every aggregation on this dashboard folds the ledger by drug_id alone. For a
+// super_admin, RLS returns all 15 clinics' rows, so an unscoped read produces a
+// balance that reads as one clinic's and is nobody's — and computeStockByDrug
+// makes it worse than a bad sum: a baki_awal SETS the running total, so one
+// clinic's opening balance silently replaces the others'.
+describe("Index dashboard — clinic scoping", () => {
+  beforeEach(() => { vi.clearAllMocks(); filters.length = 0; });
+
+  function clinicFilters() {
+    return filters.filter(([, col]) => col === "clinic_id");
+  }
+
+  it("scopes the ledger to the signed-in user's own clinic", async () => {
+    renderIndex();
+    await waitFor(() => expect(clinicFilters().length).toBeGreaterThan(0));
+    // Every clinic_id filter issued names that one clinic — none is left open.
+    expect(clinicFilters().every(([, , val]) => val === "c1")).toBe(true);
+    expect(clinicFilters().map(([table]) => table)).toContain("transactions");
+  });
+
+  it("offers no clinic picker to a role that has only one clinic", async () => {
+    renderIndex();
+    await waitFor(() => expect(screen.getAllByText("CRITICAL").length).toBeGreaterThan(0));
+    expect(screen.queryByLabelText("Clinic")).not.toBeInTheDocument();
+  });
+
+  describe("super_admin", () => {
+    beforeEach(() => {
+      (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
+        role: "super_admin", user: null, profile: { clinic_id: null }, loading: false,
+      });
+    });
+
+    it("gets a clinic picker", async () => {
+      renderIndex();
+      await waitFor(() => expect(screen.getByLabelText("Clinic")).toBeInTheDocument());
+    });
+
+    // The whole point: a super_admin has no clinic of their own, so without an
+    // explicit scope the ledger query would run unfiltered and blend clinics.
+    it("still scopes the ledger to exactly one clinic", async () => {
+      renderIndex();
+      await waitFor(() => expect(clinicFilters().length).toBeGreaterThan(0));
+      expect(clinicFilters().map(([table]) => table)).toContain("transactions");
+      // Defaults to the first clinic, and the picker above names it.
+      expect(clinicFilters().every(([, , val]) => val === "c1")).toBe(true);
+    });
   });
 });

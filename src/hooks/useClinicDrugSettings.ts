@@ -55,9 +55,16 @@ export function resolveDrugSettings(
  * their own), mirroring supabase/functions/ai-query/index.ts:202-209, which
  * already refuses to blend rather than guess.
  */
-export function useClinicDrugSettings() {
+export function useClinicDrugSettings(clinicIdOverride?: string | null) {
   const { profile } = useAuth();
-  const clinicId = profile?.clinic_id ?? null;
+  // An explicit clinic wins. That is how a super_admin gets real thresholds
+  // instead of the all-zero default: they have no clinic of their own, so
+  // without an override every drug grades as "NO LEVEL" on a page that has
+  // otherwise been scoped to a clinic (see useClinicScope). Passing undefined
+  // — every caller that has no clinic picker — keeps the old behaviour.
+  const clinicId = clinicIdOverride !== undefined
+    ? clinicIdOverride
+    : profile?.clinic_id ?? null;
   const scopeAmbiguous = clinicId === null;
 
   const query = useQuery({

@@ -6,6 +6,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
 import { useClinicDrugSettings, resolveDrugSettings } from "@/hooks/useClinicDrugSettings";
+import { useClinicScope } from "@/hooks/useClinicScope";
+import { ClinicScopeSelect } from "@/components/ClinicScopeSelect";
 import { quotaDerivedStatus } from "@/lib/quotaHelpers";
 import { computeStockByDrug } from "@/lib/stock";
 import { Pill, FileCheck } from "lucide-react";
@@ -68,7 +70,12 @@ export default function Dashboard() {
 
   const currentYear = new Date().getFullYear();
   const { byDrugId: quotaUsageByDrug } = useDrugQuotaUsage(currentYear);
-  const { byDrugId: settingsByDrugId } = useClinicDrugSettings();
+  // Everything below the drug list is this clinic's ledger. For a super_admin
+  // RLS returns all 15 clinics' rows and every aggregation here folds on
+  // drug_id alone, so without scoping the dashboard shows a balance that is
+  // nobody's — see useClinicScope.
+  const { isSuperAdmin, clinicId, clinics, setClinicId, ready } = useClinicScope();
+  const { byDrugId: settingsByDrugId } = useClinicDrugSettings(clinicId);
 
   // Fetch drugs. The key is namespaced because this projection differs from
   // Terimaan's and DrugMaster's; sharing a bare ["drugs"] key made them serve
@@ -83,11 +90,18 @@ export default function Dashboard() {
     },
   });
 
-  // Fetch all transactions for baki calc
+  // Fetch all transactions for baki calc. clinic_id is in the key as well as
+  // the filter: without it, switching clinics would serve the previous
+  // clinic's cached ledger. `enabled: ready` keeps the unscoped version of
+  // this query from ever running.
   const { data: transactions } = useQuery({
-    queryKey: ["transactions-all"],
+    queryKey: ["transactions-all", clinicId],
+    enabled: ready,
     queryFn: async () => {
-      const { data, error } = await supabase.from("transactions").select("drug_id, jenis, kuantiti, tarikh, created_at");
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("drug_id, jenis, kuantiti, tarikh, created_at")
+        .eq("clinic_id", clinicId!);
       if (error) throw error;
       return data;
     },
@@ -95,11 +109,13 @@ export default function Dashboard() {
 
   // Fetch last 10 transactions with drug info
   const { data: recentTx } = useQuery({
-    queryKey: ["recent-transactions"],
+    queryKey: ["recent-transactions", clinicId],
+    enabled: ready,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("transactions")
         .select("id, jenis, kuantiti, nama_pegawai, created_at, drug_id, drugs(drug_name)")
+        .eq("clinic_id", clinicId!)
         .order("created_at", { ascending: false })
         .limit(10);
       if (error) throw error;
@@ -109,11 +125,13 @@ export default function Dashboard() {
 
   // Fetch last 5 fulfilled dispensing requests
   const { data: recentDispensing } = useQuery({
-    queryKey: ["recent-dispensing"],
+    queryKey: ["recent-dispensing", clinicId],
+    enabled: ready,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("dispensing_requests")
         .select("id, patient_name, no_ic, quantity, fulfilled_at, drugs(drug_name)")
+        .eq("clinic_id", clinicId!)
         .eq("status", "fulfilled")
         .order("fulfilled_at", { ascending: false })
         .limit(5);
@@ -215,9 +233,16 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">Current stock overview — {today}</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold text-foreground">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">Current stock overview — {today}</p>
+        </div>
+        {/* super_admin only: everyone else has exactly one clinic, and the
+            figures below are always one clinic's — so they have to say whose. */}
+        {isSuperAdmin && (
+          <ClinicScopeSelect clinics={clinics} value={clinicId} onChange={setClinicId} />
+        )}
       </div>
 
       {/* Section 2 — Alert Banner */}
