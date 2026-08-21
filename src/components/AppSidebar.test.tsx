@@ -54,7 +54,7 @@ function makeQueryClient() {
   });
 }
 
-function renderSidebar(role: "pharmacist" | "doctor" | "specialist" | "fms" | "admin" | "super_admin") {
+function renderSidebar(role: "pharmacist" | "doctor" | "fms" | "admin" | "super_admin") {
   (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
     user: { id: "user-1" },
     role,

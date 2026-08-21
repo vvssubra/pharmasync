@@ -77,7 +77,7 @@ describe("AiChatWidget", () => {
   });
 
   it("renders nothing for a role outside the allowed set", () => {
-    vi.mocked(useAuth).mockReturnValue({ role: "specialist", user: { id: "u1" } } as ReturnType<typeof useAuth>);
+    vi.mocked(useAuth).mockReturnValue({ role: "logistic_pharmacist", user: { id: "u1" } } as ReturnType<typeof useAuth>);
     const { container } = renderWidget();
     expect(container.firstChild).toBeNull();
   });
