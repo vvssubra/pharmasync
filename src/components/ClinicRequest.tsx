@@ -25,18 +25,22 @@ export function ClinicRequest() {
   const { user, signOut, refreshProfile } = useAuth();
   const [clinicId, setClinicId] = useState("");
 
-  // is_hq excluded: 'Logistik PKDJB' is the national HQ clinic, staffed only by
-  // logistic pharmacists a super_admin provisions directly. Offering it here
-  // lets anyone request membership of the clinic that owns the national quota
-  // pool. RoleManagement's picker stays unfiltered — a super_admin does
-  // legitimately provision HQ staff.
+  // Every clinic is listed, HQ ('Logistik PKDJB') included. This briefly
+  // excluded is_hq to stop anyone requesting the clinic that owns the national
+  // quota pool, but that blocked the HQ pharmacists themselves — they arrive
+  // here with no clinic and could not see their own workplace in the list —
+  // while protecting nothing. This screen writes pending_clinic_id, which is a
+  // REQUEST, not a grant (clinic_id is not even writable here: the tenancy
+  // hardening migration revokes that column from authenticated). Approving
+  // into an arbitrary clinic is super_admin-only, and logistic_pharmacist is
+  // super_admin-only to grant, so a bogus HQ request is exactly as harmless as
+  // a bogus request for any other clinic.
   const { data: clinics = [] } = useQuery({
     queryKey: ["clinics-request"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("clinics")
         .select("id, name")
-        .eq("is_hq", false)
         .order("name");
       if (error) throw error;
       return data ?? [];

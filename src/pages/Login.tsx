@@ -20,15 +20,26 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
 
   // Clinic picker for signup — clinics table is anon-readable so this loads
-  // before the user is authenticated. is_hq excluded for the same reason as
-  // ClinicRequest's picker: nobody self-serves into the national HQ clinic.
+  // before the user is authenticated.
+  //
+  // Every clinic is listed, HQ included. This briefly excluded is_hq so nobody
+  // could "request membership of Logistik PKDJB", which blocked the HQ
+  // pharmacists themselves from signing up — they could not see their own
+  // workplace — while protecting nothing: handle_new_user() writes clinic_id
+  // NULL and parks this choice in pending_clinic_id
+  // (20260724000000 section 3), so picking a clinic here is a REQUEST, not a
+  // grant. Until an approver acts, clinic_id is NULL and every clinic-scoped
+  // RLS policy evaluates false. Approving into an arbitrary clinic is
+  // super_admin-only (a plain admin's approve_clinic_member call ignores
+  // target_clinic and pins to their own clinic), and the logistic_pharmacist
+  // role is super_admin-only to grant. A bogus HQ request is therefore exactly
+  // as harmless as a bogus request for any other clinic.
   const { data: clinics } = useQuery({
     queryKey: ["clinics-signup"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("clinics")
         .select("id, name")
-        .eq("is_hq", false)
         .order("name");
       if (error) throw error;
       return data;

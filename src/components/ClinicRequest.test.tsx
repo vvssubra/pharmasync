@@ -84,12 +84,18 @@ describe("ClinicRequest", () => {
     expect(screen.getByText("Klinik Kesihatan Skudai")).toBeInTheDocument();
   });
 
-  // 'Logistik PKDJB' owns the national controlled-drug quota pool and is
-  // staffed only by logistic pharmacists a super_admin provisions directly.
-  // Offering it in a self-service picker lets anyone request their way into it.
-  it("never offers the HQ clinic", async () => {
+  // Regression: this picker briefly filtered out is_hq so nobody could request
+  // 'Logistik PKDJB'. That locked the HQ pharmacists out of onboarding — they
+  // land here with no clinic and their own workplace was missing from the list
+  // — and protected nothing, because this screen writes pending_clinic_id,
+  // which is a request an approver must grant. Every clinic must be offered.
+  it("offers every clinic, including HQ, and filters none out", async () => {
     renderRequest();
-    await waitFor(() => expect(clinicFilters).toContainEqual(["is_hq", false]));
+    openSelect();
+    // The query has actually run by the time its rows are on screen, so the
+    // filter assertion below is not racing an unfired request.
+    await waitFor(() => expect(screen.getByText("Klinik Kesihatan Kempas")).toBeInTheDocument());
+    expect(clinicFilters.some(([col]) => col === "is_hq")).toBe(false);
   });
 
   it("cannot be submitted before a clinic is picked", async () => {
