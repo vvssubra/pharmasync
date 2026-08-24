@@ -19,11 +19,12 @@ export const MASTER_PATIENT_PAGE_SIZE = 50;
  * (300ms, matching the pattern in useDoseSuggestion.ts/usePathwayCheck.ts)
  * before it lands in this hook's queryKey.
  */
-export function useMasterPatientRegistry(search: string, page: number) {
+export function useMasterPatientRegistry(search: string, page: number, options?: { enabled?: boolean }) {
   const offset = page * MASTER_PATIENT_PAGE_SIZE;
 
   const query = useQuery({
     queryKey: ["hq-master-patients", search, page],
+    enabled: options?.enabled ?? true,
     queryFn: async () => {
       const { data, error } = await supabase.rpc("get_master_patient_registry", {
         p_search: search || null,

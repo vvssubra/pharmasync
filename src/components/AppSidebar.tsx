@@ -31,7 +31,7 @@ const items: NavItem[] = [
   { title: "MO Dashboard",    url: "/mo",                 icon: Stethoscope,   roles: ["admin", "mo"] },
   { title: "New Requests",    url: "/fulfilment",         icon: Bell,          showBadge: true, roles: ["admin", "fms", "pharmacist"] },
   { title: "Approvals",       url: "/specialist",         icon: ShieldCheck,   showBadge: true, roles: ["admin", "fms", "pharmacist"] },
-  { title: "Drug Master",     url: "/drugs",              icon: Pill,          roles: ["admin", "fms", "pharmacist"] },
+  { title: "Drug Master",     url: "/drugs",              icon: Pill,          roles: ["admin", "fms", "pharmacist", "logistic_pharmacist"] },
   { title: "Terimaan",        url: "/terimaan",           icon: PackagePlus,   roles: ["admin", "fms"] },
   { title: "Patients",        url: "/pesakit",            icon: Users,         roles: ["admin", "fms", "pharmacist"] },
   { title: "Reports",         url: "/laporan",            icon: FileText,      roles: ["admin", "fms", "pharmacist"] },

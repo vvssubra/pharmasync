@@ -34,6 +34,11 @@ export default defineConfig(({ mode }) => ({
       filename: "sw.ts",
       injectManifest: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,webmanifest}"],
+        // exceljs is dynamically imported only when someone clicks "Export to
+        // Excel" on the Logistik dashboard (src/lib/exportQuotaExcel.ts) — a
+        // ~900KB chunk with no offline requirement, so it's excluded from the
+        // mandatory precache and fetched on demand instead.
+        globIgnores: ["**/exceljs*.js"],
       },
       manifest: {
         id: "/",
