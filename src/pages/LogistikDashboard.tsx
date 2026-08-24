@@ -38,8 +38,12 @@ const SKU_SUGGESTIONS = ["Tablet", "Box", "Botol", "Sachet", "Unit", "Vial", "Am
 
 // Sticky-header cell classes shared by every <TableHead> in the National
 // Quota Pool table below, so the header row stays pinned while the body
-// scrolls inside its fixed-height, Excel-like scroll container.
-const STICKY_HEAD = "sticky top-0 z-10 bg-background";
+// scrolls inside its fixed-height, Excel-like scroll container. Grey fill +
+// a right-hand rule on every header/body cell (GRID_CELL) is what gives the
+// table its spreadsheet-gridline look — TableRow already carries a bottom
+// border, so border-r here is the only thing needed to complete the grid.
+const STICKY_HEAD = "sticky top-0 z-10 bg-muted text-xs h-9 border-r border-border last:border-r-0";
+const GRID_CELL = "border-r border-border last:border-r-0 py-1.5";
 
 type CardFilter = "critical" | "available" | "alerts" | null;
 
@@ -275,16 +279,18 @@ export default function LogistikDashboard() {
               Failed to load the national quota pool. Try again shortly.
             </p>
           ) : (
-            // Fixed-height, scrollable-both-ways container with a pinned
-            // header — like Excel's freeze-top-row view — since this table
-            // now runs 12 columns wide and can run to dozens of drug rows.
-            <div className="max-h-[65vh] overflow-auto">
+            // Fixed window: a set height regardless of row count (not just a
+            // cap), scrollable both ways, with a pinned grey header row and
+            // cell gridlines throughout — Excel's freeze-top-row view, not
+            // just a resemblance to it. 12 columns wide, can run to dozens
+            // of drug rows.
+            <div className="h-[65vh] overflow-auto border-t">
               <datalist id="sku-suggestions">
                 {SKU_SUGGESTIONS.map((s) => <option key={s} value={s} />)}
               </datalist>
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="hover:bg-transparent">
                     <TableHead className={cn("w-8", STICKY_HEAD)} />
                     <TableHead className={cn("text-right", STICKY_HEAD)}>BIL</TableHead>
                     <TableHead className={STICKY_HEAD}>ITEM</TableHead>
@@ -316,7 +322,7 @@ export default function LogistikDashboard() {
                     return (
                       <Fragment key={row.drug_id}>
                         <TableRow>
-                          <TableCell className="p-0">
+                          <TableCell className={cn("p-0", GRID_CELL)}>
                             <button
                               type="button"
                               aria-expanded={isExpanded}
@@ -327,9 +333,9 @@ export default function LogistikDashboard() {
                               <ChevronDown className={cn("h-4 w-4 transition-transform", !isExpanded && "-rotate-90")} />
                             </button>
                           </TableCell>
-                          <TableCell className="text-right text-sm">{index + 1}</TableCell>
-                          <TableCell className="font-medium text-sm">{row.drug.drug_name}</TableCell>
-                          <TableCell className="text-sm">
+                          <TableCell className={cn("text-right text-sm", GRID_CELL)}>{index + 1}</TableCell>
+                          <TableCell className={cn("font-medium text-sm", GRID_CELL)}>{row.drug.drug_name}</TableCell>
+                          <TableCell className={cn("text-sm", GRID_CELL)}>
                             {editingSkuId === row.drug_id ? (
                               <input
                                 autoFocus
@@ -358,26 +364,26 @@ export default function LogistikDashboard() {
                               </button>
                             )}
                           </TableCell>
-                          <TableCell className="text-right text-sm">
+                          <TableCell className={cn("text-right text-sm", GRID_CELL)}>
                             {row.drug.unit_price != null ? CURRENCY.format(row.drug.unit_price) : "—"}
                           </TableCell>
-                          <TableCell className="text-right text-sm">
+                          <TableCell className={cn("text-right text-sm", GRID_CELL)}>
                             {totalHarga != null ? CURRENCY.format(totalHarga) : "—"}
                           </TableCell>
-                          <TableCell className="text-sm whitespace-nowrap">
+                          <TableCell className={cn("text-sm whitespace-nowrap", GRID_CELL)}>
                             {formatKuotaLabel(row.quota_per_fms, row.fms_count)}
                           </TableCell>
-                          <TableCell className="text-right text-sm">{row.quota_limit}</TableCell>
-                          <TableCell className="text-right text-sm">{row.used}</TableCell>
-                          <TableCell className="text-right text-sm">
+                          <TableCell className={cn("text-right text-sm", GRID_CELL)}>{row.quota_limit}</TableCell>
+                          <TableCell className={cn("text-right text-sm", GRID_CELL)}>{row.used}</TableCell>
+                          <TableCell className={cn("text-right text-sm", GRID_CELL)}>
                             {pctUsed != null ? `${pctUsed.toFixed(1)}%` : "—"}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className={GRID_CELL}>
                             <Badge variant="outline" className={cn("text-[10px]", QUOTA_BADGE_CLASS[badgeState])}>
                               {QUOTA_BADGE_LABEL[badgeState](row.used, row.quota_limit)}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className={cn("text-right", GRID_CELL)}>
                             <Button
                               variant="ghost"
                               size="sm"
