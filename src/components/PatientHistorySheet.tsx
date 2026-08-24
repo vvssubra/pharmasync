@@ -24,7 +24,11 @@ interface Patient {
 interface Props {
   patient: Patient | null;
   onOpenChange: (open: boolean) => void;
-  onRefill: (patient: Patient) => void;
+  // Omitted for a caller with no write access to patient_registry/
+  // transactions/patient_drug_history (e.g. logistic_pharmacist, which is
+  // read-only on all patient data per 20260819000400_logistic_access.sql) —
+  // the refill button is hidden rather than shown and left to fail RLS.
+  onRefill?: (patient: Patient) => void;
 }
 
 interface HistoryRow {
@@ -68,9 +72,11 @@ export function PatientHistorySheet({ patient, onOpenChange, onRefill }: Props) 
             </SheetHeader>
 
             <div className="mt-4 space-y-4">
-              <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => onRefill(patient)}>
-                <RefreshCw className="mr-1 h-3 w-3" /> Isi Semula Ubat
-              </Button>
+              {onRefill && (
+                <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => onRefill(patient)}>
+                  <RefreshCw className="mr-1 h-3 w-3" /> Isi Semula Ubat
+                </Button>
+              )}
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4">
                 {[

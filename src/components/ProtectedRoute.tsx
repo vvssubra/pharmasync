@@ -24,7 +24,7 @@ const ROUTE_PERMISSIONS: Array<{ prefix: string; roles: AppRole[] }> = [
   { prefix: "/abx-archive",     roles: ["admin", "fms", "pharmacist", "super_admin"] },
   { prefix: "/drugs",           roles: ["admin", "fms", "pharmacist", "logistic_pharmacist", "super_admin"] },
   { prefix: "/terimaan",        roles: ["admin", "fms", "super_admin"] },
-  { prefix: "/pesakit",         roles: ["admin", "fms", "pharmacist", "super_admin"] },
+  { prefix: "/pesakit",         roles: ["admin", "fms", "pharmacist", "logistic_pharmacist", "super_admin"] },
   { prefix: "/laporan",         roles: ["admin", "fms", "pharmacist", "super_admin"] },
   { prefix: "/logistik",        roles: ["logistic_pharmacist", "super_admin"] },
   // logistic_pharmacist is admitted to "/" so that RoleRedirect (App.tsx) can

@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Search, UserPlus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,14 @@ interface SheetPatient {
 }
 
 export default function PatientRegistry() {
+  // logistic_pharmacist reaches this page HQ-wide (cross-clinic SELECT per
+  // 20260819000400_logistic_access.sql) but has no write policy on
+  // patient_registry/transactions/patient_drug_history — Isi Semula (Walk-in)
+  // and the history sheet's refill button are hidden rather than shown and
+  // left to fail RLS.
+  const { role } = useAuth();
+  const canRefill = role !== "logistic_pharmacist";
+
   // Deep-linked from other pages via /pesakit?drug=<drug_id> (e.g. the
   // dashboard's per-drug "Patient Registry" action) — takes priority over
   // auto-selecting the first drug.
@@ -102,9 +111,11 @@ export default function PatientRegistry() {
   });
 
   // Every patient in the clinic (not just this drug) — feeds the walk-in
-  // dialog's "search existing patient" step.
+  // dialog's "search existing patient" step. Skipped entirely for
+  // logistic_pharmacist, who can't reach that dialog (canRefill above).
   const { data: allPatients = [] } = useQuery({
     queryKey: ["patients"],
+    enabled: canRefill,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("patient_registry")
@@ -146,9 +157,11 @@ export default function PatientRegistry() {
             Senarai pesakit mengikut ubat kawalan khusus, tahun {year}
           </p>
         </div>
-        <Button onClick={openWalkin} style={{ backgroundColor: "#059669" }}>
-          <UserPlus className="mr-1 h-4 w-4" /> Isi Semula (Walk-in)
-        </Button>
+        {canRefill && (
+          <Button onClick={openWalkin} style={{ backgroundColor: "#059669" }}>
+            <UserPlus className="mr-1 h-4 w-4" /> Isi Semula (Walk-in)
+          </Button>
+        )}
       </div>
 
       {/* usageLoading too: the drug list is derived from the usage RPC now, so
@@ -225,15 +238,17 @@ export default function PatientRegistry() {
       <PatientHistorySheet
         patient={sheetPatient}
         onOpenChange={(open) => { if (!open) setSheetPatient(null); }}
-        onRefill={openRefillForPatient}
+        onRefill={canRefill ? openRefillForPatient : undefined}
       />
 
-      <RefillWalkinDialog
-        open={refillOpen}
-        onOpenChange={setRefillOpen}
-        patients={allPatients}
-        initialPatient={refillInitial}
-      />
+      {canRefill && (
+        <RefillWalkinDialog
+          open={refillOpen}
+          onOpenChange={setRefillOpen}
+          patients={allPatients}
+          initialPatient={refillInitial}
+        />
+      )}
     </div>
   );
 }

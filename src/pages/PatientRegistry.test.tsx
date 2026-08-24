@@ -64,11 +64,15 @@ vi.mock("@/integrations/supabase/client", () => ({
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
+// Mutable so the logistic_pharmacist tests below can flip role without a
+// separate mock module.
+let mockRole = "pharmacist";
+
 vi.mock("@/contexts/AuthContext", () => ({
   useAuth: vi.fn(() => ({
     user: { id: "pharmacist-1" },
     profile: { full_name: "Cik Aminah", clinic_id: "clinic-1", clinic_name: "KK Kempas" },
-    role: "pharmacist",
+    role: mockRole,
     loading: false,
   })),
 }));
@@ -90,6 +94,7 @@ function renderPage() {
 describe("PatientRegistry", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockRole = "pharmacist";
     quotaPatientsByDrug = {
       "drug-novomix": [
         { id: "row-1", source_bil: 1, tarikh_mula_rawatan: null, status: "AKTIF", dosing: null, fms_name: null, catatan: null, kuota: 1, patient_id: "p-1", patient_registry: { id: "p-1", patient_name: "Saringat Salleh", no_ic: "580305715589", created_at: "2024-01-01" } },
@@ -151,5 +156,26 @@ describe("PatientRegistry", () => {
     // drug_quotas, so reading that table here would have hidden it forever.
     expect(tables).not.toContain("drug_quotas");
     expect(tables).toContain("drugs");
+  });
+
+  describe("logistic_pharmacist — read-only", () => {
+    it("hides Isi Semula (Walk-in), which has no write access to patient_registry/transactions", async () => {
+      mockRole = "logistic_pharmacist";
+      renderPage();
+      await waitFor(() => expect(screen.getByText("Lee Siew Yoong")).toBeInTheDocument());
+      expect(screen.queryByRole("button", { name: /Isi Semula \(Walk-in\)/i })).not.toBeInTheDocument();
+    });
+
+    it("hides the refill button in the patient history sheet too", async () => {
+      mockRole = "logistic_pharmacist";
+      renderPage();
+      await waitFor(() => expect(screen.getByText("Lee Siew Yoong")).toBeInTheDocument());
+
+      const user = userEvent.setup();
+      await user.click(screen.getByText("Lee Siew Yoong"));
+
+      expect(await screen.findByText(/Dalam sistem sejak/)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Isi Semula Ubat/i })).not.toBeInTheDocument();
+    });
   });
 });
