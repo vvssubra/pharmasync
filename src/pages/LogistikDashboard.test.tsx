@@ -25,12 +25,19 @@ const clinicRow = {
 
 const drugRow = { id: "drug-1", drug_name: "Insulin Glargine", unit_price: 45.5, unit_pengukuran: "BOX OF 5'S" };
 
+// Hoisted so the vi.mock factory below (itself hoisted above imports by
+// vitest) can close over it, and tests can assert on the same instance.
+const { updateEqMock } = vi.hoisted(() => ({
+  updateEqMock: vi.fn(() => Promise.resolve({ data: null, error: null })),
+}));
+
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: vi.fn(() => ({
       select: vi.fn(() => ({
         eq: vi.fn(() => Promise.resolve({ data: [drugRow], error: null })),
       })),
+      update: vi.fn(() => ({ eq: updateEqMock })),
     })),
     // get_drug_quota_usage -> national rows; get_quota_usage_by_clinic -> per-clinic rows.
     rpc: vi.fn((fnName: string) => {
@@ -85,6 +92,30 @@ describe("LogistikDashboard", () => {
     expect(screen.getByText("90/100 patients")).toBeInTheDocument();
   });
 
+  it("edits the SKU inline: click to reveal an input, blur to save", async () => {
+    render(<QueryClientProvider client={makeQC()}><LogistikDashboard /></QueryClientProvider>);
+    await screen.findByText("Insulin Glargine");
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit SKU for Insulin Glargine" }));
+    const input = screen.getByLabelText("Edit SKU for Insulin Glargine") as HTMLInputElement;
+    expect(input).toHaveValue("BOX OF 5'S");
+
+    fireEvent.change(input, { target: { value: "Box" } });
+    fireEvent.blur(input);
+
+    await waitFor(() => expect(updateEqMock).toHaveBeenCalledTimes(1));
+  });
+
+  it("does not save the SKU when the edit is unchanged", async () => {
+    render(<QueryClientProvider client={makeQC()}><LogistikDashboard /></QueryClientProvider>);
+    await screen.findByText("Insulin Glargine");
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit SKU for Insulin Glargine" }));
+    fireEvent.blur(screen.getByLabelText("Edit SKU for Insulin Glargine"));
+
+    expect(updateEqMock).not.toHaveBeenCalled();
+  });
+
   it("expands a row to show the per-clinic breakdown", async () => {
     render(<QueryClientProvider client={makeQC()}><LogistikDashboard /></QueryClientProvider>);
     await screen.findByText("Insulin Glargine");
@@ -96,7 +127,7 @@ describe("LogistikDashboard", () => {
   it("opens NationalQuotaDialog when Edit is clicked", async () => {
     render(<QueryClientProvider client={makeQC()}><LogistikDashboard /></QueryClientProvider>);
     await screen.findByText("Insulin Glargine");
-    fireEvent.click(screen.getByRole("button", { name: /Edit/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     expect(await screen.findByText(/National Quota — Insulin Glargine/i)).toBeInTheDocument();
   });
 

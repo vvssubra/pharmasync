@@ -7,7 +7,7 @@
 // NationalQuotaDialog. Quota-status thresholds and badge styling all come
 // from src/lib/quotaHelpers.ts — none of it is reimplemented here.
 import { Fragment, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import {
@@ -31,6 +31,16 @@ import NationalQuotaDialog from "@/components/NationalQuotaDialog";
 
 const CURRENCY = new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR" });
 
+// Common unit_pengukuran values seen across the formulary — offered as
+// <datalist> suggestions on the inline SKU editor below, but any free text
+// is accepted (many drugs use compound values like "BOX OF 28'S").
+const SKU_SUGGESTIONS = ["Tablet", "Box", "Botol", "Sachet", "Unit", "Vial", "Ampoule", "Strip", "Pack", "EACH"];
+
+// Sticky-header cell classes shared by every <TableHead> in the National
+// Quota Pool table below, so the header row stays pinned while the body
+// scrolls inside its fixed-height, Excel-like scroll container.
+const STICKY_HEAD = "sticky top-0 z-10 bg-background";
+
 type CardFilter = "critical" | "available" | "alerts" | null;
 
 type DrugLookup = { drug_name: string; unit_price: number | null; unit_pengukuran: string };
@@ -50,6 +60,25 @@ export default function LogistikDashboard() {
   const [expandedDrugId, setExpandedDrugId] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [editingSkuId, setEditingSkuId] = useState<string | null>(null);
+  const [skuDraft, setSkuDraft] = useState("");
+  const queryClient = useQueryClient();
+
+  // Inline SKU editor — drugs.unit_pengukuran is otherwise editable nowhere
+  // in the app. Both roles that can reach this page (super_admin,
+  // logistic_pharmacist) already have UPDATE on drugs per
+  // supabase/migrations/20260819000200_drugs_unit_price.sql.
+  const updateSkuMutation = useMutation({
+    mutationFn: async ({ id, unit_pengukuran }: { id: string; unit_pengukuran: string }) => {
+      const { error } = await supabase.from("drugs").update({ unit_pengukuran }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["logistik-drugs"] });
+      toast.success("SKU updated");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   const {
     national,
@@ -125,6 +154,13 @@ export default function LogistikDashboard() {
 
   const clinicRowsForDrug = (drugId: string) =>
     Array.from(byClinicDrug.values()).filter((r) => r.drug_id === drugId);
+
+  const commitSkuEdit = (drugId: string, currentValue: string) => {
+    const trimmed = skuDraft.trim();
+    setEditingSkuId(null);
+    if (!trimmed || trimmed === currentValue) return;
+    updateSkuMutation.mutate({ id: drugId, unit_pengukuran: trimmed });
+  };
 
   const handleExport = async () => {
     setExporting(true);
@@ -239,24 +275,31 @@ export default function LogistikDashboard() {
               Failed to load the national quota pool. Try again shortly.
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-8" />
-                  <TableHead className="text-right">BIL</TableHead>
-                  <TableHead>ITEM</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead className="text-right">HARGA SEUNIT (RM)</TableHead>
-                  <TableHead className="text-right">JUMLAH HARGA (usage)</TableHead>
-                  <TableHead>KUOTA</TableHead>
-                  <TableHead className="text-right">JUMLAH KUOTA PESAKIT</TableHead>
-                  <TableHead className="text-right">JUMLAH PESAKIT AKTIF (usage)</TableHead>
-                  <TableHead className="text-right">%KUOTA YANG TELAH DIGUNAKAN</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            // Fixed-height, scrollable-both-ways container with a pinned
+            // header — like Excel's freeze-top-row view — since this table
+            // now runs 12 columns wide and can run to dozens of drug rows.
+            <div className="max-h-[65vh] overflow-auto">
+              <datalist id="sku-suggestions">
+                {SKU_SUGGESTIONS.map((s) => <option key={s} value={s} />)}
+              </datalist>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className={cn("w-8", STICKY_HEAD)} />
+                    <TableHead className={cn("text-right", STICKY_HEAD)}>BIL</TableHead>
+                    <TableHead className={STICKY_HEAD}>ITEM</TableHead>
+                    <TableHead className={STICKY_HEAD}>SKU</TableHead>
+                    <TableHead className={cn("text-right", STICKY_HEAD)}>HARGA SEUNIT (RM)</TableHead>
+                    <TableHead className={cn("text-right", STICKY_HEAD)}>JUMLAH HARGA (usage)</TableHead>
+                    <TableHead className={STICKY_HEAD}>KUOTA</TableHead>
+                    <TableHead className={cn("text-right", STICKY_HEAD)}>JUMLAH KUOTA PESAKIT</TableHead>
+                    <TableHead className={cn("text-right", STICKY_HEAD)}>JUMLAH PESAKIT AKTIF (usage)</TableHead>
+                    <TableHead className={cn("text-right", STICKY_HEAD)}>%KUOTA YANG TELAH DIGUNAKAN</TableHead>
+                    <TableHead className={STICKY_HEAD}>Status</TableHead>
+                    <TableHead className={cn("text-right", STICKY_HEAD)}>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                 {filteredRows.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={12} className="text-center py-6 text-muted-foreground">
@@ -286,7 +329,35 @@ export default function LogistikDashboard() {
                           </TableCell>
                           <TableCell className="text-right text-sm">{index + 1}</TableCell>
                           <TableCell className="font-medium text-sm">{row.drug.drug_name}</TableCell>
-                          <TableCell className="text-sm">{row.drug.unit_pengukuran}</TableCell>
+                          <TableCell className="text-sm">
+                            {editingSkuId === row.drug_id ? (
+                              <input
+                                autoFocus
+                                list="sku-suggestions"
+                                value={skuDraft}
+                                onChange={(e) => setSkuDraft(e.target.value)}
+                                onBlur={() => commitSkuEdit(row.drug_id, row.drug.unit_pengukuran)}
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter") e.currentTarget.blur();
+                                  if (e.key === "Escape") setEditingSkuId(null);
+                                }}
+                                className="h-7 w-28 rounded border border-input bg-background px-2 text-xs"
+                                aria-label={`Edit SKU for ${row.drug.drug_name}`}
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                className="text-left hover:text-primary hover:underline underline-offset-2"
+                                aria-label={`Edit SKU for ${row.drug.drug_name}`}
+                                onClick={() => {
+                                  setSkuDraft(row.drug.unit_pengukuran);
+                                  setEditingSkuId(row.drug_id);
+                                }}
+                              >
+                                {row.drug.unit_pengukuran}
+                              </button>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right text-sm">
                             {row.drug.unit_price != null ? CURRENCY.format(row.drug.unit_price) : "—"}
                           </TableCell>
@@ -349,7 +420,8 @@ export default function LogistikDashboard() {
                   })
                 )}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
