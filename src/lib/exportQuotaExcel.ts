@@ -8,6 +8,7 @@
 // when someone clicks "Export to Excel", so it ships as its own chunk
 // instead of bloating the app's main bundle and PWA precache manifest (see
 // vite.config.ts's injectManifest.globIgnores for that chunk).
+import { formatKuotaLabel } from "@/lib/quotaHelpers";
 
 export type QuotaExcelRow = {
   drug_name: string;
@@ -23,11 +24,6 @@ const HEADER_ROW = [
   "BIL", "ITEM", "SKU", "HARGA SEUNIT (RM)", "KUOTA",
   "JUMLAH KUOTA PESAKIT", "JUMLAH PESAKIT AKTIF (usage)", "%KUOTA YANG TELAH DIGUNAKAN",
 ];
-
-function kuotaLabel(row: QuotaExcelRow): string {
-  if (row.quota_per_fms == null) return "—";
-  return row.fms_count != null ? `${row.quota_per_fms} PTS/FMS (×${row.fms_count})` : `${row.quota_per_fms} PTS/FMS`;
-}
 
 export async function exportQuotaExcel(rows: QuotaExcelRow[], year: number) {
   const { default: ExcelJS } = await import("exceljs");
@@ -54,7 +50,7 @@ export async function exportQuotaExcel(rows: QuotaExcelRow[], year: number) {
       row.drug_name,
       row.unit_pengukuran,
       row.unit_price ?? "—",
-      kuotaLabel(row),
+      formatKuotaLabel(row.quota_per_fms, row.fms_count),
       row.quota_limit,
       row.used,
       row.quota_limit > 0 ? Number(pct.toFixed(2)) : "—",

@@ -70,6 +70,14 @@ export function quotaDerivedStatus(
 }
 // shared-quotahelpers>>>
 
+// "KUOTA" text as printed on the district's paper tracking sheet (e.g. "20
+// PTS/FMS (×29)") — shared by LogistikDashboard's on-screen table and
+// exportQuotaExcel.ts so the page and its Excel export never drift apart.
+export function formatKuotaLabel(quotaPerFms: number | null, fmsCount: number | null): string {
+  if (quotaPerFms == null) return "—";
+  return fmsCount != null ? `${quotaPerFms} PTS/FMS (×${fmsCount})` : `${quotaPerFms} PTS/FMS`;
+}
+
 export const QUOTA_BADGE_CLASS: Record<QuotaBadgeState, string> = {
   healthy: "bg-green-100 text-green-700 border-green-300",
   warning: "bg-amber-100 text-amber-700 border-amber-300",

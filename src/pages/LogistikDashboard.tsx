@@ -14,7 +14,7 @@ import {
   Warehouse, Package, AlertTriangle, CheckCircle2, Bell, ChevronDown, Pencil, Download,
 } from "lucide-react";
 import {
-  quotaStatus, quotaBadgeState, QUOTA_BADGE_CLASS, QUOTA_BADGE_LABEL,
+  quotaStatus, quotaBadgeState, formatKuotaLabel, QUOTA_BADGE_CLASS, QUOTA_BADGE_LABEL,
 } from "@/lib/quotaHelpers";
 import { useHqQuotaUsage } from "@/hooks/useHqQuotaUsage";
 import { exportQuotaExcel } from "@/lib/exportQuotaExcel";
@@ -243,11 +243,14 @@ export default function LogistikDashboard() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-8" />
-                  <TableHead>Drug</TableHead>
-                  <TableHead className="text-right">Unit Price</TableHead>
-                  <TableHead className="text-right">National Quota</TableHead>
-                  <TableHead className="text-right">Used</TableHead>
-                  <TableHead className="text-right">Available</TableHead>
+                  <TableHead className="text-right">BIL</TableHead>
+                  <TableHead>ITEM</TableHead>
+                  <TableHead>SKU</TableHead>
+                  <TableHead className="text-right">HARGA SEUNIT (RM)</TableHead>
+                  <TableHead>KUOTA</TableHead>
+                  <TableHead className="text-right">JUMLAH KUOTA PESAKIT</TableHead>
+                  <TableHead className="text-right">JUMLAH PESAKIT AKTIF (usage)</TableHead>
+                  <TableHead className="text-right">%KUOTA YANG TELAH DIGUNAKAN</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -255,15 +258,16 @@ export default function LogistikDashboard() {
               <TableBody>
                 {filteredRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-6 text-muted-foreground">
+                    <TableCell colSpan={11} className="text-center py-6 text-muted-foreground">
                       No drugs match this filter
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredRows.map((row) => {
+                  filteredRows.map((row, index) => {
                     const isExpanded = expandedDrugId === row.drug_id;
                     const badgeState = alertState(row);
                     const clinicRows = clinicRowsForDrug(row.drug_id);
+                    const pctUsed = row.quota_limit > 0 ? (row.used / row.quota_limit) * 100 : null;
                     return (
                       <Fragment key={row.drug_id}>
                         <TableRow>
@@ -278,13 +282,20 @@ export default function LogistikDashboard() {
                               <ChevronDown className={cn("h-4 w-4 transition-transform", !isExpanded && "-rotate-90")} />
                             </button>
                           </TableCell>
+                          <TableCell className="text-right text-sm">{index + 1}</TableCell>
                           <TableCell className="font-medium text-sm">{row.drug.drug_name}</TableCell>
+                          <TableCell className="text-sm">{row.drug.unit_pengukuran}</TableCell>
                           <TableCell className="text-right text-sm">
                             {row.drug.unit_price != null ? CURRENCY.format(row.drug.unit_price) : "—"}
                           </TableCell>
+                          <TableCell className="text-sm whitespace-nowrap">
+                            {formatKuotaLabel(row.quota_per_fms, row.fms_count)}
+                          </TableCell>
                           <TableCell className="text-right text-sm">{row.quota_limit}</TableCell>
                           <TableCell className="text-right text-sm">{row.used}</TableCell>
-                          <TableCell className="text-right font-semibold text-sm">{row.remaining}</TableCell>
+                          <TableCell className="text-right text-sm">
+                            {pctUsed != null ? `${pctUsed.toFixed(1)}%` : "—"}
+                          </TableCell>
                           <TableCell>
                             <Badge variant="outline" className={cn("text-[10px]", QUOTA_BADGE_CLASS[badgeState])}>
                               {QUOTA_BADGE_LABEL[badgeState](row.used, row.quota_limit)}
@@ -312,7 +323,7 @@ export default function LogistikDashboard() {
                         </TableRow>
                         {isExpanded && (
                           <TableRow className="bg-muted/30 hover:bg-muted/30">
-                            <TableCell colSpan={8} className="py-2">
+                            <TableCell colSpan={11} className="py-2">
                               {clinicRows.length === 0 ? (
                                 <p className="text-xs text-muted-foreground px-2">No usage recorded at any clinic yet.</p>
                               ) : (

@@ -11,6 +11,8 @@ const nationalRow = {
   alert_threshold_pct: 20,
   used: 90,
   remaining: 10,
+  quota_per_fms: 20,
+  fms_count: 29,
 };
 
 const clinicRow = {
@@ -68,10 +70,14 @@ describe("LogistikDashboard", () => {
     expect(screen.getByText("Alerts")).toBeInTheDocument();
   });
 
-  it("renders the national quota table with drug name, formatted price and status badge", async () => {
+  it("renders the national quota table in excel-summary format: BIL, SKU, KUOTA text, %used and status badge", async () => {
     render(<QueryClientProvider client={makeQC()}><LogistikDashboard /></QueryClientProvider>);
     expect(await screen.findByText("Insulin Glargine")).toBeInTheDocument();
     expect(screen.getByText("RM 45.50")).toBeInTheDocument();
+    expect(screen.getByText("BOX OF 5'S")).toBeInTheDocument();
+    expect(screen.getByText("20 PTS/FMS (×29)")).toBeInTheDocument();
+    // used=90, limit=100 -> 90.0%
+    expect(screen.getByText("90.0%")).toBeInTheDocument();
     // used=90, limit=100, alert_threshold_pct=20 -> quotaBadgeState is "warning"
     // (used >= limit * (1 - 20/100) = 80), so the badge shows the used/limit label.
     expect(screen.getByText("90/100 patients")).toBeInTheDocument();
