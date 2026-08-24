@@ -1,8 +1,9 @@
 // Builds and downloads a controlled-drug quota summary workbook shaped like
 // the district's existing "SENARAI UBAT KAWALAN KHUSUS" tracking sheet (BIL /
-// ITEM / SKU / HARGA SEUNIT / KUOTA / JUMLAH KUOTA PESAKIT / JUMLAH PESAKIT
-// AKTIF / %KUOTA YANG TELAH DIGUNAKAN). Source data is always this app's own
-// national quota pool (get_drug_quota_usage) — never raw patient records.
+// ITEM / SKU / HARGA SEUNIT / JUMLAH HARGA / KUOTA / JUMLAH KUOTA PESAKIT /
+// JUMLAH PESAKIT AKTIF / %KUOTA YANG TELAH DIGUNAKAN). Source data is always
+// this app's own national quota pool (get_drug_quota_usage) — never raw
+// patient records.
 //
 // exceljs is dynamically imported: it's a large library only ever needed
 // when someone clicks "Export to Excel", so it ships as its own chunk
@@ -21,7 +22,7 @@ export type QuotaExcelRow = {
 };
 
 const HEADER_ROW = [
-  "BIL", "ITEM", "SKU", "HARGA SEUNIT (RM)", "KUOTA",
+  "BIL", "ITEM", "SKU", "HARGA SEUNIT (RM)", "JUMLAH HARGA (usage)", "KUOTA",
   "JUMLAH KUOTA PESAKIT", "JUMLAH PESAKIT AKTIF (usage)", "%KUOTA YANG TELAH DIGUNAKAN",
 ];
 
@@ -45,11 +46,13 @@ export async function exportQuotaExcel(rows: QuotaExcelRow[], year: number) {
 
   rows.forEach((row, i) => {
     const pct = row.quota_limit > 0 ? (row.used / row.quota_limit) * 100 : 0;
+    const totalHarga = row.unit_price != null ? row.unit_price * row.used : null;
     sheet.addRow([
       i + 1,
       row.drug_name,
       row.unit_pengukuran,
       row.unit_price ?? "—",
+      totalHarga ?? "—",
       formatKuotaLabel(row.quota_per_fms, row.fms_count),
       row.quota_limit,
       row.used,
@@ -58,7 +61,7 @@ export async function exportQuotaExcel(rows: QuotaExcelRow[], year: number) {
   });
 
   sheet.columns = [
-    { width: 6 }, { width: 45 }, { width: 16 }, { width: 14 },
+    { width: 6 }, { width: 45 }, { width: 16 }, { width: 14 }, { width: 16 },
     { width: 18 }, { width: 14 }, { width: 16 }, { width: 16 },
   ];
 

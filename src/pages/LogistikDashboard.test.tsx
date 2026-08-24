@@ -74,6 +74,8 @@ describe("LogistikDashboard", () => {
     render(<QueryClientProvider client={makeQC()}><LogistikDashboard /></QueryClientProvider>);
     expect(await screen.findByText("Insulin Glargine")).toBeInTheDocument();
     expect(screen.getByText("RM 45.50")).toBeInTheDocument();
+    // JUMLAH HARGA (usage) = unit_price × used = 45.5 × 90 = 4095.
+    expect(screen.getByText("RM 4,095.00")).toBeInTheDocument();
     expect(screen.getByText("BOX OF 5'S")).toBeInTheDocument();
     expect(screen.getByText("20 PTS/FMS (×29)")).toBeInTheDocument();
     // used=90, limit=100 -> 90.0%

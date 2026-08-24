@@ -247,6 +247,7 @@ export default function LogistikDashboard() {
                   <TableHead>ITEM</TableHead>
                   <TableHead>SKU</TableHead>
                   <TableHead className="text-right">HARGA SEUNIT (RM)</TableHead>
+                  <TableHead className="text-right">JUMLAH HARGA (usage)</TableHead>
                   <TableHead>KUOTA</TableHead>
                   <TableHead className="text-right">JUMLAH KUOTA PESAKIT</TableHead>
                   <TableHead className="text-right">JUMLAH PESAKIT AKTIF (usage)</TableHead>
@@ -258,7 +259,7 @@ export default function LogistikDashboard() {
               <TableBody>
                 {filteredRows.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={11} className="text-center py-6 text-muted-foreground">
+                    <TableCell colSpan={12} className="text-center py-6 text-muted-foreground">
                       No drugs match this filter
                     </TableCell>
                   </TableRow>
@@ -268,6 +269,7 @@ export default function LogistikDashboard() {
                     const badgeState = alertState(row);
                     const clinicRows = clinicRowsForDrug(row.drug_id);
                     const pctUsed = row.quota_limit > 0 ? (row.used / row.quota_limit) * 100 : null;
+                    const totalHarga = row.drug.unit_price != null ? row.drug.unit_price * row.used : null;
                     return (
                       <Fragment key={row.drug_id}>
                         <TableRow>
@@ -287,6 +289,9 @@ export default function LogistikDashboard() {
                           <TableCell className="text-sm">{row.drug.unit_pengukuran}</TableCell>
                           <TableCell className="text-right text-sm">
                             {row.drug.unit_price != null ? CURRENCY.format(row.drug.unit_price) : "—"}
+                          </TableCell>
+                          <TableCell className="text-right text-sm">
+                            {totalHarga != null ? CURRENCY.format(totalHarga) : "—"}
                           </TableCell>
                           <TableCell className="text-sm whitespace-nowrap">
                             {formatKuotaLabel(row.quota_per_fms, row.fms_count)}
@@ -323,7 +328,7 @@ export default function LogistikDashboard() {
                         </TableRow>
                         {isExpanded && (
                           <TableRow className="bg-muted/30 hover:bg-muted/30">
-                            <TableCell colSpan={11} className="py-2">
+                            <TableCell colSpan={12} className="py-2">
                               {clinicRows.length === 0 ? (
                                 <p className="text-xs text-muted-foreground px-2">No usage recorded at any clinic yet.</p>
                               ) : (
