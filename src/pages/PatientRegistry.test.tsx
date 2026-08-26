@@ -193,6 +193,18 @@ describe("PatientRegistry", () => {
     expect(screen.getByText("Chong Wei Ling")).toBeInTheDocument();
   });
 
+  it("collapses two drug_quota_patients rows sharing an IC into one, keeping max(kuota) (matches drug_quota_used())", async () => {
+    quotaPatientsByDrug["drug-levemir"] = [
+      { id: "row-2", source_bil: 1, tarikh_mula_rawatan: null, status: "AKTIF", dosing: null, fms_name: null, catatan: null, kuota: 1, patient_id: "p-2", patient_registry: { id: "p-2", patient_name: "Lee Siew Yoong", no_ic: "520308105706", created_at: "2024-01-01" } },
+      // Re-enrolled later under a different FMS — same person, same digits-only IC once dashes are stripped.
+      { id: "row-2b", source_bil: 40, tarikh_mula_rawatan: null, status: "AKTIF", dosing: null, fms_name: "DR OTHER", catatan: null, kuota: 2, patient_id: "p-2b", patient_registry: { id: "p-2b", patient_name: "Lee Siew Yoong", no_ic: "520308-10-5706", created_at: "2024-01-01" } },
+    ];
+    renderPage();
+    await waitFor(() => expect(screen.getAllByText("Lee Siew Yoong")).toHaveLength(1));
+    // Kept row-2's kuota field but raised to the group's max (2), same rule drug_quota_used() applies.
+    expect(screen.getByText("2")).toBeInTheDocument();
+  });
+
   it("excludes a dispensing request whose IC is already enrolled in drug_quota_patients (no double-count)", async () => {
     dispensedByDrug["drug-levemir"] = [
       // Same digits-only IC as the already-enrolled Lee Siew Yoong (p-2).

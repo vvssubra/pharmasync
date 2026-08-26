@@ -106,7 +106,24 @@ export default function PatientRegistry() {
         .eq("year", year)
         .order("source_bil", { ascending: true, nullsFirst: false });
       if (enrolledError) throw enrolledError;
-      const enrolledRows = enrolled as unknown as (QuotaPatientRow & { patient_registry: SheetPatient })[];
+      const enrolledRowsRaw = enrolled as unknown as (QuotaPatientRow & { patient_registry: SheetPatient })[];
+
+      // A patient can carry more than one drug_quota_patients row for the same
+      // drug/year — re-enrolled under a different FMS, a data-entry repeat,
+      // etc. (seen in prod: 12 duplicate ICs for Amlodipine Valsartan alone).
+      // drug_quota_used() already collapses these to one slot per normalized
+      // IC (kuota = max across the group) before computing "used" — this list
+      // has to apply the exact same collapse, or the row count and the quota
+      // card's number diverge by exactly the duplicate count.
+      const enrolledGroups = new Map<string, (QuotaPatientRow & { patient_registry: SheetPatient })[]>();
+      for (const row of enrolledRowsRaw) {
+        const ic = row.patient_registry.no_ic.replace(/\D/g, "");
+        const group = enrolledGroups.get(ic);
+        if (group) group.push(row); else enrolledGroups.set(ic, [row]);
+      }
+      const enrolledRows = Array.from(enrolledGroups.values()).map(group =>
+        group.length === 1 ? group[0] : { ...group[0], kuota: Math.max(...group.map(r => r.kuota)) }
+      );
 
       // "Baki Kebangsaan" (get_drug_quota_usage -> drug_quota_used) counts a
       // patient toward national usage the moment their dispensing request is
