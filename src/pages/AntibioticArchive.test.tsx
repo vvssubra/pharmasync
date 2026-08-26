@@ -159,6 +159,16 @@ describe("AntibioticArchive", () => {
     await waitFor(() => expect(screen.getByText(/Antibiotic Form — AHMAD BIN ALI/i)).toBeInTheDocument());
   });
 
+  it("names the MO who submitted the form in the view dialog", async () => {
+    renderPage();
+    await selectPeriod(/Today/i);
+    await waitFor(() => expect(screen.getByText("AHMAD BIN ALI")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /View/i }));
+    await waitFor(() => expect(screen.getByText(/Requested by \(MO\)/i)).toBeInTheDocument());
+    // Resolved from submitted_by "mo-1" through the profiles lookup.
+    expect(screen.getByText("Dr MO Fulan")).toBeInTheDocument();
+  });
+
   it("triggers markdown download when .md is clicked", async () => {
     const downloadSpy = vi.spyOn(md, "downloadMarkdown").mockImplementation(() => {});
     renderPage();

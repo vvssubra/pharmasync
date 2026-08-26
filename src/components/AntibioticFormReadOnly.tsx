@@ -40,6 +40,11 @@ interface AntibioticFormViewerProps {
     diagnosis: string;
     prescription_unit?: string | null;
     assigned_fms?: string | null;
+    // Resolved from submitted_by via profiles by the caller (there is no FK
+    // from antibiotic_forms.submitted_by to profiles, so PostgREST can't embed
+    // it). Optional: only the archive decorates its rows with this today, and
+    // the row is skipped entirely when the caller doesn't supply it.
+    submitted_by_name?: string | null;
     drug_allergy?: boolean | null;
     drug_allergy_detail?: string | null;
     antibiotic_regimen?: string | null;
@@ -83,6 +88,7 @@ export function AntibioticFormReadOnly({ form }: AntibioticFormViewerProps) {
           <Field label="Diagnosis" value={form.diagnosis} />
           <Field label="Unit" value={form.prescription_unit || "—"} />
           <Field label="Assigned FMS" value={form.assigned_fms || "—"} />
+          {form.submitted_by_name && <Field label="Requested by (MO)" value={form.submitted_by_name} />}
         </div>
         <Field label="Drug Allergy" value={form.drug_allergy ? `Yes — ${form.drug_allergy_detail || ""}` : "No / NKDA"} />
         <Field label="Antibiotic Regimen" value={form.antibiotic_regimen || "—"} />

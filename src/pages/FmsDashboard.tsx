@@ -785,7 +785,10 @@ export default function FmsDashboard() {
           </DialogHeader>
           {abApproveTarget && (
             <div className="space-y-4">
-              <AntibioticFormReadOnly form={abApproveTarget} />
+              {/* mo_name is this page's own label for the resolved submitted_by
+                  profile (see the query above); the viewer reads it as
+                  submitted_by_name, the name the archive uses. */}
+              <AntibioticFormReadOnly form={{ ...abApproveTarget, submitted_by_name: abApproveTarget.mo_name }} />
               <div className="space-y-2">
                 <Label>Approval Notes (optional)</Label>
                 <Textarea placeholder="Additional notes" value={abNotes} onChange={e => setAbNotes(e.target.value)} />

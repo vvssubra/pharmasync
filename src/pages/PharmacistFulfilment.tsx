@@ -42,7 +42,9 @@ type FulfilmentRow = Tables<"dispensing_requests"> & {
     perlu_kelulusan_pakar: boolean;
   } | null;
 };
-type AbFormRow = Tables<"antibiotic_forms">;
+// submitted_by_name is decorated onto each row from profiles by the query
+// below — antibiotic_forms has no FK to profiles for PostgREST to embed.
+type AbFormRow = Tables<"antibiotic_forms"> & { submitted_by_name: string };
 
 export default function PharmacistFulfilment() {
   const { user, profile } = useAuth();
@@ -97,7 +99,25 @@ export default function PharmacistFulfilment() {
         .in("status", ["approved"])
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data;
+
+      // Resolve the submitting MO's name for the view dialog. Separate query
+      // rather than a PostgREST embed: antibiotic_forms.submitted_by has no FK
+      // to profiles, so there is no relationship for it to traverse. Same
+      // two-step pattern as AntibioticArchive and FmsDashboard.
+      const list = data ?? [];
+      const ids = [...new Set(list.map(f => f.submitted_by).filter(Boolean) as string[])];
+      const profileMap: Record<string, string> = {};
+      if (ids.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", ids);
+        for (const p of profiles ?? []) profileMap[p.user_id] = p.full_name;
+      }
+      return list.map(f => ({
+        ...f,
+        submitted_by_name: (f.submitted_by && profileMap[f.submitted_by]) || "—",
+      }));
     },
   });
 

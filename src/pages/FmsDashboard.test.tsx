@@ -124,6 +124,10 @@ describe("FmsDashboard sections", () => {
     // shown, not the old name/diagnosis/submitter-only summary.
     expect(screen.getByText("Amoxicillin 500mg PO TDS x 5-7 days")).toBeInTheDocument();
     expect(screen.getByPlaceholderText("Additional notes")).toBeInTheDocument();
+    // The submitting MO, resolved from submitted_by "mo-1" via profiles and
+    // handed to the viewer as submitted_by_name.
+    expect(screen.getByText(/Requested by \(MO\)/i)).toBeInTheDocument();
+    expect(screen.getAllByText("NUR ARINA BINTI MOHD AMIN").length).toBeGreaterThan(0);
   });
 
   it("reveals the drug-vs-antibiotic breakdown when hovering the Pending Approvals card", async () => {
