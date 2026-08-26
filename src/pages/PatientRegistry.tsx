@@ -99,14 +99,57 @@ export default function PatientRegistry() {
     queryKey: ["quota-patients", effectiveDrugId, year],
     enabled: !!effectiveDrugId,
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data: enrolled, error: enrolledError } = await supabase
         .from("drug_quota_patients")
         .select("id, source_bil, tarikh_mula_rawatan, status, dosing, fms_name, catatan, kuota, patient_id, patient_registry!inner(id, patient_name, no_ic, created_at)")
         .eq("drug_id", effectiveDrugId)
         .eq("year", year)
         .order("source_bil", { ascending: true, nullsFirst: false });
-      if (error) throw error;
-      return data as unknown as (QuotaPatientRow & { patient_registry: SheetPatient })[];
+      if (enrolledError) throw enrolledError;
+      const enrolledRows = enrolled as unknown as (QuotaPatientRow & { patient_registry: SheetPatient })[];
+
+      // "Baki Kebangsaan" (get_drug_quota_usage -> drug_quota_used) counts a
+      // patient toward national usage the moment their dispensing request is
+      // approved, not only once someone enrols them here in
+      // drug_quota_patients. Most controlled drugs are never manually
+      // enrolled at all (that table was only ever backfilled for Novomix and
+      // Levemir at KK Kempas — see 20260727000100_seed_kk_kempas_2026_quota_patients.sql),
+      // so this list used to show far fewer patients than the quota card's
+      // "used" figure. Union in the same not-already-enrolled dispensing
+      // requests drug_quota_used() adds, deduped by digits-only IC the same
+      // way, so the two numbers tally.
+      const { data: dispensed, error: dispensedError } = await supabase
+        .from("dispensing_requests")
+        .select("id, no_ic, patient_name, status, created_at")
+        .eq("drug_id", effectiveDrugId)
+        .eq("is_pesara", false)
+        .neq("status", "rejected")
+        .gte("created_at", `${year}-01-01`)
+        .lt("created_at", `${year + 1}-01-01`)
+        .order("created_at", { ascending: true });
+      if (dispensedError) throw dispensedError;
+
+      const enrolledIcs = new Set(enrolledRows.map(r => r.patient_registry.no_ic.replace(/\D/g, "")));
+      const seenIcs = new Set<string>();
+      const dispensedRows: (QuotaPatientRow & { patient_registry: SheetPatient })[] = [];
+      for (const dr of dispensed ?? []) {
+        const ic = dr.no_ic.replace(/\D/g, "");
+        if (enrolledIcs.has(ic) || seenIcs.has(ic)) continue;
+        seenIcs.add(ic);
+        dispensedRows.push({
+          id: dr.id,
+          source_bil: null,
+          tarikh_mula_rawatan: null,
+          status: dr.status,
+          dosing: null,
+          fms_name: null,
+          catatan: "Dari permintaan pendispensan (belum didaftar kuota)",
+          kuota: 1,
+          patient_id: `dr:${dr.id}`,
+          patient_registry: { id: `dr:${dr.id}`, patient_name: dr.patient_name, no_ic: dr.no_ic, created_at: dr.created_at },
+        });
+      }
+      return [...enrolledRows, ...dispensedRows];
     },
   });
 
@@ -143,7 +186,14 @@ export default function PatientRegistry() {
   };
 
   const openRefillForPatient = (patient: SheetPatient) => {
-    setRefillInitial({ id: patient.id, name: patient.patient_name, ic: patient.no_ic });
+    // "dr:..." ids are synthetic — from a dispensing request that consumed a
+    // quota slot but has no patient_registry row yet (see the quota-patients
+    // query above). Passing that fake id through would hit RefillWalkinDialog's
+    // `if (refillPatient?.id)` fast path and insert it as a real patient_id
+    // FK. Omit it so the dialog falls back to its search/create-by-IC path,
+    // same as a walk-in patient it's never seen before.
+    const isRealPatient = !patient.id.startsWith("dr:");
+    setRefillInitial({ id: isRealPatient ? patient.id : undefined, name: patient.patient_name, ic: patient.no_ic });
     setSheetPatient(null);
     setRefillOpen(true);
   };

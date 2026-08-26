@@ -17,6 +17,10 @@ const LEVEMIR = { id: "drug-levemir", drug_name: "Insulin Levemir", unit_penguku
 const drugsData: unknown[] = [NOVOMIX, LEVEMIR];
 let quotaPatientsByDrug: Record<string, unknown[]> = {};
 let rpcData: unknown[] = [];
+// Approved dispensing requests that count toward national quota usage but
+// have no drug_quota_patients enrolment yet — empty by default so existing
+// assertions (which predate this union) are unaffected.
+const dispensedByDrug: Record<string, unknown[]> = {};
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
@@ -45,6 +49,23 @@ vi.mock("@/integrations/supabase/client", () => ({
       }
       if (table === "patient_registry") {
         return { select: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) };
+      }
+      if (table === "dispensing_requests") {
+        // Chainable .eq/.neq/.gte/.lt in any order, terminated by .order() —
+        // the drug_id passed to the first .eq() picks the fixture.
+        return {
+          select: () => {
+            let drugId = "";
+            const chain = {
+              eq: (col: string, value: string) => { if (col === "drug_id") drugId = value; return chain; },
+              neq: () => chain,
+              gte: () => chain,
+              lt: () => chain,
+              order: () => Promise.resolve({ data: dispensedByDrug[drugId] ?? [], error: null }),
+            };
+            return chain;
+          },
+        };
       }
       // drugs-active / all-tx-stock (queried inside RefillWalkinDialog,
       // which this page always mounts) — awaited directly with no
@@ -95,6 +116,7 @@ describe("PatientRegistry", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRole = "pharmacist";
+    for (const k of Object.keys(dispensedByDrug)) delete dispensedByDrug[k];
     quotaPatientsByDrug = {
       "drug-novomix": [
         { id: "row-1", source_bil: 1, tarikh_mula_rawatan: null, status: "AKTIF", dosing: null, fms_name: null, catatan: null, kuota: 1, patient_id: "p-1", patient_registry: { id: "p-1", patient_name: "Saringat Salleh", no_ic: "580305715589", created_at: "2024-01-01" } },
@@ -156,6 +178,28 @@ describe("PatientRegistry", () => {
     // drug_quotas, so reading that table here would have hidden it forever.
     expect(tables).not.toContain("drug_quotas");
     expect(tables).toContain("drugs");
+  });
+
+  it("includes approved dispensing requests with no drug_quota_patients enrolment yet, so the list tallies with the RPC's used figure", async () => {
+    // Reproduces the reported bug: a drug (e.g. Amlodipine Valsartan) that
+    // goes through the normal request/approve flow but was never bulk-seeded
+    // into drug_quota_patients used to show 0/1 patients here while the quota
+    // card's "used" figure kept counting approved requests.
+    dispensedByDrug["drug-levemir"] = [
+      { id: "dr-1", no_ic: "990101147788", patient_name: "Chong Wei Ling", status: "approved", created_at: "2026-03-01" },
+    ];
+    renderPage();
+    await waitFor(() => expect(screen.getByText("Lee Siew Yoong")).toBeInTheDocument());
+    expect(screen.getByText("Chong Wei Ling")).toBeInTheDocument();
+  });
+
+  it("excludes a dispensing request whose IC is already enrolled in drug_quota_patients (no double-count)", async () => {
+    dispensedByDrug["drug-levemir"] = [
+      // Same digits-only IC as the already-enrolled Lee Siew Yoong (p-2).
+      { id: "dr-2", no_ic: "520308-10-5706", patient_name: "Lee Siew Yoong", status: "approved", created_at: "2026-03-01" },
+    ];
+    renderPage();
+    await waitFor(() => expect(screen.getAllByText("Lee Siew Yoong")).toHaveLength(1));
   });
 
   describe("logistic_pharmacist — read-only", () => {
