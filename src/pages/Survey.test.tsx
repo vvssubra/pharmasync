@@ -10,7 +10,10 @@ vi.mock("sonner", () => ({
 // 19 fields, so every one of the 13 Likert clicks below re-renders the entire
 // form. In jsdom that costs ~5s for a full pass, which is why the two
 // submit-path tests declare an explicit timeout instead of the 5000ms default.
-const SLOW_FORM_TIMEOUT = 20_000;
+// Raised from 20s once the suite grew past 55 files: these are the slowest
+// tests here, and under full-suite CPU contention a pass stretches past 20s —
+// failing on the clock rather than on anything the test is asserting.
+const SLOW_FORM_TIMEOUT = 45_000;
 
 function fillLikert(index: number, point: number) {
   const groups = screen.getAllByRole("radiogroup");

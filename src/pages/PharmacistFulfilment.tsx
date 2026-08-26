@@ -12,6 +12,7 @@ import { useClinicDrugSettings, resolveDrugSettings } from "@/hooks/useClinicDru
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -55,6 +56,8 @@ export default function PharmacistFulfilment() {
   const [rejectReason, setRejectReason] = useState("");
   const [abViewTarget, setAbViewTarget] = useState<AbFormRow | null>(null);
   const [abAckTarget, setAbAckTarget] = useState<AbFormRow | null>(null);
+  const [abAckSelected, setAbAckSelected] = useState<Set<string>>(new Set());
+  const [abBulkAckOpen, setAbBulkAckOpen] = useState(false);
 
   // --- Controlled Drug ---
   const { data: requests = [] } = useQuery({
@@ -122,6 +125,22 @@ export default function PharmacistFulfilment() {
   });
 
   const abPendingAck = useMemo(() => abForms.filter((f) => !f.acknowledged_at), [abForms]);
+
+  // Selection is held by id, but the list refetches every 15s — a form another
+  // pharmacist acknowledges meanwhile drops out of abPendingAck and leaves a
+  // stale id behind. Intersect with what's actually on screen so a stale id can
+  // never reach the mutation or inflate the count.
+  const abSelectedIds = useMemo(
+    () => abPendingAck.filter((f) => abAckSelected.has(f.id)).map((f) => f.id),
+    [abPendingAck, abAckSelected],
+  );
+  const abAllPendingSelected = abPendingAck.length > 0 && abSelectedIds.length === abPendingAck.length;
+
+  const toggleAbAckSelected = (id: string) => setAbAckSelected((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
   const abAckedToday = useMemo(() =>
     abForms.filter((f) => f.acknowledged_at && f.acknowledged_at >= todayStart),
     [abForms, todayStart]);
@@ -207,6 +226,37 @@ export default function PharmacistFulfilment() {
       queryClient.invalidateQueries({ queryKey: ["fulfilment-antibiotic-forms"] });
     },
     onError: () => toast.error("Failed to acknowledge form"),
+  });
+
+  const abBulkAckMutation = useMutation({
+    mutationFn: async (ids: string[]) => {
+      // `acknowledged_at is null` is load-bearing, not just tidiness. The
+      // trg_zz_enforce_antibiotic_form_lock trigger (20260725010000) raises on
+      // any update to an already-acknowledged row, and one raise aborts the
+      // whole statement — so without this filter a single form acknowledged by
+      // someone else since page load would fail the entire batch. Excluding
+      // those rows from the UPDATE means the trigger never fires for them.
+      const { data, error } = await supabase
+        .from("antibiotic_forms")
+        .update({ acknowledged_by: user?.id, acknowledged_at: new Date().toISOString() })
+        .in("id", ids)
+        .is("acknowledged_at", null)
+        .select("id");
+      if (error) throw error;
+      return { acknowledged: data?.length ?? 0, requested: ids.length };
+    },
+    onSuccess: ({ acknowledged, requested }) => {
+      const skipped = requested - acknowledged;
+      toast.success(
+        skipped > 0
+          ? `${acknowledged} form(s) acknowledged. ${skipped} were already acknowledged elsewhere. No stock changes made.`
+          : `${acknowledged} form(s) acknowledged. No stock changes made.`,
+      );
+      setAbBulkAckOpen(false);
+      setAbAckSelected(new Set());
+      queryClient.invalidateQueries({ queryKey: ["fulfilment-antibiotic-forms"] });
+    },
+    onError: () => toast.error("Failed to acknowledge the selected forms"),
   });
 
   return (
@@ -327,11 +377,41 @@ export default function PharmacistFulfilment() {
             <TabsContent value="pending-ack" className="space-y-4 mt-4">
               {abPendingAck.length === 0 ? (
                 <Card><CardContent className="py-12 text-center text-muted-foreground">No antibiotic forms awaiting confirmation</CardContent></Card>
-              ) : abPendingAck.map((f) => (
+              ) : (<>
+              <Card>
+                <CardContent className="flex flex-wrap items-center justify-between gap-3 py-3">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox
+                      checked={abAllPendingSelected}
+                      aria-label="Select all forms awaiting confirmation"
+                      onCheckedChange={(checked) =>
+                        setAbAckSelected(checked ? new Set(abPendingAck.map((f) => f.id)) : new Set())}
+                    />
+                    <span>Select all ({abPendingAck.length})</span>
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-muted-foreground">{abSelectedIds.length} selected</span>
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      disabled={abSelectedIds.length === 0}
+                      onClick={() => setAbBulkAckOpen(true)}
+                    >
+                      Acknowledge Selected
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+              {abPendingAck.map((f) => (
                 <Card key={f.id} className="overflow-hidden" style={{ borderLeft: "4px solid #0891B2" }}>
                   <CardHeader className="pb-2">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
+                        <Checkbox
+                          checked={abAckSelected.has(f.id)}
+                          aria-label={`Select form for ${f.patient_name}`}
+                          onCheckedChange={() => toggleAbAckSelected(f.id)}
+                        />
                         <CardTitle className="text-base">{f.patient_name}</CardTitle>
                         <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(f.created_at), { addSuffix: true })}</span>
                       </div>
@@ -353,6 +433,7 @@ export default function PharmacistFulfilment() {
                   </CardContent>
                 </Card>
               ))}
+              </>)}
             </TabsContent>
 
             <TabsContent value="acked-today" className="mt-4">
@@ -438,6 +519,30 @@ export default function PharmacistFulfilment() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setAbAckTarget(null)}>Cancel</Button>
             <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={() => abAckMutation.mutate()} disabled={abAckMutation.isPending}>Confirm</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Antibiotic Bulk Acknowledge Dialog */}
+      <Dialog open={abBulkAckOpen} onOpenChange={setAbBulkAckOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Acknowledge {abSelectedIds.length} Antibiotic Form(s)</DialogTitle></DialogHeader>
+          <div className="space-y-2 text-sm">
+            <p>Confirm receipt of <strong>{abSelectedIds.length}</strong> antibiotic form(s)?</p>
+            <p className="text-muted-foreground">
+              Acknowledging locks each form permanently — it cannot be edited afterwards.
+              No stock changes are made.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAbBulkAckOpen(false)}>Cancel</Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700 text-white"
+              onClick={() => abBulkAckMutation.mutate(abSelectedIds)}
+              disabled={abBulkAckMutation.isPending || abSelectedIds.length === 0}
+            >
+              {abBulkAckMutation.isPending ? "Acknowledging…" : "Confirm"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

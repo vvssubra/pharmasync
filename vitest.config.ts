@@ -9,6 +9,14 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // The heavier page tests (jsdom + Radix + userEvent) drift past Vitest's 5s
+    // default once the suite's files run in parallel and contend for CPU,
+    // producing failures that move between runs rather than pointing at real
+    // bugs. The worst offenders are Survey's submit tests, which click through
+    // 13 Likert questions: ~5s alone, ~20s under full-suite contention. 30s
+    // clears that with headroom while staying far below anything a genuinely
+    // hung test would reach.
+    testTimeout: 30000,
   },
   resolve: {
     alias: {
