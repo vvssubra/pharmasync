@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Search, UserPlus } from "lucide-react";
@@ -15,6 +16,7 @@ import {
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
 import { QuotaBenchmarkCard } from "@/components/QuotaBenchmarkCard";
 import { QuotaPatientTable, type QuotaPatientRow } from "@/components/QuotaPatientTable";
+import { type QuotaStatus } from "@/lib/quotaStatus";
 import { PatientHistorySheet } from "@/components/PatientHistorySheet";
 import { RefillWalkinDialog } from "@/components/RefillWalkinDialog";
 
@@ -41,14 +43,18 @@ type QuotaRow = Omit<QuotaPatientRow, "clinic_name"> & {
   patient_registry: SheetPatient;
 };
 
+/** A QuotaRow with its clinic resolved to a name — what the table renders. */
+type NamedRow = QuotaRow & { clinic_name: string | null };
+
 export default function PatientRegistry() {
   // logistic_pharmacist reaches this page HQ-wide (cross-clinic SELECT per
   // 20260819000400_logistic_access.sql) but has no write policy on
   // patient_registry/transactions/patient_drug_history — Isi Semula (Walk-in)
   // and the history sheet's refill button are hidden rather than shown and
   // left to fail RLS.
-  const { role } = useAuth();
+  const { role, profile } = useAuth();
   const canRefill = role !== "logistic_pharmacist";
+  const queryClient = useQueryClient();
 
   // Deep-linked from other pages via /pesakit?drug=<drug_id> (e.g. the
   // dashboard's per-drug "Patient Registry" action) — takes priority over
@@ -215,12 +221,83 @@ export default function PatientRegistry() {
   });
 
   const namedRows = useMemo(
-    () => quotaPatients.map((row): QuotaPatientRow & { patient_registry: SheetPatient } => ({
+    () => quotaPatients.map((row): NamedRow => ({
       ...row,
       clinic_name: row.clinic_id ? clinicNamesById.get(row.clinic_id) ?? null : null,
     })),
     [quotaPatients, clinicNamesById],
   );
+
+  // Releasing a national quota slot is an allocation decision, not a dispensing
+  // one, so it is admin-only — enforced by the trigger in
+  // 20260827000000_quota_patient_status.sql. Hiding the dropdown for everyone
+  // else keeps a pharmacist from meeting that refusal as an error toast.
+  const canEditStatus = role === "admin" || role === "super_admin";
+
+  const statusMutation = useMutation({
+    mutationFn: async ({ row, status }: { row: NamedRow; status: QuotaStatus }) => {
+      // A "dr:" patient_id means this row is a dispensing request that consumed
+      // a slot without anyone enrolling the patient (see the quota-patients
+      // query). There is no status to update — the enrolment has to be created
+      // first, which is also what makes the slot releasable at all.
+      if (!row.patient_id.startsWith("dr:")) {
+        const { error } = await supabase
+          .from("drug_quota_patients")
+          .update({ status })
+          .eq("id", row.id);
+        if (error) throw error;
+        return;
+      }
+
+      // The row's own clinic, not the editor's: a super_admin has no clinic of
+      // their own, and stamp_clinic_id() would leave the insert with a null.
+      const clinicId = row.clinic_id ?? profile?.clinic_id ?? null;
+      if (!clinicId) throw new Error("Klinik pesakit tidak diketahui — status tidak dapat ditetapkan.");
+
+      const ic = row.patient_registry.no_ic.replace(/\D/g, "");
+      // Scoped by clinic: patient_registry is unique on (clinic_id, no_ic), so
+      // an IC-only lookup would hand a super_admin another clinic's patient and
+      // enrol that row instead.
+      const { data: existing, error: findErr } = await supabase
+        .from("patient_registry")
+        .select("id")
+        .eq("clinic_id", clinicId)
+        .eq("no_ic", ic)
+        .maybeSingle();
+      if (findErr) throw findErr;
+
+      let patientId = existing?.id;
+      if (!patientId) {
+        const { data: created, error: insertErr } = await supabase
+          .from("patient_registry")
+          .insert({ patient_name: row.patient_registry.patient_name, no_ic: ic, clinic_id: clinicId })
+          .select("id")
+          .single();
+        if (insertErr) throw insertErr;
+        patientId = created.id;
+      }
+
+      const { error: enrolErr } = await supabase.from("drug_quota_patients").insert({
+        patient_id: patientId,
+        drug_id: effectiveDrugId,
+        year,
+        clinic_id: clinicId,
+        status,
+        kuota: 1,
+        catatan: "Didaftar daripada permintaan pendispensan",
+      });
+      if (enrolErr) throw enrolErr;
+    },
+    onSuccess: () => {
+      // Both, and in this order of importance: the usage RPC is what the quota
+      // card reads, so without it the row says TIDAK AKTIF while the card still
+      // counts the slot.
+      queryClient.invalidateQueries({ queryKey: ["quota-patients"] });
+      queryClient.invalidateQueries({ queryKey: ["drug-quota-usage"] });
+      toast.success("Status pesakit dikemas kini");
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
 
   const filteredRows = useMemo(() => {
     if (!searchQ) return namedRows;
@@ -327,6 +404,14 @@ export default function PatientRegistry() {
               const row = quotaPatients.find(r => r.patient_id === patientId);
               if (row) setSheetPatient(row.patient_registry);
             }}
+            onStatusChange={canEditStatus ? ((row, status) => {
+              // The table hands back its own narrower row type; the mutation
+              // needs clinic_id and the "dr:" patient_id, so resolve the full
+              // row rather than widening the component's interface.
+              const full = namedRows.find(r => r.id === row.id);
+              if (full) statusMutation.mutate({ row: full, status });
+            }) : undefined}
+            savingStatusRowId={statusMutation.isPending ? statusMutation.variables?.row.id ?? null : null}
             isLoading={patientsLoading}
             emptyMessage={searchQ ? `Tiada padanan untuk "${searchQ}".` : "Tiada pesakit berdaftar untuk ubat ini."}
           />

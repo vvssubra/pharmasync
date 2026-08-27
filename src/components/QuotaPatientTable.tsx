@@ -7,7 +7,13 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import {
+  QUOTA_STATUSES, isQuotaStatus, statusBadgeClass, type QuotaStatus,
+} from "@/lib/quotaStatus";
 
 export interface QuotaPatientRow {
   id: string;
@@ -18,6 +24,11 @@ export interface QuotaPatientRow {
   fms_name: string | null;
   clinic_name: string | null;
   catatan: string | null;
+  /**
+   * Not rendered — the KUOTA column was dropped. Kept on the row because the
+   * caller's duplicate-IC collapse folds a group down to max(kuota) to stay in
+   * step with drug_quota_used(); the value decides which row survives.
+   */
   kuota: number;
   patient_id: string;
   patient_registry: { id: string; patient_name: string; no_ic: string };
@@ -27,17 +38,28 @@ interface Props {
   rows: QuotaPatientRow[];
   selectedPatientId: string | null;
   onSelect: (patientId: string) => void;
+  /**
+   * Omitted for anyone who may not change a status — the cell stays a plain
+   * badge. Only admin and super_admin get this, matching the trigger in
+   * 20260827000000_quota_patient_status.sql; the database refuses the rest
+   * whether or not the dropdown is on screen.
+   */
+  onStatusChange?: (row: QuotaPatientRow, status: QuotaStatus) => void;
+  /** Row whose status write is in flight — its dropdown is disabled. */
+  savingStatusRowId?: string | null;
   isLoading?: boolean;
   emptyMessage: string;
 }
 
-export function QuotaPatientTable({ rows, selectedPatientId, onSelect, isLoading, emptyMessage }: Props) {
+export function QuotaPatientTable({
+  rows, selectedPatientId, onSelect, onStatusChange, savingStatusRowId, isLoading, emptyMessage,
+}: Props) {
   // One clinic on screen means KLINIK is the same string on every row — noise.
   // It earns its place only when the list actually spans clinics, which is
   // super_admin and logistic_pharmacist (both read cross-clinic here). Same
   // rule RoleManagement applies to its own clinic column.
   const showClinic = new Set(rows.map(r => r.clinic_name).filter(Boolean)).size > 1;
-  const colCount = showClinic ? 10 : 9;
+  const colCount = showClinic ? 9 : 8;
   return (
     <div className="rounded-md border overflow-x-auto">
       <Table>
@@ -52,7 +74,6 @@ export function QuotaPatientTable({ rows, selectedPatientId, onSelect, isLoading
             <TableHead>FMS</TableHead>
             {showClinic && <TableHead>KLINIK</TableHead>}
             <TableHead>CATATAN</TableHead>
-            <TableHead className="text-right">KUOTA</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -71,7 +92,6 @@ export function QuotaPatientTable({ rows, selectedPatientId, onSelect, isLoading
           ) : rows.map((row, i) => {
             const patient = row.patient_registry;
             const validIC = isValidIC(patient.no_ic);
-            const isAktif = row.status.toUpperCase() === "AKTIF";
             return (
               <TableRow
                 key={row.id}
@@ -99,9 +119,39 @@ export function QuotaPatientTable({ rows, selectedPatientId, onSelect, isLoading
                   {row.tarikh_mula_rawatan ? format(new Date(row.tarikh_mula_rawatan), "dd/MM/yyyy") : "—"}
                 </TableCell>
                 <TableCell>
-                  <Badge variant="outline" className={isAktif ? "bg-green-100 text-green-700 border-green-300" : "bg-gray-100 text-gray-600 border-gray-300"}>
-                    {row.status}
-                  </Badge>
+                  {onStatusChange ? (
+                    // stopPropagation: the row itself opens the patient history
+                    // sheet on click, which would swallow every interaction with
+                    // the dropdown (and pop the sheet open behind it).
+                    <div onClick={(e) => e.stopPropagation()}>
+                      <Select
+                        value={isQuotaStatus(row.status) ? row.status : undefined}
+                        onValueChange={(next) => onStatusChange(row, next as QuotaStatus)}
+                        disabled={savingStatusRowId === row.id}
+                      >
+                        <SelectTrigger
+                          className="h-7 w-[8.5rem] text-xs"
+                          aria-label={`Status ${patient.patient_name}`}
+                        >
+                          {/* A dispensing-request row carries the REQUEST's status
+                              ("approved", "fulfilled") — not one of the three
+                              enrolment statuses. Show it as the placeholder rather
+                              than forcing it into the list, so the admin sees what
+                              it is today and what they can change it to. */}
+                          <SelectValue placeholder={row.status} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {QUOTA_STATUSES.map(s => (
+                            <SelectItem key={s} value={s} className="text-xs">{s}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  ) : (
+                    <Badge variant="outline" className={statusBadgeClass(row.status)}>
+                      {row.status}
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell className="text-xs whitespace-nowrap">{row.dosing ?? "—"}</TableCell>
                 <TableCell className="text-xs whitespace-nowrap">{row.fms_name ?? "—"}</TableCell>
@@ -110,13 +160,6 @@ export function QuotaPatientTable({ rows, selectedPatientId, onSelect, isLoading
                 )}
                 <TableCell className="text-xs max-w-[220px] truncate" title={row.catatan ?? undefined}>
                   {row.catatan ?? "—"}
-                </TableCell>
-                <TableCell className="text-right">
-                  {row.kuota > 1 ? (
-                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-300">{row.kuota}</Badge>
-                  ) : (
-                    <span className={row.kuota === 0 ? "text-muted-foreground" : ""}>{row.kuota}</span>
-                  )}
                 </TableCell>
               </TableRow>
             );

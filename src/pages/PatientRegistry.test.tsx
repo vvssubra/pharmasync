@@ -24,6 +24,13 @@ const dispensedByDrug: Record<string, unknown[]> = {};
 // id -> name lookup the KLINIK column resolves against. Empty by default, so
 // tests that predate the column see no clinic names and no column.
 let clinicsData: unknown[] = [];
+// Writes the status dropdown makes, captured for assertion.
+const dqpUpdates: { id?: string; patch: Record<string, unknown> }[] = [];
+const dqpInserts: Record<string, unknown>[] = [];
+const patientInserts: Record<string, unknown>[] = [];
+// What the (clinic_id, no_ic) lookup finds when enrolling a dispensing-request
+// patient — null means "no patient_registry row yet, create one".
+let patientLookup: { id: string } | null = null;
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
@@ -48,6 +55,16 @@ vi.mock("@/integrations/supabase/client", () => ({
               }),
             }),
           }),
+          update: (patch: Record<string, unknown>) => ({
+            eq: (_col: string, id: string) => {
+              dqpUpdates.push({ id, patch });
+              return Promise.resolve({ error: null });
+            },
+          }),
+          insert: (row: Record<string, unknown>) => {
+            dqpInserts.push(row);
+            return Promise.resolve({ error: null });
+          },
         };
       }
       if (table === "clinics") {
@@ -56,7 +73,24 @@ vi.mock("@/integrations/supabase/client", () => ({
         };
       }
       if (table === "patient_registry") {
-        return { select: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) };
+        return {
+          // Two callers: the walk-in dialog's .order() list, and the status
+          // mutation's .eq(clinic_id).eq(no_ic).maybeSingle() lookup.
+          select: () => {
+            const chain = {
+              order: () => Promise.resolve({ data: [], error: null }),
+              eq: () => chain,
+              maybeSingle: () => Promise.resolve({ data: patientLookup, error: null }),
+            };
+            return chain;
+          },
+          insert: (row: Record<string, unknown>) => {
+            patientInserts.push(row);
+            return {
+              select: () => ({ single: () => Promise.resolve({ data: { id: "patient-new" }, error: null }) }),
+            };
+          },
+        };
       }
       if (table === "dispensing_requests") {
         // Chainable .eq/.neq/.gte/.lt in any order, terminated by .order() —
@@ -126,6 +160,10 @@ describe("PatientRegistry", () => {
     mockRole = "pharmacist";
     for (const k of Object.keys(dispensedByDrug)) delete dispensedByDrug[k];
     clinicsData = [];
+    dqpUpdates.length = 0;
+    dqpInserts.length = 0;
+    patientInserts.length = 0;
+    patientLookup = null;
     quotaPatientsByDrug = {
       "drug-novomix": [
         { id: "row-1", source_bil: 1, tarikh_mula_rawatan: null, status: "AKTIF", dosing: null, fms_name: null, catatan: null, kuota: 1, patient_id: "p-1", patient_registry: { id: "p-1", patient_name: "Saringat Salleh", no_ic: "580305715589", created_at: "2024-01-01" } },
@@ -230,9 +268,11 @@ describe("PatientRegistry", () => {
       { id: "row-2b", source_bil: 40, tarikh_mula_rawatan: null, status: "AKTIF", dosing: null, fms_name: "DR OTHER", catatan: null, kuota: 2, patient_id: "p-2b", patient_registry: { id: "p-2b", patient_name: "Lee Siew Yoong", no_ic: "520308-10-5706", created_at: "2024-01-01" } },
     ];
     renderPage();
+    // One row, not two — the same collapse drug_quota_used() applies, so the
+    // row count and the quota card's "used" figure cannot diverge. The
+    // surviving row's kuota (raised to the group's max) is no longer asserted
+    // here: the KUOTA column was dropped, so nothing renders it.
     await waitFor(() => expect(screen.getAllByText("Lee Siew Yoong")).toHaveLength(1));
-    // Kept row-2's kuota field but raised to the group's max (2), same rule drug_quota_used() applies.
-    expect(screen.getByText("2")).toBeInTheDocument();
   });
 
   it("excludes a dispensing request whose IC is already enrolled in drug_quota_patients (no double-count)", async () => {
@@ -242,6 +282,94 @@ describe("PatientRegistry", () => {
     ];
     renderPage();
     await waitFor(() => expect(screen.getAllByText("Lee Siew Yoong")).toHaveLength(1));
+  });
+
+  describe("status editing — admin only", () => {
+    it("gives a pharmacist no status dropdown", async () => {
+      // Releasing a national slot is an allocation decision; the trigger in
+      // 20260827000000_quota_patient_status.sql refuses a pharmacist anyway.
+      renderPage(); // mockRole is "pharmacist"
+      await waitFor(() => expect(screen.getByText("Lee Siew Yoong")).toBeInTheDocument());
+      expect(screen.queryByRole("combobox", { name: /^Status / })).not.toBeInTheDocument();
+    });
+
+    it("writes the new status to the enrolment row an admin picks", async () => {
+      mockRole = "admin";
+      renderPage();
+      await waitFor(() => expect(screen.getByText("Lee Siew Yoong")).toBeInTheDocument());
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("combobox", { name: "Status Lee Siew Yoong" }));
+      await user.click(await screen.findByRole("option", { name: "TIDAK AKTIF" }));
+
+      await waitFor(() => expect(dqpUpdates).toHaveLength(1));
+      expect(dqpUpdates[0]).toEqual({ id: "row-2", patch: { status: "TIDAK AKTIF" } });
+      expect(dqpInserts).toHaveLength(0);
+    });
+
+    it("re-reads the usage RPC after a status change, so the quota card moves with the row", async () => {
+      mockRole = "admin";
+      renderPage();
+      await waitFor(() => expect(screen.getByText("Lee Siew Yoong")).toBeInTheDocument());
+      const { supabase } = await import("@/integrations/supabase/client");
+      const before = vi.mocked(supabase.rpc).mock.calls.length;
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("combobox", { name: "Status Lee Siew Yoong" }));
+      await user.click(await screen.findByRole("option", { name: "TIDAK AKTIF" }));
+
+      // Without this the row reads TIDAK AKTIF while the card still counts the slot.
+      await waitFor(() => expect(vi.mocked(supabase.rpc).mock.calls.length).toBeGreaterThan(before));
+    });
+
+    it("enrols a dispensing-request patient before setting the status, creating the patient row when there is none", async () => {
+      mockRole = "admin";
+      clinicsData = [{ id: "clinic-2", name: "KK Larkin" }];
+      quotaPatientsByDrug["drug-levemir"] = [];
+      dispensedByDrug["drug-levemir"] = [
+        { id: "dr-1", no_ic: "990101-14-7788", patient_name: "Chong Wei Ling", status: "approved", created_at: "2026-03-01", clinic_id: "clinic-2" },
+      ];
+      renderPage();
+      await waitFor(() => expect(screen.getByText("Chong Wei Ling")).toBeInTheDocument());
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("combobox", { name: "Status Chong Wei Ling" }));
+      await user.click(await screen.findByRole("option", { name: "TIDAK AKTIF" }));
+
+      // Patient created against the ROW's clinic, not the admin's — and with a
+      // digits-only IC, which is what patient_registry is unique on.
+      await waitFor(() => expect(patientInserts).toHaveLength(1));
+      expect(patientInserts[0]).toEqual({
+        patient_name: "Chong Wei Ling", no_ic: "990101147788", clinic_id: "clinic-2",
+      });
+      // Then the enrolment that makes the slot releasable at all.
+      expect(dqpInserts).toHaveLength(1);
+      expect(dqpInserts[0]).toMatchObject({
+        patient_id: "patient-new", drug_id: "drug-levemir", clinic_id: "clinic-2",
+        status: "TIDAK AKTIF", kuota: 1,
+      });
+      expect(dqpUpdates).toHaveLength(0);
+    });
+
+    it("reuses an existing patient_registry row rather than creating a duplicate", async () => {
+      mockRole = "admin";
+      patientLookup = { id: "patient-existing" };
+      clinicsData = [{ id: "clinic-2", name: "KK Larkin" }];
+      quotaPatientsByDrug["drug-levemir"] = [];
+      dispensedByDrug["drug-levemir"] = [
+        { id: "dr-1", no_ic: "990101147788", patient_name: "Chong Wei Ling", status: "approved", created_at: "2026-03-01", clinic_id: "clinic-2" },
+      ];
+      renderPage();
+      await waitFor(() => expect(screen.getByText("Chong Wei Ling")).toBeInTheDocument());
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("combobox", { name: "Status Chong Wei Ling" }));
+      await user.click(await screen.findByRole("option", { name: "PENDING" }));
+
+      await waitFor(() => expect(dqpInserts).toHaveLength(1));
+      expect(patientInserts).toHaveLength(0);
+      expect(dqpInserts[0]).toMatchObject({ patient_id: "patient-existing", status: "PENDING" });
+    });
   });
 
   describe("logistic_pharmacist — read-only", () => {
