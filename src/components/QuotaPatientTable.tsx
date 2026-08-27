@@ -16,6 +16,7 @@ export interface QuotaPatientRow {
   status: string;
   dosing: string | null;
   fms_name: string | null;
+  clinic_name: string | null;
   catatan: string | null;
   kuota: number;
   patient_id: string;
@@ -31,6 +32,12 @@ interface Props {
 }
 
 export function QuotaPatientTable({ rows, selectedPatientId, onSelect, isLoading, emptyMessage }: Props) {
+  // One clinic on screen means KLINIK is the same string on every row — noise.
+  // It earns its place only when the list actually spans clinics, which is
+  // super_admin and logistic_pharmacist (both read cross-clinic here). Same
+  // rule RoleManagement applies to its own clinic column.
+  const showClinic = new Set(rows.map(r => r.clinic_name).filter(Boolean)).size > 1;
+  const colCount = showClinic ? 10 : 9;
   return (
     <div className="rounded-md border overflow-x-auto">
       <Table>
@@ -43,6 +50,7 @@ export function QuotaPatientTable({ rows, selectedPatientId, onSelect, isLoading
             <TableHead>STATUS</TableHead>
             <TableHead>DOSING</TableHead>
             <TableHead>FMS</TableHead>
+            {showClinic && <TableHead>KLINIK</TableHead>}
             <TableHead>CATATAN</TableHead>
             <TableHead className="text-right">KUOTA</TableHead>
           </TableRow>
@@ -51,14 +59,14 @@ export function QuotaPatientTable({ rows, selectedPatientId, onSelect, isLoading
           {isLoading ? (
             Array.from({ length: 5 }).map((_, i) => (
               <TableRow key={i}>
-                {Array.from({ length: 9 }).map((__, j) => (
+                {Array.from({ length: colCount }).map((__, j) => (
                   <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                 ))}
               </TableRow>
             ))
           ) : rows.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">{emptyMessage}</TableCell>
+              <TableCell colSpan={colCount} className="text-center py-8 text-muted-foreground">{emptyMessage}</TableCell>
             </TableRow>
           ) : rows.map((row, i) => {
             const patient = row.patient_registry;
@@ -97,6 +105,9 @@ export function QuotaPatientTable({ rows, selectedPatientId, onSelect, isLoading
                 </TableCell>
                 <TableCell className="text-xs whitespace-nowrap">{row.dosing ?? "—"}</TableCell>
                 <TableCell className="text-xs whitespace-nowrap">{row.fms_name ?? "—"}</TableCell>
+                {showClinic && (
+                  <TableCell className="text-xs whitespace-nowrap">{row.clinic_name ?? "—"}</TableCell>
+                )}
                 <TableCell className="text-xs max-w-[220px] truncate" title={row.catatan ?? undefined}>
                   {row.catatan ?? "—"}
                 </TableCell>

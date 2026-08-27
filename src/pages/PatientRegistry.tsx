@@ -32,6 +32,15 @@ interface SheetPatient {
   created_at: string;
 }
 
+// What the two source queries actually return: the owning clinic as an id.
+// clinic_name is resolved against the clinics lookup once, below, rather than
+// inside the query — so a clinic rename does not need the patient list refetched
+// and the query key does not have to carry the clinic list.
+type QuotaRow = Omit<QuotaPatientRow, "clinic_name"> & {
+  clinic_id: string | null;
+  patient_registry: SheetPatient;
+};
+
 export default function PatientRegistry() {
   // logistic_pharmacist reaches this page HQ-wide (cross-clinic SELECT per
   // 20260819000400_logistic_access.sql) but has no write policy on
@@ -95,18 +104,36 @@ export default function PatientRegistry() {
   const usage = quotaUsageByDrug.get(effectiveDrugId);
   const prevUsage = prevYearUsageByDrug.get(effectiveDrugId);
 
+  // Which clinic each row came from. Only super_admin and logistic_pharmacist
+  // see rows from more than one, and QuotaPatientTable hides the column when
+  // they don't — but the lookup is a handful of rows, so it is unconditional
+  // rather than gated on role (clinics is readable by anon, per
+  // 20260723000200_tenancy_3_rls.sql).
+  const { data: clinics = [] } = useQuery({
+    queryKey: ["clinics-names"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("clinics").select("id, name");
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+  const clinicNamesById = useMemo(
+    () => new Map(clinics.map(c => [c.id, c.name])),
+    [clinics],
+  );
+
   const { data: quotaPatients = [], isLoading: patientsLoading } = useQuery({
     queryKey: ["quota-patients", effectiveDrugId, year],
     enabled: !!effectiveDrugId,
     queryFn: async () => {
       const { data: enrolled, error: enrolledError } = await supabase
         .from("drug_quota_patients")
-        .select("id, source_bil, tarikh_mula_rawatan, status, dosing, fms_name, catatan, kuota, patient_id, patient_registry!inner(id, patient_name, no_ic, created_at)")
+        .select("id, source_bil, tarikh_mula_rawatan, status, dosing, fms_name, clinic_id, catatan, kuota, patient_id, patient_registry!inner(id, patient_name, no_ic, created_at)")
         .eq("drug_id", effectiveDrugId)
         .eq("year", year)
         .order("source_bil", { ascending: true, nullsFirst: false });
       if (enrolledError) throw enrolledError;
-      const enrolledRowsRaw = enrolled as unknown as (QuotaPatientRow & { patient_registry: SheetPatient })[];
+      const enrolledRowsRaw = enrolled as unknown as QuotaRow[];
 
       // A patient can carry more than one drug_quota_patients row for the same
       // drug/year — re-enrolled under a different FMS, a data-entry repeat,
@@ -115,7 +142,7 @@ export default function PatientRegistry() {
       // IC (kuota = max across the group) before computing "used" — this list
       // has to apply the exact same collapse, or the row count and the quota
       // card's number diverge by exactly the duplicate count.
-      const enrolledGroups = new Map<string, (QuotaPatientRow & { patient_registry: SheetPatient })[]>();
+      const enrolledGroups = new Map<string, QuotaRow[]>();
       for (const row of enrolledRowsRaw) {
         const ic = row.patient_registry.no_ic.replace(/\D/g, "");
         const group = enrolledGroups.get(ic);
@@ -137,7 +164,7 @@ export default function PatientRegistry() {
       // way, so the two numbers tally.
       const { data: dispensed, error: dispensedError } = await supabase
         .from("dispensing_requests")
-        .select("id, no_ic, patient_name, status, created_at")
+        .select("id, no_ic, patient_name, status, created_at, clinic_id")
         .eq("drug_id", effectiveDrugId)
         .eq("is_pesara", false)
         .neq("status", "rejected")
@@ -148,7 +175,7 @@ export default function PatientRegistry() {
 
       const enrolledIcs = new Set(enrolledRows.map(r => r.patient_registry.no_ic.replace(/\D/g, "")));
       const seenIcs = new Set<string>();
-      const dispensedRows: (QuotaPatientRow & { patient_registry: SheetPatient })[] = [];
+      const dispensedRows: QuotaRow[] = [];
       for (const dr of dispensed ?? []) {
         const ic = dr.no_ic.replace(/\D/g, "");
         if (enrolledIcs.has(ic) || seenIcs.has(ic)) continue;
@@ -160,6 +187,7 @@ export default function PatientRegistry() {
           status: dr.status,
           dosing: null,
           fms_name: null,
+          clinic_id: dr.clinic_id,
           catatan: "Dari permintaan pendispensan (belum didaftar kuota)",
           kuota: 1,
           patient_id: `dr:${dr.id}`,
@@ -186,14 +214,22 @@ export default function PatientRegistry() {
     },
   });
 
+  const namedRows = useMemo(
+    () => quotaPatients.map((row): QuotaPatientRow & { patient_registry: SheetPatient } => ({
+      ...row,
+      clinic_name: row.clinic_id ? clinicNamesById.get(row.clinic_id) ?? null : null,
+    })),
+    [quotaPatients, clinicNamesById],
+  );
+
   const filteredRows = useMemo(() => {
-    if (!searchQ) return quotaPatients;
+    if (!searchQ) return namedRows;
     const q = searchQ.trim().toLowerCase();
     const qDigits = q.replace(/\D/g, "");
-    return quotaPatients.filter(row =>
+    return namedRows.filter(row =>
       row.patient_registry.patient_name.toLowerCase().includes(q)
       || (qDigits && row.patient_registry.no_ic.includes(qDigits)));
-  }, [quotaPatients, searchQ]);
+  }, [namedRows, searchQ]);
 
   const selectedDrugName = quotaDrugs.find(d => d.drug_id === effectiveDrugId)?.drugs.drug_name;
 

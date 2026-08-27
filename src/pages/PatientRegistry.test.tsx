@@ -21,6 +21,9 @@ let rpcData: unknown[] = [];
 // have no drug_quota_patients enrolment yet — empty by default so existing
 // assertions (which predate this union) are unaffected.
 const dispensedByDrug: Record<string, unknown[]> = {};
+// id -> name lookup the KLINIK column resolves against. Empty by default, so
+// tests that predate the column see no clinic names and no column.
+let clinicsData: unknown[] = [];
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
@@ -45,6 +48,11 @@ vi.mock("@/integrations/supabase/client", () => ({
               }),
             }),
           }),
+        };
+      }
+      if (table === "clinics") {
+        return {
+          select: () => Promise.resolve({ data: clinicsData, error: null }),
         };
       }
       if (table === "patient_registry") {
@@ -117,6 +125,7 @@ describe("PatientRegistry", () => {
     vi.clearAllMocks();
     mockRole = "pharmacist";
     for (const k of Object.keys(dispensedByDrug)) delete dispensedByDrug[k];
+    clinicsData = [];
     quotaPatientsByDrug = {
       "drug-novomix": [
         { id: "row-1", source_bil: 1, tarikh_mula_rawatan: null, status: "AKTIF", dosing: null, fms_name: null, catatan: null, kuota: 1, patient_id: "p-1", patient_registry: { id: "p-1", patient_name: "Saringat Salleh", no_ic: "580305715589", created_at: "2024-01-01" } },
@@ -157,6 +166,27 @@ describe("PatientRegistry", () => {
     expect(screen.queryByText("Lee Siew Yoong")).not.toBeInTheDocument();
     // Novomix's own RPC numbers should now be showing.
     expect(screen.getByText("71")).toBeInTheDocument();
+  });
+
+  it("names each row's clinic from clinics, across both the enrolled and the dispensing-request sources", async () => {
+    // super_admin / logistic_pharmacist read this page cross-clinic, so "which
+    // KK is this patient from" is only answerable if clinic_id is carried
+    // through both halves of the union and resolved to a name.
+    clinicsData = [{ id: "clinic-1", name: "KK Kempas" }, { id: "clinic-2", name: "KK Larkin" }];
+    quotaPatientsByDrug["drug-levemir"] = [
+      { id: "row-2", source_bil: 1, tarikh_mula_rawatan: null, status: "AKTIF", dosing: null, fms_name: null, clinic_id: "clinic-1", catatan: null, kuota: 1, patient_id: "p-2", patient_registry: { id: "p-2", patient_name: "Lee Siew Yoong", no_ic: "520308105706", created_at: "2024-01-01" } },
+    ];
+    dispensedByDrug["drug-levemir"] = [
+      { id: "dr-1", no_ic: "990101147788", patient_name: "Chong Wei Ling", status: "approved", created_at: "2026-03-01", clinic_id: "clinic-2" },
+    ];
+    renderPage();
+    await waitFor(() => expect(screen.getByText("Chong Wei Ling")).toBeInTheDocument());
+
+    expect(screen.getByText("KLINIK")).toBeInTheDocument();
+    const enrolledRow = screen.getByText("Lee Siew Yoong").closest("tr")!;
+    expect(enrolledRow.textContent).toContain("KK Kempas");
+    const dispensedRow = screen.getByText("Chong Wei Ling").closest("tr")!;
+    expect(dispensedRow.textContent).toContain("KK Larkin");
   });
 
   it("shows the no-quota-drugs empty state when no drug carries a national quota this year", async () => {

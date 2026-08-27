@@ -10,6 +10,7 @@ function makeRow(overrides: Partial<QuotaPatientRow> = {}): QuotaPatientRow {
     status: "AKTIF",
     dosing: "30iu TDS",
     fms_name: "DR SYAZWANI",
+    clinic_name: "KK Kempas",
     catatan: "Tpc checked",
     kuota: 1,
     patient_id: "patient-1",
@@ -85,6 +86,38 @@ describe("QuotaPatientTable", () => {
     render(<QuotaPatientTable rows={rows} selectedPatientId={null} onSelect={onSelect} emptyMessage="—" />);
     fireEvent.click(screen.getByText("Saringat Salleh"));
     expect(onSelect).toHaveBeenCalledWith("patient-1");
+  });
+
+  it("hides the KLINIK column when every row is from the same clinic", () => {
+    const rows = [makeRow({ id: "a", patient_id: "p-a" }),
+                  makeRow({ id: "b", patient_id: "p-b", patient_registry: { id: "p-b", patient_name: "B", no_ic: "580305715590" } })];
+    render(<QuotaPatientTable rows={rows} selectedPatientId={null} onSelect={vi.fn()} emptyMessage="—" />);
+    expect(screen.queryByText("KLINIK")).not.toBeInTheDocument();
+    expect(screen.queryByText("KK Kempas")).not.toBeInTheDocument();
+  });
+
+  it("shows KLINIK beside FMS when the rows span clinics", () => {
+    const rows = [makeRow({ id: "a", patient_id: "p-a", clinic_name: "KK Kempas" }),
+                  makeRow({ id: "b", patient_id: "p-b", clinic_name: "KK Larkin", patient_registry: { id: "p-b", patient_name: "B", no_ic: "580305715590" } })];
+    render(<QuotaPatientTable rows={rows} selectedPatientId={null} onSelect={vi.fn()} emptyMessage="—" />);
+    expect(screen.getByText("KLINIK")).toBeInTheDocument();
+    expect(screen.getByText("KK Kempas")).toBeInTheDocument();
+    expect(screen.getByText("KK Larkin")).toBeInTheDocument();
+
+    // Beside FMS, not appended at the end: KLINIK sits between FMS and CATATAN.
+    const headers = screen.getAllByRole("columnheader").map(h => h.textContent);
+    expect(headers.slice(headers.indexOf("FMS"), headers.indexOf("FMS") + 3))
+      .toEqual(["FMS", "KLINIK", "CATATAN"]);
+  });
+
+  it("renders '—' for a row with no clinic while others have one", () => {
+    const rows = [makeRow({ id: "a", patient_id: "p-a", clinic_name: "KK Kempas" }),
+                  makeRow({ id: "b", patient_id: "p-b", clinic_name: "KK Larkin", patient_registry: { id: "p-b", patient_name: "B", no_ic: "580305715590" } }),
+                  makeRow({ id: "c", patient_id: "p-c", clinic_name: null, patient_registry: { id: "p-c", patient_name: "C", no_ic: "580305715591" } })];
+    render(<QuotaPatientTable rows={rows} selectedPatientId={null} onSelect={vi.fn()} emptyMessage="—" />);
+    const cRow = screen.getByText("C").closest("tr")!;
+    const cells = Array.from(cRow.querySelectorAll("td")).map(td => td.textContent);
+    expect(cells[7]).toBe("—"); // KLINIK, the 8th cell once the column is shown
   });
 
   it("shows the empty-state message when there are no rows", () => {
