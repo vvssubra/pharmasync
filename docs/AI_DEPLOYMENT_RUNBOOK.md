@@ -139,7 +139,21 @@ Verify what actually landed, rather than assuming:
 ```bash
 docker exec supabase-edge-functions-l8dsa2iokodt3yafiwcmfkvi \
   grep -h "ALLOWED_ROLES = \[" /home/deno/functions/antibiotic-suggest/index.ts
+# expect: ["mo", "fms", "admin", "pharmacist", "super_admin"]
+
+docker exec supabase-edge-functions-l8dsa2iokodt3yafiwcmfkvi \
+  grep -c "regimens" /home/deno/functions/antibiotic-suggest/index.ts
+# expect: non-zero. 0 means the pre-2026-08-03 build (single `suggestion`
+# string) is still running.
 ```
+
+**Symptom of a stale `antibiotic-suggest`:** the Suggest Antibiotic (AI)
+button does nothing useful. Frontends built before 2026-09-11 crashed the whole
+antibiotic form on click (the old `{ suggestion }` body has no `regimens` array
+to render); newer builds show the toast *"the server returned an outdated
+response"*. Either way the fix is the copy command above, not a frontend change.
+A role added on both sides (e.g. `fms`, 2026-08-10) but deployed only on the
+frontend shows as *"AI suggestion refused: Unauthorized…"*.
 
 ---
 

@@ -12,7 +12,7 @@ import PathwayCheckBanner from "@/components/PathwayCheckBanner";
 import { AI_ENABLED, AI_SUGGEST_ROLES, PATHWAY_CHECK_ENABLED, KNOWLEDGE_ENABLED } from "@/lib/featureFlags";
 import { deriveDoseQuery, derivePathwayIndication, type ChecklistState } from "@/lib/doseQuery";
 import { resolveLocalDose } from "@/lib/abxDose";
-import type { ComputedRegimen } from "@/lib/nagPathways";
+import { parseAiSuggestion, describeAiSuggestFailure, STALE_SERVER_MESSAGE, type AiSuggestion } from "@/lib/aiSuggest";
 import AbxDoseCard from "@/components/AbxDoseCard";
 import { exampleDoseFor } from "@/lib/knowledgeClient";
 import { DiagnosisCombobox } from "@/components/DiagnosisCombobox";
@@ -60,18 +60,6 @@ const defaultChecklist: ChecklistState = {
   ssti: { erythema: false, abscess_incision: false, inadequate_drainage: false, extensive_cellulitis: false, valvular_heart: false, diabetes: false, impetigo_localised: false, impetigo_generalised: false, cellulitis: false },
   uti: { nit_positive: false, leu_positive: false, frequency: false, dysuria: false, hematuria: false, suprapubic: false, urgency: false, polyuria: false, pregnancy_culture: "" },
 };
-
-interface AiSuggestion {
-  /** Every regimen option NAG_PATHWAYS documents for the matched pathway —
-   *  empty when no pathway matched (see `source: "refer"` below). */
-  regimens: ComputedRegimen[];
-  rationale: string;
-  warning: string | null;
-  /** "refer" means no regimen was produced — no pathway matched, or the only
-   *  match was written for a different patient group. `regimens` is empty,
-   *  and `rationale` carries the refer-to-specialist message instead. */
-  source: "rules" | "refer";
-}
 
 export default function AntibioticForm() {
   const navigate = useNavigate();
@@ -282,18 +270,26 @@ checklist: checklist as unknown as Record<string, unknown>,
           }),
         }
       );
-      if (resp.status === 429) {
-        toast.error("AI suggestion limit reached. Please try again later.");
-        return;
-      }
       if (!resp.ok) {
-        toast.error("AI suggestion unavailable. Please try again.");
+        // The function returns { error } on every non-2xx; surface it rather
+        // than collapsing 401/403/400/503 into one "unavailable" toast.
+        const body = await resp.json().catch(() => ({})) as { error?: string };
+        toast.error(describeAiSuggestFailure(resp.status, body.error));
         return;
       }
-      const data = await resp.json() as AiSuggestion;
+      // A stale antibiotic-suggest deploy still answers 200 with the old
+      // { suggestion } shape — validate before rendering instead of throwing
+      // inside `regimens.map` and blanking the form.
+      const data = parseAiSuggestion(await resp.json().catch(() => null));
+      if (!data) {
+        toast.error(STALE_SERVER_MESSAGE);
+        return;
+      }
       setAiSuggestion(data);
     } catch {
-      toast.error("Network error. Please check your connection.");
+      // fetch() rejects on a CORS block as well as a real outage — APP_ORIGIN
+      // on the edge runtime must match this app's origin.
+      toast.error("Could not reach the AI suggestion service (network or CORS error). Please check your connection.");
     } finally {
       setAiSuggesting(false);
     }

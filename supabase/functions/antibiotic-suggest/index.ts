@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
   // ── 2. Role check ─────────────────────────────────────────────────────────
   const role = await getUserRole(userId!);
   if (!role || !ALLOWED_ROLES.includes(role)) {
-    return new Response(JSON.stringify({ error: "Unauthorized: only MO role can use antibiotic suggestions" }), { status: 403, headers: { ...cors, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ error: "Unauthorized: your role is not permitted to use antibiotic suggestions" }), { status: 403, headers: { ...cors, "Content-Type": "application/json" } });
   }
 
   // ── 3. Rate limit ─────────────────────────────────────────────────────────
