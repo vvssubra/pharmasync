@@ -146,7 +146,7 @@ export default function Login() {
         />
 
         {/* Identity */}
-        <div className="pointer-events-none relative z-10 flex items-center gap-3">
+        <div className="login-rise pointer-events-none relative z-10 flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-emerald-300/20 bg-emerald-400/10 backdrop-blur-sm">
             <Pill className="h-6 w-6 text-emerald-300" />
           </div>
@@ -160,7 +160,7 @@ export default function Login() {
         </div>
 
         {/* Headline */}
-        <div className="pointer-events-none relative z-10 max-w-md">
+        <div className="login-rise pointer-events-none relative z-10 max-w-md" style={{ animationDelay: "100ms" }}>
           <h1
             className="shimmer-emerald-on-dark text-6xl font-bold leading-[1.05] tracking-tight"
             style={{ textWrap: "balance" as never }}
@@ -172,20 +172,30 @@ export default function Login() {
             drug requests, and antibiotic approvals in one place, precise and auditable.
           </p>
 
-          <ul className="mt-8 space-y-3">
-            {[
-              { icon: ShieldCheck, text: "Quota management for special drugs" },
-              { icon: Check, text: "Antibiotic approval per Clinical Pathway NAG 2024" },
-              { icon: Lock, text: "Role-based access — officers, specialists, pharmacy" },
-            ].map(({ icon: Icon, text }) => (
-              <li key={text} className="flex items-start gap-3 text-sm text-emerald-50/85">
-                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-400/15 text-emerald-300">
-                  <Icon className="h-3 w-3" />
-                </span>
-                {text}
-              </li>
-            ))}
-          </ul>
+          {/* Double-bezel: outer tray + inner core with a concentric radius. */}
+          <div
+            className="login-rise mt-8 rounded-[2rem] bg-white/[0.04] p-1.5 ring-1 ring-white/10"
+            style={{ animationDelay: "260ms" }}
+          >
+            <ul className="divide-y divide-white/[0.07] rounded-[calc(2rem-0.375rem)] bg-[#04140d]/70 px-5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.10)]">
+              {[
+                { icon: ShieldCheck, text: "Quota management for special drugs" },
+                { icon: Check, text: "Antibiotic approval per Clinical Pathway NAG 2024" },
+                { icon: Lock, text: "Role-based access — officers, specialists, pharmacy" },
+              ].map(({ icon: Icon, text }, i) => (
+                <li
+                  key={text}
+                  className="login-rise flex items-start gap-3 py-3.5 text-sm text-emerald-50/85"
+                  style={{ animationDelay: `${360 + i * 80}ms` }}
+                >
+                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-400/10 text-emerald-300 ring-1 ring-emerald-300/20">
+                    <Icon className="h-3.5 w-3.5" strokeWidth={1.5} />
+                  </span>
+                  {text}
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
 
         {/* Footer spacer keeps the three-row justify-between rhythm */}

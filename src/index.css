@@ -122,6 +122,19 @@
     hsl(152 55% 82%) 58%, hsl(152 55% 82%) 100%);
 }
 
+/* Login brand-panel entrance: a heavy fade-up on a spring-like curve. fill-mode
+   "backwards" applies the from-state only during the delay, so the content is
+   visible by default and never depends on the animation firing. */
+@keyframes login-rise {
+  from { opacity: 0; transform: translateY(14px); }
+}
+.login-rise {
+  animation: login-rise 700ms cubic-bezier(0.32, 0.72, 0, 1) backwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-rise { animation: none; }
+}
+
 /* Respect user motion preference (a11y) */
 @media (prefers-reduced-motion: reduce) {
   .shimmer-emerald {
