@@ -54,7 +54,7 @@ export default function Login() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#04140d]">
+      <div className="flex min-h-dvh items-center justify-center bg-[#04140d]">
         <div className="flex flex-col items-center gap-3">
           <Loader2 className="h-7 w-7 animate-spin text-emerald-300" />
           <p className="text-sm text-emerald-100/60">Loading…</p>
@@ -121,10 +121,11 @@ export default function Login() {
     "focus-visible:ring-2 focus-visible:ring-emerald-500/40 focus-visible:border-emerald-500";
   const labelClass = "text-[13px] font-medium text-slate-700";
   const primaryBtn =
-    "h-11 w-full bg-emerald-600 text-[15px] font-semibold text-white hover:bg-emerald-700";
+    "h-11 w-full bg-emerald-600 text-[15px] font-semibold text-white hover:bg-emerald-700 " +
+    "transition-[background-color,transform] duration-150 active:scale-[0.98] motion-reduce:active:scale-100";
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-dvh bg-slate-50">
       {/* ── Brand panel (desktop) ─────────────────────────────── */}
       <aside className="relative hidden w-[46%] max-w-[620px] flex-col justify-between overflow-hidden bg-[#04140d] px-12 py-11 text-white lg:flex">
         {/* Depth wash */}
@@ -202,7 +203,7 @@ export default function Login() {
               <Pill className="h-6 w-6 text-white" />
             </div>
             <div className="leading-tight">
-              <p className="shimmer-emerald text-lg font-bold tracking-tight">PharmaSync</p>
+              <h1 className="shimmer-emerald text-lg font-bold tracking-tight">PharmaSync</h1>
               <p className="text-xs text-slate-500">PKD Johor Bahru</p>
             </div>
           </div>
@@ -335,14 +336,14 @@ export default function Login() {
 
                     <div className="relative flex items-center gap-3 py-1">
                       <div className="h-px flex-1 bg-slate-200" />
-                      <span className="text-xs font-medium uppercase tracking-wide text-slate-400">or</span>
+                      <span className="text-xs font-medium uppercase tracking-wide text-slate-500">or</span>
                       <div className="h-px flex-1 bg-slate-200" />
                     </div>
 
                     <Button
                       type="button"
                       variant="outline"
-                      className="h-11 w-full font-medium"
+                      className="h-11 w-full font-medium transition-[background-color,transform] duration-150 active:scale-[0.98] motion-reduce:active:scale-100"
                       disabled={googleLoading || submitting}
                       onClick={handleGoogleLogin}
                     >
@@ -432,6 +433,9 @@ export default function Login() {
                     >
                       {submitting ? (<><Loader2 className="h-4 w-4 animate-spin" /> Creating account…</>) : "Create Account"}
                     </Button>
+                    {!clinicId && (
+                      <p className="text-center text-xs text-slate-500">Select your clinic to continue.</p>
+                    )}
                   </form>
                 </TabsContent>
               </Tabs>
