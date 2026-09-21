@@ -2,13 +2,13 @@ import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
+import type { Tables, TablesUpdate } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
 import { useClinicDrugSettings, resolveDrugSettings } from "@/hooks/useClinicDrugSettings";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { BarChart2, Package, Clock, AlertTriangle, ShieldCheck, Users } from "lucide-react";
 import { quotaStatus, forecastStatus, daysRemaining, projectedExhaustion, quotaDerivedStatus } from "@/lib/quotaHelpers";
 import { computeStock, stockStatus } from "@/lib/stock";
@@ -75,6 +75,65 @@ function ageFromIC(ic: string): string {
   return String(age);
 }
 
+const ALREADY_ACTIONED = "already-actioned";
+
+const isAlreadyActioned = (err: unknown) => err instanceof Error && err.message === ALREADY_ACTIONED;
+
+/** User-facing text for a failed approve/reject write. */
+function decisionErrorMessage(err: unknown, verb: string, noun: string): string {
+  if (isAlreadyActioned(err)) {
+    return `This ${noun} was already actioned by another reviewer. The list has been refreshed.`;
+  }
+  const reason = (err as { message?: string } | null)?.message;
+  return `Couldn't ${verb} this ${noun}${reason ? `: ${reason}` : ""}. Check the queue, then try again.`;
+}
+
+// Both decision writes are guarded on status = pending_specialist and must
+// touch exactly one row. Without the guard, a second reviewer's stale dialog
+// could flip an already-decided request; without the row check, RLS filtering
+// the write to zero rows would still report success.
+async function decideDispensingRequest(id: string, patch: TablesUpdate<"dispensing_requests">) {
+  const { data, error } = await supabase
+    .from("dispensing_requests")
+    .update(patch)
+    .eq("id", id)
+    .eq("status", "pending_specialist")
+    .select("id");
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error(ALREADY_ACTIONED);
+}
+
+async function decideAntibioticForm(id: string, patch: TablesUpdate<"antibiotic_forms">) {
+  const { data, error } = await supabase
+    .from("antibiotic_forms")
+    .update(patch)
+    .eq("id", id)
+    .eq("status", "pending_specialist")
+    .select("id");
+  if (error) throw error;
+  if (!data || data.length === 0) throw new Error(ALREADY_ACTIONED);
+}
+
+/** A query that failed with nothing cached has no data to show at all. */
+const failedEmpty = (isError: boolean, updatedAt: number) => isError && updatedAt === 0;
+
+function QueryError({ what, onRetry, staleAt }: { what: string; onRetry: () => void; staleAt?: number }) {
+  return (
+    <div
+      role="alert"
+      className="flex flex-wrap items-center justify-between gap-2 border-b bg-red-50 px-4 py-3 text-sm text-red-800"
+    >
+      <span className="flex items-center gap-2">
+        <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+        {staleAt
+          ? `Couldn't refresh ${what}. Showing data from ${format(staleAt, "h:mm a")}.`
+          : `Couldn't load ${what}.`}
+      </span>
+      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={onRetry}>Retry</Button>
+    </div>
+  );
+}
+
 const FORECAST_STATUS_BADGE: Record<string, string> = {
   critical: "bg-red-100 text-red-700 border-red-300",
   warning:  "bg-amber-100 text-amber-700 border-amber-300",
@@ -107,27 +166,34 @@ export default function FmsDashboard() {
     mutationFn: async () => {
       const id = approveTarget?.id;
       if (!id) throw new Error("No approval target selected");
-      const { error } = await supabase
-        .from("dispensing_requests")
-        .update({ status: "pending_pharmacy", specialist_id: user?.id, specialist_action_at: new Date().toISOString() })
-        .eq("id", id);
-      if (error) throw error;
+      await decideDispensingRequest(id, {
+        status: "pending_pharmacy",
+        specialist_id: user?.id,
+        specialist_action_at: new Date().toISOString(),
+      });
     },
     onSuccess: () => {
       setApproveTarget(null);
       queryClient.invalidateQueries({ queryKey: ["fms-pending-requests"] });
       toast.success("Request approved — sent to pharmacist");
     },
-    onError: () => toast.error("Failed to approve request"),
+    onError: (err) => {
+      if (isAlreadyActioned(err)) {
+        setApproveTarget(null);
+        queryClient.invalidateQueries({ queryKey: ["fms-pending-requests"] });
+      }
+      toast.error(decisionErrorMessage(err, "approve", "request"));
+    },
   });
 
   const rejectMutation = useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const { error } = await supabase
-        .from("dispensing_requests")
-        .update({ status: "rejected", specialist_id: user?.id, specialist_action_at: new Date().toISOString(), specialist_notes: reason })
-        .eq("id", id);
-      if (error) throw error;
+      await decideDispensingRequest(id, {
+        status: "rejected",
+        specialist_id: user?.id,
+        specialist_action_at: new Date().toISOString(),
+        specialist_notes: reason,
+      });
     },
     onSuccess: () => {
       setRejectTarget(null);
@@ -135,18 +201,26 @@ export default function FmsDashboard() {
       queryClient.invalidateQueries({ queryKey: ["fms-pending-requests"] });
       toast.success("Request rejected");
     },
-    onError: () => toast.error("Failed to reject request"),
+    onError: (err) => {
+      if (isAlreadyActioned(err)) {
+        setRejectTarget(null);
+        setRejectReason("");
+        queryClient.invalidateQueries({ queryKey: ["fms-pending-requests"] });
+      }
+      toast.error(decisionErrorMessage(err, "reject", "request"));
+    },
   });
 
   const abApproveMutation = useMutation({
     mutationFn: async () => {
       const id = abApproveTarget?.id;
       if (!id) throw new Error("No approval target");
-      const { error } = await supabase
-        .from("antibiotic_forms")
-        .update({ status: "approved", specialist_id: user?.id, specialist_action_at: new Date().toISOString(), specialist_notes: abNotes || null })
-        .eq("id", id);
-      if (error) throw error;
+      await decideAntibioticForm(id, {
+        status: "approved",
+        specialist_id: user?.id,
+        specialist_action_at: new Date().toISOString(),
+        specialist_notes: abNotes || null,
+      });
     },
     onSuccess: () => {
       setAbApproveTarget(null);
@@ -154,16 +228,24 @@ export default function FmsDashboard() {
       queryClient.invalidateQueries({ queryKey: ["fms-pending-antibiotic"] });
       toast.success("Antibiotic form approved");
     },
-    onError: () => toast.error("Failed to approve antibiotic form"),
+    onError: (err) => {
+      if (isAlreadyActioned(err)) {
+        setAbApproveTarget(null);
+        setAbNotes("");
+        queryClient.invalidateQueries({ queryKey: ["fms-pending-antibiotic"] });
+      }
+      toast.error(decisionErrorMessage(err, "approve", "antibiotic form"));
+    },
   });
 
   const abRejectMutation = useMutation({
     mutationFn: async ({ id, reason }: { id: string; reason: string }) => {
-      const { error } = await supabase
-        .from("antibiotic_forms")
-        .update({ status: "rejected", specialist_id: user?.id, specialist_action_at: new Date().toISOString(), specialist_notes: reason })
-        .eq("id", id);
-      if (error) throw error;
+      await decideAntibioticForm(id, {
+        status: "rejected",
+        specialist_id: user?.id,
+        specialist_action_at: new Date().toISOString(),
+        specialist_notes: reason,
+      });
     },
     onSuccess: () => {
       setAbRejectTarget(null);
@@ -171,15 +253,25 @@ export default function FmsDashboard() {
       queryClient.invalidateQueries({ queryKey: ["fms-pending-antibiotic"] });
       toast.success("Antibiotic form rejected");
     },
-    onError: () => toast.error("Failed to reject antibiotic form"),
+    onError: (err) => {
+      if (isAlreadyActioned(err)) {
+        setAbRejectTarget(null);
+        setAbRejectReason("");
+        queryClient.invalidateQueries({ queryKey: ["fms-pending-antibiotic"] });
+      }
+      toast.error(decisionErrorMessage(err, "reject", "antibiotic form"));
+    },
   });
 
   // Drug stock quota
-  const { data: drugStock = [], isLoading: stockLoading } = useQuery({
+  const {
+    data: drugStock = [], isLoading: stockLoading, isError: stockError,
+    dataUpdatedAt: stockUpdatedAt, refetch: refetchStock,
+  } = useQuery({
     queryKey: ["fms-drug-stock"],
     refetchInterval: 30000,
     queryFn: async () => {
-      const [{ data: drugs }, { data: txns }] = await Promise.all([
+      const [drugsRes, txnsRes] = await Promise.all([
         supabase
           .from("drugs")
           .select("id, drug_name, unit_pengukuran, perlu_kelulusan_pakar")
@@ -189,23 +281,31 @@ export default function FmsDashboard() {
           .from("transactions")
           .select("drug_id, jenis, kuantiti, tarikh, created_at"),
       ]);
-      return (drugs ?? []).map(d => ({
+      // A failed ledger fetch must not fall through to []: every drug would
+      // compute to 0 stock and read as "critical".
+      if (drugsRes.error) throw drugsRes.error;
+      if (txnsRes.error) throw txnsRes.error;
+      return (drugsRes.data ?? []).map(d => ({
         ...d,
-        current_stock: computeStock(d.id, txns ?? []),
+        current_stock: computeStock(d.id, txnsRes.data ?? []),
       }));
     },
   });
 
   // Pending controlled drug requests from MO
-  const { data: pendingRequests = [], isLoading: reqLoading } = useQuery({
+  const {
+    data: pendingRequests = [], isLoading: reqLoading, isError: reqError,
+    dataUpdatedAt: reqUpdatedAt, refetch: refetchReq,
+  } = useQuery({
     queryKey: ["fms-pending-requests"],
     refetchInterval: 15000,
     queryFn: async () => {
-      const { data: reqs } = await supabase
+      const { data: reqs, error: reqsError } = await supabase
         .from("dispensing_requests")
         .select("*, drugs(drug_name, unit_pengukuran)")
         .eq("status", "pending_specialist")
         .order("created_at", { ascending: false });
+      if (reqsError) throw reqsError;
 
       const ids = [...new Set((reqs ?? []).map(r => r.submitted_by).filter(Boolean))];
       const profileMap: Record<string, string> = {};
@@ -225,15 +325,19 @@ export default function FmsDashboard() {
   });
 
   // Pending antibiotic forms from MO
-  const { data: pendingAntibiotic = [], isLoading: abLoading } = useQuery({
+  const {
+    data: pendingAntibiotic = [], isLoading: abLoading, isError: abError,
+    dataUpdatedAt: abUpdatedAt, refetch: refetchAb,
+  } = useQuery({
     queryKey: ["fms-pending-antibiotic"],
     refetchInterval: 15000,
     queryFn: async () => {
-      const { data: forms } = await supabase
+      const { data: forms, error: formsError } = await supabase
         .from("antibiotic_forms")
         .select("*")
         .eq("status", "pending_specialist")
         .order("created_at", { ascending: false });
+      if (formsError) throw formsError;
 
       const ids = [...new Set((forms ?? []).map((f) => f.submitted_by).filter(Boolean))];
       const profileMap: Record<string, string> = {};
@@ -256,24 +360,34 @@ export default function FmsDashboard() {
 
   // Server-computed usage — dedupes by IC and includes enrolments, so it
   // agrees with DoctorRequest/MoDashboard/SpecialistDashboard/DrugMaster.
-  const { byDrugId: quotaUsageByDrug } = useDrugQuotaUsage(currentYear);
-  const { byDrugId: settingsByDrugId } = useClinicDrugSettings();
+  const {
+    byDrugId: quotaUsageByDrug, isLoading: quotaLoading, isError: quotaError,
+    dataUpdatedAt: quotaUpdatedAt, refetch: refetchQuota,
+  } = useDrugQuotaUsage(currentYear);
+  const {
+    byDrugId: settingsByDrugId, isLoading: settingsLoading, isError: settingsError,
+    dataUpdatedAt: settingsUpdatedAt, refetch: refetchSettings,
+  } = useClinicDrugSettings();
 
   // Pesara patients are exempt from quota entirely — kept as its own query,
   // not part of drug_quota_used()/get_drug_quota_usage().
-  const { data: pesaraCounts = {} } = useQuery({
+  const {
+    data: pesaraCounts = {}, isLoading: pesaraLoading, isError: pesaraError,
+    dataUpdatedAt: pesaraUpdatedAt, refetch: refetchPesara,
+  } = useQuery({
     queryKey: ["fms-pesara-counts", currentYear],
     refetchInterval: 30000,
     queryFn: async () => {
       const yearStart = `${currentYear}-01-01`;
       const yearEnd = `${currentYear + 1}-01-01`;
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("dispensing_requests")
         .select("drug_id, no_ic")
         .eq("status", "fulfilled")
         .eq("is_pesara", true)
         .gte("created_at", yearStart)
         .lt("created_at", yearEnd);
+      if (error) throw error;
       const counts: Record<string, number> = {};
       for (const r of data ?? []) {
         counts[r.drug_id] = (counts[r.drug_id] ?? 0) + 1;
@@ -282,12 +396,16 @@ export default function FmsDashboard() {
     },
   });
 
-  const { data: usage30 = {} } = useQuery({
+  const {
+    data: usage30 = {}, isLoading: usage30Loading, isError: usage30Error,
+    dataUpdatedAt: usage30UpdatedAt, refetch: refetchUsage30,
+  } = useQuery({
     queryKey: ["fms-usage-30"],
     refetchInterval: 30000,
     queryFn: async () => {
       const since = new Date(); since.setDate(since.getDate() - 30);
-      const { data } = await supabase.from("transactions").select("drug_id, kuantiti").eq("jenis", "keluaran").gte("created_at", since.toISOString());
+      const { data, error } = await supabase.from("transactions").select("drug_id, kuantiti").eq("jenis", "keluaran").gte("created_at", since.toISOString());
+      if (error) throw error;
       const totals: Record<string, number> = {};
       for (const t of data ?? []) totals[t.drug_id] = (totals[t.drug_id] ?? 0) + t.kuantiti;
       return totals;
@@ -295,7 +413,10 @@ export default function FmsDashboard() {
   });
 
   // Usage graph data
-  const { data: usageData = [] } = useQuery({
+  const {
+    data: usageData = [], isLoading: usageLoading, isError: usageError,
+    dataUpdatedAt: usageUpdatedAt, refetch: refetchUsage,
+  } = useQuery({
     queryKey: ["fms-usage", selectedDrugId],
     queryFn: async () => {
       let query = supabase
@@ -306,7 +427,8 @@ export default function FmsDashboard() {
       if (selectedDrugId !== "all") {
         query = query.eq("drug_id", selectedDrugId);
       }
-      const { data } = await query;
+      const { data, error } = await query;
+      if (error) throw error;
       const byMonth: Record<string, number> = {};
       for (const t of data ?? []) {
         const month = (t.created_at as string).slice(0, 7);
@@ -335,8 +457,45 @@ export default function FmsDashboard() {
     return d.perlu_kelulusan_pakar && quota ? quota.remaining : d.current_stock;
   };
 
+  // Loading / failure gates. A count or status computed from half-loaded or
+  // failed data is worse than no number: 0 pending reads as "all clear", and
+  // an empty ledger reads as every drug being critical.
+  const stockUnavailable = failedEmpty(stockError, stockUpdatedAt);
+  const stockReady = !stockLoading && !stockUnavailable;
+
+  // Stock status also needs the quota usage (controlled drugs) and this
+  // clinic's thresholds; all three must have landed.
+  const statusLoading = stockLoading || quotaLoading || settingsLoading;
+  const statusFailed = !statusLoading && (
+    stockUnavailable || failedEmpty(quotaError, quotaUpdatedAt) || failedEmpty(settingsError, settingsUpdatedAt)
+  );
+  const statusReady = !statusLoading && !statusFailed;
+  const statusStale = statusReady && (stockError || quotaError || settingsError);
+  const statusStaleAt = Math.min(
+    ...[stockUpdatedAt, quotaUpdatedAt, settingsUpdatedAt].filter(t => t > 0),
+  );
+  const retryStatus = () => { refetchStock(); refetchQuota(); refetchSettings(); };
+
+  const quotaTableLoading = stockLoading || quotaLoading || pesaraLoading;
+  const quotaTableFailed = !quotaTableLoading && (
+    stockUnavailable || failedEmpty(quotaError, quotaUpdatedAt) || failedEmpty(pesaraError, pesaraUpdatedAt)
+  );
+  const quotaTableStale = quotaTableFailed ? false : (stockError || quotaError || pesaraError);
+  const retryQuotaTable = () => { refetchStock(); refetchQuota(); refetchPesara(); };
+
+  const forecastLoading = stockLoading || usage30Loading;
+  const forecastFailed = !forecastLoading && (stockUnavailable || failedEmpty(usage30Error, usage30UpdatedAt));
+  const forecastStale = forecastFailed ? false : (stockError || usage30Error);
+  const retryForecast = () => { refetchStock(); refetchUsage30(); };
+
+  const reqFailed = failedEmpty(reqError, reqUpdatedAt);
+  const abFailed = failedEmpty(abError, abUpdatedAt);
+  const pendingLoading = reqLoading || abLoading;
+  const pendingReady = !pendingLoading && !reqFailed && !abFailed;
+
   const criticalCount = drugStock.filter(d => effectiveStatus(d) === "critical").length;
   const lowCount = drugStock.filter(d => effectiveStatus(d) === "low").length;
+  const visibleStock = drugStock.filter(d => !stockFilter || effectiveStatus(d) === stockFilter);
 
   return (
     <div className="space-y-6">
@@ -363,7 +522,7 @@ export default function FmsDashboard() {
           <CardContent className="flex items-center gap-3 p-4">
             <Package className="h-6 w-6 text-emerald-600" />
             <div>
-              <p className="text-2xl font-bold">{drugStock.length}</p>
+              <p className="text-2xl font-bold">{stockReady ? drugStock.length : "—"}</p>
               <p className="text-xs text-muted-foreground">Active Drugs</p>
             </div>
           </CardContent>
@@ -377,7 +536,7 @@ export default function FmsDashboard() {
           <CardContent className="flex items-center gap-3 p-4">
             <AlertTriangle className="h-6 w-6 text-red-600" />
             <div>
-              <p className="text-2xl font-bold text-red-700">{criticalCount}</p>
+              <p className="text-2xl font-bold text-red-700">{statusReady ? criticalCount : "—"}</p>
               <p className="text-xs text-muted-foreground">Critical Stock</p>
             </div>
           </CardContent>
@@ -391,23 +550,39 @@ export default function FmsDashboard() {
           <CardContent className="flex items-center gap-3 p-4">
             <AlertTriangle className="h-6 w-6 text-amber-600" />
             <div>
-              <p className="text-2xl font-bold text-amber-700">{lowCount}</p>
+              <p className="text-2xl font-bold text-amber-700">{statusReady ? lowCount : "—"}</p>
               <p className="text-xs text-muted-foreground">Low Stock</p>
             </div>
           </CardContent>
         </Card>
-        <ExpandableStatCard
-          icon={Clock}
-          count={pendingRequests.length + pendingAntibiotic.length}
-          label="Pending Approvals"
-          bgClassName="bg-yellow-50"
-          colorClassName="text-yellow-700"
-          breakdown={[
-            { label: "Drug requests", value: pendingRequests.length },
-            { label: "Antibiotic forms", value: pendingAntibiotic.length },
-          ]}
-          onClick={() => pendingApprovalsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-        />
+        {pendingReady ? (
+          <ExpandableStatCard
+            icon={Clock}
+            count={pendingRequests.length + pendingAntibiotic.length}
+            label="Pending Approvals"
+            bgClassName="bg-yellow-50"
+            colorClassName="text-yellow-700"
+            breakdown={[
+              { label: "Drug requests", value: pendingRequests.length },
+              { label: "Antibiotic forms", value: pendingAntibiotic.length },
+            ]}
+            onClick={() => pendingApprovalsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          />
+        ) : (
+          // Not a 0: while loading, or after a failed fetch, "0 pending" would
+          // read as "nothing to approve".
+          <Card className="bg-yellow-50" data-testid="stat-card-Pending Approvals-unavailable">
+            <CardContent className="flex items-center gap-3 p-4">
+              <Clock className="h-6 w-6 text-yellow-700" />
+              <div>
+                {pendingLoading
+                  ? <Skeleton className="h-8 w-10" />
+                  : <p className="text-2xl font-bold text-yellow-700" aria-label="Pending approvals unavailable">—</p>}
+                <p className="text-xs text-muted-foreground">Pending Approvals</p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Drug stock table */}
@@ -425,9 +600,13 @@ export default function FmsDashboard() {
           )}
         </CardHeader>
         <CardContent className="p-0">
-          {stockLoading ? (
+          {statusLoading ? (
             <div className="p-4 space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
+          ) : statusFailed ? (
+            <QueryError what="stock levels" onRetry={retryStatus} />
           ) : (
+            <>
+            {statusStale && <QueryError what="stock levels" onRetry={retryStatus} staleAt={statusStaleAt} />}
             <Table>
               <TableHeader>
                 <TableRow>
@@ -438,9 +617,9 @@ export default function FmsDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {drugStock
-                  .filter(d => !stockFilter || effectiveStatus(d) === stockFilter)
-                  .map(d => {
+                {visibleStock.length === 0 ? (
+                  <TableRow><TableCell colSpan={4} className="text-center py-6 text-muted-foreground">{stockFilter ? `No ${stockFilter} drugs.` : "No active drugs."}</TableCell></TableRow>
+                ) : visibleStock.map(d => {
                   const status = effectiveStatus(d);
                   return (
                     <TableRow key={d.id}>
@@ -461,6 +640,7 @@ export default function FmsDashboard() {
                 })}
               </TableBody>
             </Table>
+            </>
           )}
         </CardContent>
       </Card>
@@ -488,7 +668,11 @@ export default function FmsDashboard() {
             <CardContent className="p-0">
               {reqLoading ? (
                 <div className="p-4 space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
+              ) : reqFailed ? (
+                <QueryError what="pending drug requests" onRetry={() => refetchReq()} />
               ) : (
+                <>
+                {reqError && <QueryError what="pending drug requests" onRetry={() => refetchReq()} staleAt={reqUpdatedAt} />}
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -534,6 +718,7 @@ export default function FmsDashboard() {
                     ))}
                   </TableBody>
                 </Table>
+                </>
               )}
             </CardContent>
           </Card>
@@ -544,7 +729,11 @@ export default function FmsDashboard() {
             <CardContent className="p-0">
               {abLoading ? (
                 <div className="p-4 space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
+              ) : abFailed ? (
+                <QueryError what="pending antibiotic forms" onRetry={() => refetchAb()} />
               ) : (
+                <>
+                {abError && <QueryError what="pending antibiotic forms" onRetry={() => refetchAb()} staleAt={abUpdatedAt} />}
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -588,6 +777,7 @@ export default function FmsDashboard() {
                     ))}
                   </TableBody>
                 </Table>
+                </>
               )}
             </CardContent>
           </Card>
@@ -614,7 +804,11 @@ export default function FmsDashboard() {
           </div>
         </CardHeader>
         <CardContent>
-          {usageData.length === 0 ? (
+          {usageLoading ? (
+            <Skeleton className="h-[260px] w-full" />
+          ) : failedEmpty(usageError, usageUpdatedAt) ? (
+            <QueryError what="the usage trend" onRetry={() => refetchUsage()} />
+          ) : usageData.length === 0 ? (
             <p className="text-sm text-muted-foreground text-center py-8">No dispensing records found.</p>
           ) : (
             <ResponsiveContainer width="100%" height={260}>
@@ -644,9 +838,13 @@ export default function FmsDashboard() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {stockLoading ? (
+          {quotaTableLoading ? (
             <div className="p-4 space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
+          ) : quotaTableFailed ? (
+            <QueryError what="quota figures" onRetry={retryQuotaTable} />
           ) : (
+            <>
+            {quotaTableStale && <QueryError what="quota figures" onRetry={retryQuotaTable} staleAt={Math.min(...[stockUpdatedAt, quotaUpdatedAt, pesaraUpdatedAt].filter(t => t > 0))} />}
             <Table>
               <TableHeader>
                 <TableRow>
@@ -705,6 +903,7 @@ export default function FmsDashboard() {
                 })}
               </TableBody>
             </Table>
+            </>
           )}
         </CardContent>
       </Card>
@@ -719,7 +918,7 @@ export default function FmsDashboard() {
             <div className="space-y-3 text-sm">
               <div className="rounded border p-3 space-y-1">
                 <p><span className="text-muted-foreground">Patient:</span> <span className="font-medium">{approveTarget.patient_name}</span></p>
-                <p><span className="text-muted-foreground">Age:</span> {ageFromIC(approveTarget.no_ic)} tahun</p>
+                <p><span className="text-muted-foreground">Age:</span> {ageFromIC(approveTarget.no_ic) === "—" ? "—" : `${ageFromIC(approveTarget.no_ic)} tahun`}</p>
                 <p><span className="text-muted-foreground">Category:</span> {approveTarget.is_pesara ? "Pesara" : "Non-Pesara"}</p>
                 <p><span className="text-muted-foreground">Prescribed by (MO):</span> {approveTarget.prescriber_name || approveTarget.mo_name || "—"}</p>
                 <p><span className="text-muted-foreground">Drug:</span> {approveTarget.drugs?.drug_name || "—"}</p>
@@ -768,10 +967,10 @@ export default function FmsDashboard() {
             <Button variant="outline" onClick={() => { setRejectTarget(null); setRejectReason(""); }}>Cancel</Button>
             <Button
               variant="destructive"
-              disabled={!rejectReason.trim() || rejectMutation.isPending}
-              onClick={() => rejectMutation.mutate({ id: rejectTarget.id, reason: rejectReason })}
+              disabled={!rejectTarget || !rejectReason.trim() || rejectMutation.isPending}
+              onClick={() => rejectTarget && rejectMutation.mutate({ id: rejectTarget.id, reason: rejectReason })}
             >
-              Confirm Reject
+              {rejectMutation.isPending ? "Rejecting..." : "Confirm Reject"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -838,10 +1037,10 @@ export default function FmsDashboard() {
             <Button variant="outline" onClick={() => { setAbRejectTarget(null); setAbRejectReason(""); }}>Cancel</Button>
             <Button
               variant="destructive"
-              disabled={!abRejectReason.trim() || abRejectMutation.isPending}
-              onClick={() => abRejectMutation.mutate({ id: abRejectTarget.id, reason: abRejectReason })}
+              disabled={!abRejectTarget || !abRejectReason.trim() || abRejectMutation.isPending}
+              onClick={() => abRejectTarget && abRejectMutation.mutate({ id: abRejectTarget.id, reason: abRejectReason })}
             >
-              Confirm Reject
+              {abRejectMutation.isPending ? "Rejecting..." : "Confirm Reject"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -856,9 +1055,13 @@ export default function FmsDashboard() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {stockLoading ? (
+          {forecastLoading ? (
             <div className="p-4 space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
+          ) : forecastFailed ? (
+            <QueryError what="the stock forecast" onRetry={retryForecast} />
           ) : (
+            <>
+            {forecastStale && <QueryError what="the stock forecast" onRetry={retryForecast} staleAt={Math.min(...[stockUpdatedAt, usage30UpdatedAt].filter(t => t > 0))} />}
             <Table>
               <TableHeader>
                 <TableRow>
@@ -899,6 +1102,7 @@ export default function FmsDashboard() {
                 })}
               </TableBody>
             </Table>
+            </>
           )}
         </CardContent>
       </Card>
