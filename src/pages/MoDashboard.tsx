@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useIsFetching } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -8,9 +8,14 @@ import { useClinicDrugSettings, resolveDrugSettings } from "@/hooks/useClinicDru
 import { quotaDerivedStatus } from "@/lib/quotaHelpers";
 import { computeStock } from "@/lib/stock";
 import { cn } from "@/lib/utils";
-import { formatDistanceToNow } from "date-fns";
-import { Stethoscope, ClipboardList, Pill, AlertTriangle, Users } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { format, formatDistanceToNow } from "date-fns";
+import {
+  Stethoscope, ClipboardList, Pill, AlertTriangle, Users, RefreshCw, Search, ShieldCheck, Hourglass,
+  type LucideIcon,
+} from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { FmsPanel, MeterBar } from "@/components/fms/FmsPanel";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -79,13 +84,55 @@ interface RecentSubmission {
   statusBadge: string;
 }
 
+interface StatTileProps {
+  icon: LucideIcon;
+  value: number | string;
+  label: string;
+  detail?: string;
+  active?: boolean;
+  onSelect?: () => void;
+  className?: string;
+  iconClassName?: string;
+  valueClassName?: string;
+}
+
+/** Summary tile; clickable (filter toggle) only when onSelect is given. */
+function StatTile({ icon: Icon, value, label, detail, active, onSelect, className, iconClassName, valueClassName }: StatTileProps) {
+  const interactive = !!onSelect;
+  return (
+    <Card
+      {...(interactive && {
+        role: "button",
+        tabIndex: 0,
+        "aria-pressed": !!active,
+        onClick: onSelect,
+        onKeyDown: (e: React.KeyboardEvent) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); } },
+      })}
+      className={cn(interactive && "cursor-pointer transition-shadow hover:shadow-md", className, active && "ring-2 ring-primary")}
+    >
+      <CardContent className="space-y-2 p-4">
+        <div className="flex items-center gap-3">
+          <Icon className={cn("h-6 w-6 shrink-0", iconClassName)} aria-hidden />
+          <div>
+            <p className={cn("text-2xl font-bold tabular-nums", valueClassName)}>{value}</p>
+            <p className="text-xs text-muted-foreground">{label}</p>
+          </div>
+        </div>
+        {detail && <p className="truncate text-xs text-muted-foreground">{detail}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function MoDashboard() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
   const [stockFilter, setStockFilter] = useState<"critical" | "available" | null>(null);
+  const [search, setSearch] = useState("");
+  const [approvalOnly, setApprovalOnly] = useState(false);
 
   // Drug quota
-  const { data: rawDrugStock = [], isLoading: stockLoading } = useQuery({
+  const { data: rawDrugStock = [], isLoading: stockLoading, dataUpdatedAt: stockUpdatedAt, refetch: refetchStock } = useQuery({
     queryKey: ["mo-drug-quota"],
     refetchInterval: 30000,
     queryFn: async () => {
@@ -128,7 +175,7 @@ export default function MoDashboard() {
   }), [rawDrugStock, quotaUsageByDrug, settingsByDrugId]);
 
   // My recent requests
-  const { data: myRequests = [], isLoading: reqLoading } = useQuery({
+  const { data: myRequests = [], isLoading: reqLoading, refetch: refetchRequests } = useQuery({
     queryKey: ["mo-my-requests", user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
@@ -145,7 +192,7 @@ export default function MoDashboard() {
   // My submitted antibiotic forms. MOs mostly submit these (not drug
   // requests), so the recent list must include them or it sits empty while
   // the MO's actual work is invisible.
-  const { data: myForms = [], isLoading: formsLoading } = useQuery({
+  const { data: myForms = [], isLoading: formsLoading, refetch: refetchForms } = useQuery({
     queryKey: ["mo-my-antibiotic-forms", user?.id],
     enabled: !!user?.id,
     queryFn: async () => {
@@ -161,7 +208,7 @@ export default function MoDashboard() {
 
   // Forms the FMS sent back for correction. 15s poll matches the other queue
   // badges; the push notification is the fast path, this is the reliable one.
-  const { data: rejectedForms = [] } = useQuery({
+  const { data: rejectedForms = [], refetch: refetchRejected } = useQuery({
     queryKey: ["mo-rejected-antibiotic", user?.id],
     enabled: !!user?.id,
     refetchInterval: 15000,
@@ -202,42 +249,73 @@ export default function MoDashboard() {
       .slice(0, 10);
   }, [myRequests, myForms]);
 
+  const pendingReviewCount =
+    myRequests.filter(r => r.status === "pending" || r.status === "pending_specialist").length +
+    myForms.filter(f => f.status === "pending_specialist").length;
+
+  const visibleDrugs = drugStock.filter(d => {
+    if (stockFilter === "critical" && d.status !== "critical") return false;
+    if (stockFilter === "available" && d.status === "critical") return false;
+    if (approvalOnly && !d.perlu_kelulusan_pakar) return false;
+    const q = search.trim().toLowerCase();
+    return !q || d.drug_name.toLowerCase().includes(q);
+  });
+  const criticalCount = drugStock.length - availableDrugs.length;
+
+  const isRefreshing = useIsFetching() > 0;
+  const refreshAll = () => {
+    refetchStock(); refetchRequests(); refetchForms(); refetchRejected();
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-            <Stethoscope className="h-6 w-6" />
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <span className="rounded bg-secondary px-1.5 py-0.5 font-semibold uppercase tracking-wide text-secondary-foreground">
+              {profile?.clinic_name ? `Clinic: ${profile.clinic_name}` : "MO Portal"}
+            </span>
+            {stockUpdatedAt > 0 && (
+              <span className="flex items-center gap-1">
+                <RefreshCw className={cn("h-3 w-3", isRefreshing && "animate-spin motion-reduce:animate-none")} aria-hidden />
+                Last synced {format(stockUpdatedAt, "h:mm a")}
+              </span>
+            )}
+          </div>
+          <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground">
+            <Stethoscope className="h-6 w-6 text-primary" aria-hidden />
             MO Dashboard
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Welcome{profile?.full_name ? `, ${profile.full_name}` : ""}. View available drug quota and your recent requests.
+          <p className="mt-1 text-sm text-muted-foreground">
+            Welcome{profile?.full_name ? `, ${profile.full_name}` : ""}. View available drug quota, track your requests, and submit patient forms.
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button onClick={() => navigate("/request/ubat")} className="gap-2">
-            <ClipboardList className="h-4 w-4" />
+            <ClipboardList className="h-4 w-4" aria-hidden />
             Drug Request
           </Button>
           <Button variant="outline" onClick={() => navigate("/request/antibiotik")} className="gap-2">
-            <Pill className="h-4 w-4" />
+            <Pill className="h-4 w-4" aria-hidden />
             Antibiotic Form
           </Button>
+          <Button variant="outline" size="icon" onClick={refreshAll} disabled={isRefreshing} aria-label="Refresh dashboard">
+            <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin motion-reduce:animate-none")} aria-hidden />
+          </Button>
         </div>
-      </div>
+      </header>
 
       {/* Antibiotic forms returned by the FMS — the MO's correction queue.
           Rendered above everything else: it is the only item on this page that
           blocks someone else's work. */}
       {rejectedForms.length > 0 && (
-        <Card className="border-destructive/50">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-4 w-4" />
-              Returned for correction ({rejectedForms.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <FmsPanel
+          icon={AlertTriangle}
+          title={`Returned for correction (${rejectedForms.length})`}
+          description="The FMS sent these antibiotic forms back. Correct and resubmit to unblock them."
+          className="border-destructive/50"
+        >
+          <div className="space-y-3">
             {rejectedForms.map((f) => (
               <div
                 key={f.id}
@@ -261,184 +339,204 @@ export default function MoDashboard() {
                 </Button>
               </div>
             ))}
-          </CardContent>
-        </Card>
+          </div>
+        </FmsPanel>
       )}
 
-      {/* Summary — click a card to filter the table below */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card
-          role="button" tabIndex={0}
-          onClick={() => setStockFilter(null)}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setStockFilter(null); } }}
-          className={cn("cursor-pointer transition-shadow hover:shadow-md", stockFilter === null && "ring-2 ring-primary")}
-        >
-          <CardContent className="flex items-center gap-3 p-4">
-            <Pill className="h-6 w-6 text-primary" />
-            <div>
-              <p className="text-2xl font-bold">{drugStock.length}</p>
-              <p className="text-xs text-muted-foreground">Total Active Drugs</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card
-          role="button" tabIndex={0}
-          onClick={() => setStockFilter((f) => (f === "available" ? null : "available"))}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setStockFilter((f) => (f === "available" ? null : "available")); } }}
-          className={cn("bg-green-50 cursor-pointer transition-shadow hover:shadow-md", stockFilter === "available" && "ring-2 ring-primary")}
-        >
-          <CardContent className="flex items-center gap-3 p-4">
-            <Pill className="h-6 w-6 text-green-600" />
-            <div>
-              <p className="text-2xl font-bold text-green-700">{availableDrugs.length}</p>
-              <p className="text-xs text-muted-foreground">Available to Request</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card
-          role="button" tabIndex={0}
-          onClick={() => setStockFilter((f) => (f === "critical" ? null : "critical"))}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setStockFilter((f) => (f === "critical" ? null : "critical")); } }}
-          className={cn("bg-red-50 cursor-pointer transition-shadow hover:shadow-md", stockFilter === "critical" && "ring-2 ring-primary")}
-        >
-          <CardContent className="flex items-center gap-3 p-4">
-            <AlertTriangle className="h-6 w-6 text-red-600" />
-            <div>
-              <p className="text-2xl font-bold text-red-700">
-                {drugStock.filter(d => d.status === "critical").length}
-              </p>
-              <p className="text-xs text-muted-foreground">Critical / Out of Stock</p>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Summary — first three tiles filter the quota table below */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile
+          icon={Pill} iconClassName="text-primary"
+          value={stockLoading ? "—" : drugStock.length} label="Active Drugs"
+          detail={stockLoading ? undefined : `${drugStock.filter(d => d.perlu_kelulusan_pakar).length} need specialist approval`}
+          active={stockFilter === null}
+          onSelect={() => setStockFilter(null)}
+        />
+        <StatTile
+          icon={ShieldCheck} iconClassName="text-green-600" valueClassName="text-green-700"
+          value={stockLoading ? "—" : availableDrugs.length} label="Available to Request"
+          detail="Not critical or depleted"
+          active={stockFilter === "available"}
+          onSelect={() => setStockFilter((f) => (f === "available" ? null : "available"))}
+        />
+        <StatTile
+          icon={AlertTriangle} iconClassName="text-red-600" valueClassName={criticalCount > 0 ? "text-red-700" : undefined}
+          value={stockLoading ? "—" : criticalCount} label="Critical / Out of Stock"
+          detail={criticalCount > 0 ? "Requests may be delayed" : "No stockouts"}
+          active={stockFilter === "critical"}
+          onSelect={() => setStockFilter((f) => (f === "critical" ? null : "critical"))}
+        />
+        <StatTile
+          icon={Hourglass} iconClassName="text-blue-600"
+          value={reqLoading || formsLoading ? "—" : pendingReviewCount} label="Pending FMS Review"
+          detail="Your latest submissions"
+        />
       </div>
 
       {/* Drug quota table */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Pill className="h-4 w-4" />
-            Available Drug Quota
-            {stockFilter && (
-              <span className="ml-2 font-normal text-sm text-muted-foreground">
-                — filtered to {stockFilter === "available" ? "available" : "critical"}
-              </span>
-            )}
-          </CardTitle>
-          {stockFilter && (
-            <Button variant="ghost" size="sm" className="text-xs" onClick={() => setStockFilter(null)}>
-              Clear filter
+      <FmsPanel
+        icon={Pill}
+        title="Available Drug Quota"
+        description="Live clinic stock and national annual quota per drug"
+        flush
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden />
+              <Input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Filter by drug name…"
+                aria-label="Filter drugs by name"
+                className="h-9 w-48 pl-8 text-sm"
+              />
+            </div>
+            <Button
+              variant={approvalOnly ? "secondary" : "outline"}
+              size="sm"
+              aria-pressed={approvalOnly}
+              onClick={() => setApprovalOnly(v => !v)}
+              className="gap-1.5"
+            >
+              <ShieldCheck className="h-3.5 w-3.5" aria-hidden />
+              Specialist approval only
             </Button>
-          )}
-        </CardHeader>
-        <CardContent className="p-0">
-          {stockLoading ? (
-            <div className="p-4 space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
-          ) : (
+          </div>
+        }
+      >
+        {stockLoading ? (
+          <div className="space-y-2 p-4">{[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-12 w-full" />)}</div>
+        ) : (
+          <>
             <Table>
               <TableHeader>
-                <TableRow>
-                  <TableHead>Drug Name</TableHead>
+                <TableRow className="bg-muted/40">
+                  <TableHead>Drug</TableHead>
                   <TableHead>Unit</TableHead>
                   <TableHead className="text-right">Current Stock</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Requires Approval</TableHead>
-                  <TableHead>National Quota Remaining</TableHead>
-                  <TableHead>Actions</TableHead>
+                  <TableHead>Protocol</TableHead>
+                  <TableHead className="min-w-[180px]">National Quota Remaining</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {drugStock
-                  .filter(d => !stockFilter || (stockFilter === "critical" ? d.status === "critical" : d.status !== "critical"))
-                  .map(d => (
-                  <TableRow key={d.id}>
-                    <TableCell className="font-medium text-sm">{d.drug_name}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{d.unit_pengukuran}</TableCell>
-                    <TableCell className="text-right font-semibold">{d.current_stock}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={`text-[10px] capitalize ${STATUS_BADGE[d.status]}`}>
-                        {d.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {d.perlu_kelulusan_pakar ? (
-                        <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-300">Specialist Approval</Badge>
-                      ) : (
-                        <Badge variant="outline" className="text-[10px] text-muted-foreground">Standard</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      {d.perlu_kelulusan_pakar ? (() => {
-                        const quotaRow = quotaUsageByDrug.get(d.id);
-                        if (!quotaRow) return <Badge variant="outline" className="text-[10px] text-muted-foreground">No quota set</Badge>;
-                        const remaining = quotaRow.remaining;
-                        const pct = quotaRow.quota_limit > 0 ? remaining / quotaRow.quota_limit : 0;
-                        const cls = pct <= 0.1 ? "bg-red-100 text-red-700 border-red-300"
-                                   : pct <= 0.25 ? "bg-amber-100 text-amber-700 border-amber-300"
-                                   : "bg-green-100 text-green-700 border-green-300";
-                        return <Badge variant="outline" className={`text-[10px] ${cls}`}>{remaining} / {quotaRow.quota_limit}</Badge>;
-                      })() : <span className="text-xs text-muted-foreground">—</span>}
-                    </TableCell>
-                    <TableCell>
-                      <Button variant="ghost" size="sm" className="h-7 px-2 text-xs relative after:absolute after:-inset-2 after:content-[''] after:md:hidden" onClick={() => navigate(`/pesakit?drug=${d.id}`)}>
-                        <Users className="h-3 w-3 mr-1" /> Patient Registry
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* My recent requests */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <ClipboardList className="h-4 w-4" />
-            My Recent Requests
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {reqLoading || formsLoading ? (
-            <div className="p-4 space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Time</TableHead>
-                  <TableHead>Patient</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Detail</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recentSubmissions.length === 0 ? (
+                {visibleDrugs.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                      No submissions yet. Use the buttons above to submit a drug request or antibiotic form.
+                    <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
+                      No drugs match the current filters.
                     </TableCell>
                   </TableRow>
-                ) : recentSubmissions.map(r => (
-                  <TableRow key={`${r.type}-${r.id}`}>
-                    <TableCell className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(r.created_at), { addSuffix: true })}</TableCell>
-                    <TableCell className="font-medium text-sm">{r.patient_name}</TableCell>
-                    <TableCell className="text-sm">{r.type === "antibiotic" ? "Antibiotic Form" : "Drug Request"}</TableCell>
-                    <TableCell className="text-sm">{r.detail}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={`text-[10px] ${r.statusBadge}`}>
-                        {r.statusLabel}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                ) : visibleDrugs.map(d => {
+                  const isCritical = d.status === "critical";
+                  const quotaRow = d.perlu_kelulusan_pakar ? quotaUsageByDrug.get(d.id) : undefined;
+                  const pct = quotaRow && quotaRow.quota_limit > 0 ? (quotaRow.remaining / quotaRow.quota_limit) * 100 : 0;
+                  const tone = pct <= 10 ? "bad" : pct <= 25 ? "warn" : "ok";
+                  return (
+                    <TableRow key={d.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                          <span className={cn(
+                            "flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
+                            isCritical ? "bg-red-100 text-red-600" : "bg-secondary text-primary",
+                          )}>
+                            {isCritical ? <AlertTriangle className="h-4 w-4" aria-hidden /> : <Pill className="h-4 w-4" aria-hidden />}
+                          </span>
+                          <span className="text-sm font-medium">{d.drug_name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{d.unit_pengukuran}</TableCell>
+                      <TableCell className={cn("text-right font-semibold tabular-nums", isCritical && "text-red-700")}>{d.current_stock}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-[10px] capitalize ${STATUS_BADGE[d.status]}`}>
+                          {d.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {d.perlu_kelulusan_pakar ? (
+                          <Badge variant="outline" className="gap-1 border-blue-300 bg-blue-50 text-[10px] text-blue-700">
+                            <ShieldCheck className="h-3 w-3" aria-hidden /> Specialist Approval
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] text-muted-foreground">Standard</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {!d.perlu_kelulusan_pakar ? (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        ) : !quotaRow ? (
+                          <Badge variant="outline" className="text-[10px] text-muted-foreground">No quota set</Badge>
+                        ) : (
+                          <div className="space-y-1">
+                            <p className="flex items-baseline justify-between gap-2 text-sm tabular-nums">
+                              <span className={cn("font-semibold", tone === "bad" && "text-red-700")}>{quotaRow.remaining}</span>
+                              <span className="text-xs text-muted-foreground">/ {quotaRow.quota_limit} quota</span>
+                            </p>
+                            <MeterBar pct={pct} tone={tone} />
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs relative after:absolute after:-inset-2 after:content-[''] after:md:hidden" onClick={() => navigate(`/pesakit?drug=${d.id}`)}>
+                          <Users className="mr-1 h-3 w-3" aria-hidden /> Patient Registry
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
-          )}
-        </CardContent>
-      </Card>
+            <p className="border-t bg-muted/30 px-5 py-3 text-xs text-muted-foreground">
+              Showing {visibleDrugs.length} of {drugStock.length} active drugs.
+            </p>
+          </>
+        )}
+      </FmsPanel>
+
+      {/* My recent submissions */}
+      <FmsPanel
+        icon={ClipboardList}
+        title="My Recent Requests"
+        description="Drug requests and antibiotic forms you have submitted"
+        flush
+      >
+        {reqLoading || formsLoading ? (
+          <div className="space-y-2 p-4">{[1, 2, 3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/40">
+                <TableHead>Time</TableHead>
+                <TableHead>Patient</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Detail</TableHead>
+                <TableHead>Status</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {recentSubmissions.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                    No submissions yet. Use the buttons above to submit a drug request or antibiotic form.
+                  </TableCell>
+                </TableRow>
+              ) : recentSubmissions.map(r => (
+                <TableRow key={`${r.type}-${r.id}`}>
+                  <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{formatDistanceToNow(new Date(r.created_at), { addSuffix: true })}</TableCell>
+                  <TableCell className="text-sm font-medium">{r.patient_name}</TableCell>
+                  <TableCell className="text-sm">{r.type === "antibiotic" ? "Antibiotic Form" : "Drug Request"}</TableCell>
+                  <TableCell className="text-sm">{r.detail}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={`text-[10px] ${r.statusBadge}`}>
+                      {r.statusLabel}
+                    </Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </FmsPanel>
     </div>
   );
 }
