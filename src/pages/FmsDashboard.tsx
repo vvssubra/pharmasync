@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, useIsFetching } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables, TablesUpdate } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,13 +9,17 @@ import { useClinicDrugSettings, resolveDrugSettings } from "@/hooks/useClinicDru
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { format, formatDistanceToNow } from "date-fns";
-import { BarChart2, Package, Clock, AlertTriangle, ShieldCheck, Users } from "lucide-react";
+import {
+  Package, Clock, AlertTriangle, ShieldCheck, Users, ClipboardCheck, RefreshCw, TrendingUp,
+  type LucideIcon,
+} from "lucide-react";
 import { quotaStatus, forecastStatus, daysRemaining, projectedExhaustion, quotaDerivedStatus } from "@/lib/quotaHelpers";
 import { computeStock, stockStatus } from "@/lib/stock";
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { FmsPanel, MeterBar } from "@/components/fms/FmsPanel";
 import { ExpandableStatCard } from "@/components/ui/expandable-stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -146,6 +150,43 @@ const STATUS_BADGE: Record<string, string> = {
   low:      "bg-amber-100 text-amber-700 border-amber-300",
   normal:   "bg-green-100 text-green-700 border-green-300",
 };
+
+interface StatTileProps {
+  icon: LucideIcon;
+  value: number | string;
+  label: string;
+  /** One line under the label: which drugs, or that everything is fine. */
+  detail?: string;
+  active: boolean;
+  onSelect: () => void;
+  className?: string;
+  iconClassName?: string;
+  valueClassName?: string;
+}
+
+/** Clickable summary card that toggles a table filter. */
+function StatTile({ icon: Icon, value, label, detail, active, onSelect, className, iconClassName, valueClassName }: StatTileProps) {
+  return (
+    <Card
+      role="button" tabIndex={0}
+      aria-pressed={active}
+      onClick={onSelect}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); } }}
+      className={cn("cursor-pointer transition-shadow hover:shadow-md", className, active && "ring-2 ring-primary")}
+    >
+      <CardContent className="space-y-2 p-4">
+        <div className="flex items-center gap-3">
+          <Icon className={cn("h-6 w-6 shrink-0", iconClassName)} />
+          <div>
+            <p className={cn("text-2xl font-bold tabular-nums", valueClassName)}>{value}</p>
+            <p className="text-xs text-muted-foreground">{label}</p>
+          </div>
+        </div>
+        {detail && <p className="truncate text-xs text-muted-foreground">{detail}</p>}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function FmsDashboard() {
   const { user } = useAuth();
@@ -493,68 +534,96 @@ export default function FmsDashboard() {
   const pendingLoading = reqLoading || abLoading;
   const pendingReady = !pendingLoading && !reqFailed && !abFailed;
 
-  const criticalCount = drugStock.filter(d => effectiveStatus(d) === "critical").length;
-  const lowCount = drugStock.filter(d => effectiveStatus(d) === "low").length;
+  const criticalDrugs = drugStock.filter(d => effectiveStatus(d) === "critical");
+  const lowDrugs = drugStock.filter(d => effectiveStatus(d) === "low");
+  const criticalCount = criticalDrugs.length;
+  const lowCount = lowDrugs.length;
   const visibleStock = drugStock.filter(d => !stockFilter || effectiveStatus(d) === stockFilter);
+  const controlledDrugs = drugStock.filter(d => d.perlu_kelulusan_pakar);
+  const nonControlledDrugs = drugStock.filter(d => !d.perlu_kelulusan_pakar);
+
+  // "Last synced" is the oldest of the core feeds, so it never claims to be
+  // fresher than the stalest number on screen.
+  const syncedTimes = [stockUpdatedAt, reqUpdatedAt, abUpdatedAt, quotaUpdatedAt].filter(t => t > 0);
+  const lastSynced = syncedTimes.length === 4 ? Math.min(...syncedTimes) : 0;
+  const isRefreshing = useIsFetching() > 0;
+  const refreshAll = () => {
+    refetchStock(); refetchReq(); refetchAb(); refetchQuota(); refetchSettings();
+    refetchPesara(); refetchUsage30(); refetchUsage();
+  };
+
+  const listNames = (rows: typeof drugStock) =>
+    rows.length <= 2
+      ? rows.map(d => d.drug_name).join(", ")
+      : `${rows.slice(0, 2).map(d => d.drug_name).join(", ")} +${rows.length - 2} more`;
+
+  // Usage summary for the side panel, derived from the same monthly series the chart plots.
+  const usageTotal = usageData.reduce((sum, m) => sum + m.qty, 0);
+  const usagePeak = usageData.reduce<{ month: string; qty: number } | null>(
+    (best, m) => (!best || m.qty > best.qty ? m : best), null,
+  );
+  const usageMonthlyAvg = usageData.length > 0 ? usageTotal / usageData.length : 0;
+  const monthLabel = (ym: string) => format(new Date(`${ym}-01T00:00:00`), "MMM yy");
+
+  const tabBadge = (n: number) => n > 0 && (
+    <Badge variant="destructive" className="ml-1.5 h-5 min-w-5 rounded-full px-1.5 text-[10px]">{n}</Badge>
+  );
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-          <BarChart2 className="h-6 w-6" />
-          FMS Dashboard
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Drug stock overview, pending MO approvals, and usage trends.
-        </p>
-      </div>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <span className="rounded bg-secondary px-1.5 py-0.5 font-semibold uppercase tracking-wide text-secondary-foreground">
+              FMS Protocol Portal
+            </span>
+            {lastSynced > 0 && (
+              <span className="flex items-center gap-1">
+                <RefreshCw className={cn("h-3 w-3", isRefreshing && "animate-spin motion-reduce:animate-none")} aria-hidden />
+                Last synced {format(lastSynced, "h:mm a")}
+              </span>
+            )}
+          </div>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-foreground">FMS Dashboard</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Drug stock overview, pending MO approvals, and usage trends.
+          </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={refreshAll} disabled={isRefreshing}>
+          <RefreshCw className={cn("mr-1.5 h-3.5 w-3.5", isRefreshing && "animate-spin motion-reduce:animate-none")} aria-hidden />
+          Refresh
+        </Button>
+      </header>
 
-      {/* Summary cards — click Critical/Low to filter the table below; click
-          Active Drugs to clear the filter; click Pending Approvals to jump
-          to that section. */}
-      <div className="grid gap-4 sm:grid-cols-4">
-        <Card
-          role="button" tabIndex={0}
-          onClick={() => setStockFilter(null)}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setStockFilter(null); } }}
-          className={cn("cursor-pointer transition-shadow hover:shadow-md", stockFilter === null && "ring-2 ring-primary")}
-        >
-          <CardContent className="flex items-center gap-3 p-4">
-            <Package className="h-6 w-6 text-emerald-600" />
-            <div>
-              <p className="text-2xl font-bold">{stockReady ? drugStock.length : "—"}</p>
-              <p className="text-xs text-muted-foreground">Active Drugs</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card
-          role="button" tabIndex={0}
-          onClick={() => setStockFilter((f) => (f === "critical" ? null : "critical"))}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setStockFilter((f) => (f === "critical" ? null : "critical")); } }}
-          className={cn("bg-red-50 cursor-pointer transition-shadow hover:shadow-md", stockFilter === "critical" && "ring-2 ring-primary")}
-        >
-          <CardContent className="flex items-center gap-3 p-4">
-            <AlertTriangle className="h-6 w-6 text-red-600" />
-            <div>
-              <p className="text-2xl font-bold text-red-700">{statusReady ? criticalCount : "—"}</p>
-              <p className="text-xs text-muted-foreground">Critical Stock</p>
-            </div>
-          </CardContent>
-        </Card>
-        <Card
-          role="button" tabIndex={0}
-          onClick={() => setStockFilter((f) => (f === "low" ? null : "low"))}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setStockFilter((f) => (f === "low" ? null : "low")); } }}
-          className={cn("bg-amber-50 cursor-pointer transition-shadow hover:shadow-md", stockFilter === "low" && "ring-2 ring-primary")}
-        >
-          <CardContent className="flex items-center gap-3 p-4">
-            <AlertTriangle className="h-6 w-6 text-amber-600" />
-            <div>
-              <p className="text-2xl font-bold text-amber-700">{statusReady ? lowCount : "—"}</p>
-              <p className="text-xs text-muted-foreground">Low Stock</p>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Summary cards — click Critical/Low to filter the stock table below;
+          click Active Drugs to clear the filter; click Pending Approvals to
+          jump to the queue. */}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <StatTile
+          icon={Package} iconClassName="text-emerald-600"
+          value={stockReady ? drugStock.length : "—"} label="Active Drugs"
+          detail={statusReady
+            ? `${drugStock.length - criticalCount - lowCount} of ${drugStock.length} in normal range`
+            : undefined}
+          active={stockFilter === null}
+          onSelect={() => setStockFilter(null)}
+        />
+        <StatTile
+          icon={AlertTriangle} iconClassName="text-red-600"
+          className="bg-red-50" valueClassName="text-red-700"
+          value={statusReady ? criticalCount : "—"} label="Critical Stock"
+          detail={statusReady ? (criticalCount > 0 ? listNames(criticalDrugs) : "All clear") : undefined}
+          active={stockFilter === "critical"}
+          onSelect={() => setStockFilter((f) => (f === "critical" ? null : "critical"))}
+        />
+        <StatTile
+          icon={AlertTriangle} iconClassName="text-amber-600"
+          className="bg-amber-50" valueClassName="text-amber-700"
+          value={statusReady ? lowCount : "—"} label="Low Stock"
+          detail={statusReady ? (lowCount > 0 ? listNames(lowDrugs) : "None running low") : undefined}
+          active={stockFilter === "low"}
+          onSelect={() => setStockFilter((f) => (f === "low" ? null : "low"))}
+        />
         {pendingReady ? (
           <ExpandableStatCard
             icon={Clock}
@@ -585,184 +654,140 @@ export default function FmsDashboard() {
         )}
       </div>
 
-      {/* Drug stock table */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Package className="h-4 w-4" />
-            Drug Stock Quota
-            {stockFilter && <span className="ml-2 font-normal text-sm text-muted-foreground">— filtered to {stockFilter}</span>}
-          </CardTitle>
-          {stockFilter && (
-            <Button variant="ghost" size="sm" className="text-xs" onClick={() => setStockFilter(null)}>
-              Clear filter
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent className="p-0">
-          {statusLoading ? (
-            <div className="p-4 space-y-2">{[1,2,3,4,5].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
-          ) : statusFailed ? (
-            <QueryError what="stock levels" onRetry={retryStatus} />
-          ) : (
-            <>
-            {statusStale && <QueryError what="stock levels" onRetry={retryStatus} staleAt={statusStaleAt} />}
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Drug Name</TableHead>
-                  <TableHead className="text-right">Current Stock</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {visibleStock.length === 0 ? (
-                  <TableRow><TableCell colSpan={4} className="text-center py-6 text-muted-foreground">{stockFilter ? `No ${stockFilter} drugs.` : "No active drugs."}</TableCell></TableRow>
-                ) : visibleStock.map(d => {
-                  const status = effectiveStatus(d);
-                  return (
-                    <TableRow key={d.id}>
-                      <TableCell className="font-medium">{d.drug_name}</TableCell>
-                      <TableCell className="text-right font-semibold">{displayStock(d)}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className={`text-[10px] capitalize ${STATUS_BADGE[status]}`}>
-                          {status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-xs relative after:absolute after:-inset-2 after:content-[''] after:md:hidden" onClick={() => navigate(`/pesakit?drug=${d.id}`)}>
-                          <Users className="h-3 w-3 mr-1" /> Patient Registry
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Pending approvals */}
-      <div ref={pendingApprovalsRef}>
-      <Tabs defaultValue="controlled">
-        <TabsList>
-          <TabsTrigger value="controlled">
-            Controlled Drug Requests
-            {pendingRequests.length > 0 && (
-              <Badge variant="destructive" className="ml-1.5 h-5 min-w-5 text-[10px] rounded-full px-1.5">{pendingRequests.length}</Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="antibiotic">
-            Antibiotic Forms
-            {pendingAntibiotic.length > 0 && (
-              <Badge variant="destructive" className="ml-1.5 h-5 min-w-5 text-[10px] rounded-full px-1.5">{pendingAntibiotic.length}</Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="controlled" className="mt-4">
-          <Card>
-            <CardContent className="p-0">
+      {/* Clinical request queue — first content section: it is the only place
+          on this page the FMS has to act. */}
+      <div ref={pendingApprovalsRef} id="pending-queue" className="scroll-mt-4">
+        <Tabs defaultValue="controlled">
+          <FmsPanel
+            icon={ClipboardCheck}
+            title="Clinical Request Queue"
+            description="Awaiting FMS sign-off. Newest first."
+            flush
+            action={
+              <TabsList>
+                <TabsTrigger value="controlled">
+                  Controlled Drug Requests
+                  {tabBadge(pendingRequests.length)}
+                </TabsTrigger>
+                <TabsTrigger value="antibiotic">
+                  Antibiotic Forms
+                  {tabBadge(pendingAntibiotic.length)}
+                </TabsTrigger>
+              </TabsList>
+            }
+          >
+            <TabsContent value="controlled" className="mt-0">
               {reqLoading ? (
-                <div className="p-4 space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
+                <div className="space-y-2 p-4">{[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}</div>
               ) : reqFailed ? (
                 <QueryError what="pending drug requests" onRetry={() => refetchReq()} />
               ) : (
                 <>
-                {reqError && <QueryError what="pending drug requests" onRetry={() => refetchReq()} staleAt={reqUpdatedAt} />}
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Time</TableHead>
-                      <TableHead>Patient</TableHead>
-                      <TableHead>Drug</TableHead>
-                      <TableHead>Qty</TableHead>
-                      <TableHead>Submitted By (MO)</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pendingRequests.length === 0 ? (
-                      <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground">No pending drug requests</TableCell></TableRow>
-                    ) : pendingRequests.map(r => (
-                      <TableRow key={r.id}>
-                        <TableCell className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(r.created_at), { addSuffix: true })}</TableCell>
-                        <TableCell className="font-medium text-sm">{r.patient_name}</TableCell>
-                        <TableCell className="text-sm">{r.drugs?.drug_name}</TableCell>
-                        <TableCell className="text-sm">{r.quantity} {r.drugs?.unit_pengukuran}</TableCell>
-                        <TableCell className="text-sm font-medium">{r.mo_name}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex flex-wrap gap-2 justify-end">
-                            <Button
-                              size="touch"
-                              className="text-xs bg-green-600 hover:bg-green-700 text-white"
-                              onClick={() => setApproveTarget(r)}
-                              disabled={approveMutation.isPending}
-                            >
-                              Approve
-                            </Button>
-                            <Button
-                              size="touch"
-                              variant="destructive"
-                              className="text-xs"
-                              onClick={() => { setRejectTarget(r); setRejectReason(""); }}
-                            >
-                              Reject
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                  {reqError && <QueryError what="pending drug requests" onRetry={() => refetchReq()} staleAt={reqUpdatedAt} />}
+                  {pendingRequests.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">No pending drug requests</p>
+                  ) : (
+                    <ul className="divide-y">
+                      {pendingRequests.map(r => {
+                        const quotaRow = quotaUsageByDrug.get(r.drug_id);
+                        const age = ageFromIC(r.no_ic);
+                        return (
+                          <li key={r.id} className="space-y-3 p-4 sm:px-5">
+                            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-foreground">{r.drugs?.drug_name}</p>
+                                <p className="text-xs text-muted-foreground tabular-nums">
+                                  {r.quantity} {r.drugs?.unit_pengukuran}
+                                </p>
+                              </div>
+                              <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Clock className="h-3 w-3" aria-hidden />
+                                {formatDistanceToNow(new Date(r.created_at), { addSuffix: true })}
+                              </p>
+                            </div>
+                            <dl className="grid gap-3 rounded-md bg-muted/50 p-3 text-sm sm:grid-cols-3">
+                              <div>
+                                <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Patient</dt>
+                                <dd className="mt-0.5 font-medium">{r.patient_name}</dd>
+                                <dd className="text-xs text-muted-foreground">
+                                  {age === "—" ? "Age unknown" : `${age} tahun`} · {r.is_pesara ? "Pesara" : "Non-Pesara"}
+                                </dd>
+                              </div>
+                              <div>
+                                <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Prescriber</dt>
+                                <dd className="mt-0.5 font-medium">{r.prescriber_name || r.mo_name || "—"}</dd>
+                                <dd className="text-xs text-muted-foreground">Submitted by {r.mo_name}</dd>
+                              </div>
+                              <div>
+                                <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">National quota</dt>
+                                {r.is_pesara ? (
+                                  <dd className="mt-0.5 font-medium">Exempt</dd>
+                                ) : quotaRow ? (
+                                  <dd className="mt-0.5 font-medium tabular-nums">
+                                    {quotaRow.remaining} <span className="font-normal text-muted-foreground">of {quotaRow.quota_limit} remaining</span>
+                                  </dd>
+                                ) : (
+                                  <dd className="mt-0.5 font-medium text-muted-foreground">{quotaLoading ? "…" : "No quota set"}</dd>
+                                )}
+                                {r.is_pesara && <dd className="text-xs text-muted-foreground">Pesara are not counted</dd>}
+                              </div>
+                            </dl>
+                            <div className="flex flex-wrap justify-end gap-2">
+                              <Button
+                                size="touch"
+                                variant="destructive"
+                                className="text-xs"
+                                onClick={() => { setRejectTarget(r); setRejectReason(""); }}
+                              >
+                                Reject
+                              </Button>
+                              <Button
+                                size="touch"
+                                className="bg-green-600 text-xs text-white hover:bg-green-700"
+                                onClick={() => setApproveTarget(r)}
+                                disabled={approveMutation.isPending}
+                              >
+                                Approve
+                              </Button>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
                 </>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+            </TabsContent>
 
-        <TabsContent value="antibiotic" className="mt-4">
-          <Card>
-            <CardContent className="p-0">
+            <TabsContent value="antibiotic" className="mt-0">
               {abLoading ? (
-                <div className="p-4 space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
+                <div className="space-y-2 p-4">{[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}</div>
               ) : abFailed ? (
                 <QueryError what="pending antibiotic forms" onRetry={() => refetchAb()} />
               ) : (
                 <>
-                {abError && <QueryError what="pending antibiotic forms" onRetry={() => refetchAb()} staleAt={abUpdatedAt} />}
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Time</TableHead>
-                      <TableHead>Patient</TableHead>
-                      <TableHead>Diagnosis</TableHead>
-                      <TableHead>Submitted By (MO)</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {pendingAntibiotic.length === 0 ? (
-                      <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground">No antibiotic forms pending</TableCell></TableRow>
-                    ) : pendingAntibiotic.map((f) => (
-                      <TableRow key={f.id}>
-                        <TableCell className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(f.created_at), { addSuffix: true })}</TableCell>
-                        <TableCell className="font-medium text-sm">{f.patient_name}</TableCell>
-                        <TableCell className="text-xs max-w-[200px] truncate">{f.diagnosis}</TableCell>
-                        <TableCell className="text-sm font-medium">{f.mo_name}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex flex-wrap gap-2 justify-end">
-                            <Button
-                              size="touch"
-                              className="text-xs bg-green-600 hover:bg-green-700 text-white"
-                              onClick={() => setAbApproveTarget(f)}
-                              disabled={abApproveMutation.isPending}
-                            >
-                              Review & Approve
-                            </Button>
+                  {abError && <QueryError what="pending antibiotic forms" onRetry={() => refetchAb()} staleAt={abUpdatedAt} />}
+                  {pendingAntibiotic.length === 0 ? (
+                    <p className="py-8 text-center text-sm text-muted-foreground">No antibiotic forms pending</p>
+                  ) : (
+                    <ul className="divide-y">
+                      {pendingAntibiotic.map((f) => (
+                        <li key={f.id} className="space-y-3 p-4 sm:px-5">
+                          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-foreground">{f.patient_name}</p>
+                              <p className="text-xs text-muted-foreground">Submitted by {f.mo_name}</p>
+                            </div>
+                            <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Clock className="h-3 w-3" aria-hidden />
+                              {formatDistanceToNow(new Date(f.created_at), { addSuffix: true })}
+                            </p>
+                          </div>
+                          <dl className="rounded-md bg-muted/50 p-3 text-sm">
+                            <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Diagnosis</dt>
+                            <dd className="mt-0.5 font-medium">{f.diagnosis}</dd>
+                          </dl>
+                          <div className="flex flex-wrap justify-end gap-2">
                             <Button
                               size="touch"
                               variant="destructive"
@@ -771,83 +796,176 @@ export default function FmsDashboard() {
                             >
                               Reject
                             </Button>
+                            <Button
+                              size="touch"
+                              className="bg-green-600 text-xs text-white hover:bg-green-700"
+                              onClick={() => setAbApproveTarget(f)}
+                              disabled={abApproveMutation.isPending}
+                            >
+                              Review & Approve
+                            </Button>
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </TabsContent>
+          </FmsPanel>
+        </Tabs>
       </div>
 
-      {/* Usage graph */}
-      <Card>
-        <CardHeader>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <CardTitle className="text-base">Drug Usage Trend (Dispensed)</CardTitle>
-            <Select value={selectedDrugId} onValueChange={setSelectedDrugId}>
-              <SelectTrigger className="w-full sm:w-52 h-8 text-xs">
-                <SelectValue placeholder="All drugs" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all" className="text-xs">All drugs</SelectItem>
-                {drugStock.map(d => (
-                  <SelectItem key={d.id} value={d.id} className="text-xs">{d.drug_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      {/* Stock table — driven by the summary-card filters */}
+      <FmsPanel
+        icon={Package}
+        title="Drug Stock Quota"
+        description={stockFilter ? `Filtered to ${stockFilter}` : "Current stock against this clinic's thresholds"}
+        flush
+        action={stockFilter && (
+          <Button variant="ghost" size="sm" className="text-xs" onClick={() => setStockFilter(null)}>
+            Clear filter
+          </Button>
+        )}
+      >
+        {statusLoading ? (
+          <div className="space-y-2 p-4">{[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
+        ) : statusFailed ? (
+          <QueryError what="stock levels" onRetry={retryStatus} />
+        ) : (
+          <>
+            {statusStale && <QueryError what="stock levels" onRetry={retryStatus} staleAt={statusStaleAt} />}
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50 hover:bg-muted/50">
+                  <TableHead>Drug Name</TableHead>
+                  <TableHead className="text-right">Current Stock</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {visibleStock.length === 0 ? (
+                  <TableRow><TableCell colSpan={4} className="py-6 text-center text-muted-foreground">{stockFilter ? `No ${stockFilter} drugs.` : "No active drugs."}</TableCell></TableRow>
+                ) : visibleStock.map(d => {
+                  const status = effectiveStatus(d);
+                  return (
+                    <TableRow key={d.id}>
+                      <TableCell className="font-medium">{d.drug_name}</TableCell>
+                      <TableCell className="text-right font-semibold tabular-nums">{displayStock(d)}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={`text-[10px] capitalize ${STATUS_BADGE[status]}`}>
+                          {status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="sm" className="relative h-7 px-2 text-xs after:absolute after:-inset-2 after:content-[''] after:md:hidden" onClick={() => navigate(`/pesakit?drug=${d.id}`)}>
+                          <Users className="mr-1 h-3 w-3" /> Patient Registry
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </>
+        )}
+      </FmsPanel>
+
+      {/* Usage trend */}
+      <FmsPanel
+        icon={TrendingUp}
+        title="Drug Usage Trend (Dispensed)"
+        description="Units dispensed per month, all recorded months"
+        action={
+          <Select value={selectedDrugId} onValueChange={setSelectedDrugId}>
+            <SelectTrigger className="h-8 w-full text-xs sm:w-52" aria-label="Filter usage by drug">
+              <SelectValue placeholder="All drugs" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all" className="text-xs">All drugs</SelectItem>
+              {drugStock.map(d => (
+                <SelectItem key={d.id} value={d.id} className="text-xs">{d.drug_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        }
+      >
+        {usageLoading ? (
+          <Skeleton className="h-[260px] w-full" />
+        ) : failedEmpty(usageError, usageUpdatedAt) ? (
+          <QueryError what="the usage trend" onRetry={() => refetchUsage()} />
+        ) : usageData.length === 0 ? (
+          <p className="py-8 text-center text-sm text-muted-foreground">No dispensing records found.</p>
+        ) : (
+          <div className="grid gap-4 lg:grid-cols-12">
+            <div className="rounded-md bg-muted/40 p-3 lg:col-span-9">
+              <ResponsiveContainer width="100%" height={260}>
+                <AreaChart data={usageData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+                  <defs>
+                    <linearGradient id="fms-usage-fill" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
+                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  {/* Theme tokens rather than hardcoded hex, so the chart follows
+                      the palette like everything else. */}
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  {/* At ~300px wide the month labels collided; thin them out and
+                      keep the first and last so the range stays readable. */}
+                  <XAxis dataKey="month" tick={{ fontSize: 11 }} tickFormatter={monthLabel} interval="preserveStartEnd" minTickGap={24} />
+                  <YAxis tick={{ fontSize: 11 }} width={36} />
+                  <Tooltip
+                    labelFormatter={monthLabel}
+                    contentStyle={{
+                      background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))",
+                      borderRadius: 6, fontSize: 12,
+                    }}
+                  />
+                  {/* No Legend: one series, and on a phone it was pure vertical
+                      cost — the panel description already says what it is. */}
+                  <Area type="monotone" dataKey="qty" name="Units dispensed" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#fms-usage-fill)" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+            <dl className="grid gap-3 sm:grid-cols-3 lg:col-span-3 lg:grid-cols-1">
+              <div className="rounded-md bg-muted/40 p-3">
+                <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Total dispensed</dt>
+                <dd className="mt-0.5 text-lg font-semibold tabular-nums">{usageTotal.toLocaleString()} <span className="text-xs font-normal text-muted-foreground">units</span></dd>
+              </div>
+              <div className="rounded-md bg-muted/40 p-3">
+                <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Monthly average</dt>
+                <dd className="mt-0.5 text-lg font-semibold tabular-nums">{Math.round(usageMonthlyAvg).toLocaleString()} <span className="text-xs font-normal text-muted-foreground">units / month</span></dd>
+              </div>
+              {usagePeak && (
+                <div className="rounded-md bg-muted/40 p-3">
+                  <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Peak month</dt>
+                  <dd className="mt-0.5 text-lg font-semibold">{monthLabel(usagePeak.month)}</dd>
+                  <dd className="text-xs text-muted-foreground tabular-nums">{usagePeak.qty.toLocaleString()} units</dd>
+                </div>
+              )}
+            </dl>
           </div>
-        </CardHeader>
-        <CardContent>
-          {usageLoading ? (
-            <Skeleton className="h-[260px] w-full" />
-          ) : failedEmpty(usageError, usageUpdatedAt) ? (
-            <QueryError what="the usage trend" onRetry={() => refetchUsage()} />
-          ) : usageData.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8">No dispensing records found.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={usageData} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
-                {/* Theme tokens rather than hardcoded hex, so the chart follows
-                    the palette like everything else. */}
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                {/* At ~300px wide the month labels collided; thin them out and
-                    keep the first and last so the range stays readable. */}
-                <XAxis dataKey="month" tick={{ fontSize: 11 }} interval="preserveStartEnd" minTickGap={24} />
-                <YAxis tick={{ fontSize: 11 }} width={36} />
-                <Tooltip />
-                {/* No Legend: one series, and on a phone it was pure vertical
-                    cost — the axis title already says what the line is. */}
-                <Line type="monotone" dataKey="qty" name="Units dispensed" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          )}
-        </CardContent>
-      </Card>
-      {/* Controlled Drug Annual Quota */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4" />
-            Controlled Drug Annual Quota (National)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {quotaTableLoading ? (
-            <div className="p-4 space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
-          ) : quotaTableFailed ? (
-            <QueryError what="quota figures" onRetry={retryQuotaTable} />
-          ) : (
-            <>
+        )}
+      </FmsPanel>
+
+      {/* Controlled drug annual quota */}
+      <FmsPanel
+        icon={ShieldCheck}
+        title="Controlled Drug Annual Quota (National)"
+        description={`Shared national pool for ${currentYear}, not this clinic's own balance`}
+        flush
+      >
+        {quotaTableLoading ? (
+          <div className="space-y-2 p-4">{[1, 2, 3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
+        ) : quotaTableFailed ? (
+          <QueryError what="quota figures" onRetry={retryQuotaTable} />
+        ) : (
+          <>
             {quotaTableStale && <QueryError what="quota figures" onRetry={retryQuotaTable} staleAt={Math.min(...[stockUpdatedAt, quotaUpdatedAt, pesaraUpdatedAt].filter(t => t > 0))} />}
             <Table>
               <TableHeader>
-                <TableRow>
+                <TableRow className="bg-muted/50 hover:bg-muted/50">
                   <TableHead>Drug Name</TableHead>
                   <TableHead className="text-right">National Annual Quota</TableHead>
                   <TableHead className="text-right">Patients Served YTD (National)</TableHead>
@@ -858,9 +976,9 @@ export default function FmsDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {drugStock.filter(d => d.perlu_kelulusan_pakar).length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-6 text-muted-foreground">No controlled drugs found</TableCell></TableRow>
-                ) : drugStock.filter(d => d.perlu_kelulusan_pakar).map(d => {
+                {controlledDrugs.length === 0 ? (
+                  <TableRow><TableCell colSpan={7} className="py-6 text-center text-muted-foreground">No controlled drugs found</TableCell></TableRow>
+                ) : controlledDrugs.map(d => {
                   const quotaRow = quotaUsageByDrug.get(d.id);
                   const quota = quotaRow ? quotaRow.quota_limit : null;
                   const served = quotaRow?.used ?? 0;
@@ -874,12 +992,19 @@ export default function FmsDashboard() {
                     healthy: "bg-green-100 text-green-700 border-green-300",
                     "no-quota": "bg-gray-100 text-gray-600 border-gray-300",
                   };
+                  const meterTone = status === "critical" ? "bad" : status === "warning" ? "warn" : "ok";
+                  const pesaraCount = (pesaraCounts as Record<string, number>)[d.id] ?? 0;
                   return (
                     <TableRow key={d.id}>
-                      <TableCell className="font-medium text-sm">{d.drug_name}</TableCell>
-                      <TableCell className="text-right text-sm">{quota ?? "—"}</TableCell>
-                      <TableCell className="text-right text-sm">{served}</TableCell>
-                      <TableCell className="text-right font-semibold text-sm">{remaining !== null ? remaining : "—"}</TableCell>
+                      <TableCell className="text-sm font-medium">{d.drug_name}</TableCell>
+                      <TableCell className="text-right text-sm tabular-nums">{quota ?? "—"}</TableCell>
+                      <TableCell className="text-right text-sm tabular-nums">{served}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex flex-col items-end gap-1">
+                          <span className="text-sm font-semibold tabular-nums">{remaining !== null ? remaining : "—"}</span>
+                          {quota ? <MeterBar pct={((remaining ?? 0) / quota) * 100} tone={meterTone} className="w-24" /> : null}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {quota === null ? "No quota set" : projectedExhaustion(remaining!, avgPerMonth)}
                       </TableCell>
@@ -889,24 +1014,18 @@ export default function FmsDashboard() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right text-sm">
-                        {(() => {
-                          const pesaraCount = (pesaraCounts as Record<string, number>)[d.id] ?? 0;
-                          return (
-                            <span className={pesaraCount > 0 ? "font-semibold text-foreground" : "text-muted-foreground"}>
-                              {pesaraCount} (Unlimited)
-                            </span>
-                          );
-                        })()}
+                        <span className={pesaraCount > 0 ? "font-semibold text-foreground" : "text-muted-foreground"}>
+                          {pesaraCount} (Unlimited)
+                        </span>
                       </TableCell>
                     </TableRow>
                   );
                 })}
               </TableBody>
             </Table>
-            </>
-          )}
-        </CardContent>
-      </Card>
+          </>
+        )}
+      </FmsPanel>
 
       {/* Approve dialog */}
       <Dialog open={!!approveTarget} onOpenChange={open => { if (!open) setApproveTarget(null); }}>
@@ -1046,25 +1165,23 @@ export default function FmsDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Non-Controlled Stock Forecast */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Package className="h-4 w-4" />
-            Non-Controlled Stock Forecast
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {forecastLoading ? (
-            <div className="p-4 space-y-2">{[1,2,3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
-          ) : forecastFailed ? (
-            <QueryError what="the stock forecast" onRetry={retryForecast} />
-          ) : (
-            <>
+      {/* Non-controlled stock forecast */}
+      <FmsPanel
+        icon={Package}
+        title="Non-Controlled Stock Forecast"
+        description="Days of stock left at the last 30 days' average usage"
+        flush
+      >
+        {forecastLoading ? (
+          <div className="space-y-2 p-4">{[1, 2, 3].map(i => <Skeleton key={i} className="h-10 w-full" />)}</div>
+        ) : forecastFailed ? (
+          <QueryError what="the stock forecast" onRetry={retryForecast} />
+        ) : (
+          <>
             {forecastStale && <QueryError what="the stock forecast" onRetry={retryForecast} staleAt={Math.min(...[stockUpdatedAt, usage30UpdatedAt].filter(t => t > 0))} />}
             <Table>
               <TableHeader>
-                <TableRow>
+                <TableRow className="bg-muted/50 hover:bg-muted/50">
                   <TableHead>Drug Name</TableHead>
                   <TableHead className="text-right">Current Stock</TableHead>
                   <TableHead className="text-right">Avg Daily Usage (30d)</TableHead>
@@ -1074,20 +1191,29 @@ export default function FmsDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {drugStock.filter(d => !d.perlu_kelulusan_pakar).map(d => {
-                  const avgDaily = ((usage30 as Record<string,number>)[d.id] ?? 0) / 30;
+                {nonControlledDrugs.map(d => {
+                  const avgDaily = ((usage30 as Record<string, number>)[d.id] ?? 0) / 30;
                   const days = daysRemaining(d.current_stock, avgDaily);
                   const fStatus = forecastStatus(days);
                   const reorderDate = days !== null && days > 0
                     ? (() => { const dt = new Date(); dt.setDate(dt.getDate() + days - 7); return dt.toLocaleDateString("en-MY", { day: "numeric", month: "short" }); })()
                     : "—";
+                  const meterTone = fStatus === "critical" ? "bad" : fStatus === "warning" ? "warn" : "ok";
                   return (
                     <TableRow key={d.id}>
-                      <TableCell className="font-medium text-sm">{d.drug_name}</TableCell>
-                      <TableCell className="text-right text-sm">{d.current_stock} <span className="text-xs text-muted-foreground">{d.unit_pengukuran}</span></TableCell>
-                      <TableCell className="text-right text-sm text-muted-foreground">{avgDaily > 0 ? avgDaily.toFixed(1) : "—"}</TableCell>
-                      <TableCell className="text-right font-semibold text-sm">
-                        {days !== null ? days : <span className="text-muted-foreground text-xs">No usage data</span>}
+                      <TableCell className="text-sm font-medium">{d.drug_name}</TableCell>
+                      <TableCell className="text-right text-sm tabular-nums">{d.current_stock} <span className="text-xs text-muted-foreground">{d.unit_pengukuran}</span></TableCell>
+                      <TableCell className="text-right text-sm tabular-nums text-muted-foreground">{avgDaily > 0 ? avgDaily.toFixed(1) : "—"}</TableCell>
+                      <TableCell className="text-right">
+                        {days !== null ? (
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="text-sm font-semibold tabular-nums">{days}</span>
+                            {/* Scale is 30 days: anything beyond a month reads as full. */}
+                            <MeterBar pct={(days / 30) * 100} tone={meterTone} className="w-24" />
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">No usage data</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">{reorderDate}</TableCell>
                       <TableCell>
@@ -1102,10 +1228,9 @@ export default function FmsDashboard() {
                 })}
               </TableBody>
             </Table>
-            </>
-          )}
-        </CardContent>
-      </Card>
+          </>
+        )}
+      </FmsPanel>
     </div>
   );
 }
