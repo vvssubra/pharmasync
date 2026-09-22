@@ -161,17 +161,17 @@
   }
 }
 
-/* Login announcement ticker: the row list is rendered twice back-to-back and
-   scrolled exactly one copy's height (-50%), so the loop point is invisible —
+/* Login announcement ticker: the item list is rendered twice back-to-back and
+   scrolled exactly one copy's width (-50%), so the loop point is invisible —
    the wildcard prefers-reduced-motion rule above already freezes this for
    anyone who asked for less motion. */
-@keyframes ticker-scroll-vertical {
-  from { transform: translateY(0); }
-  to   { transform: translateY(-50%); }
+@keyframes ticker-scroll-horizontal {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
 }
-.ticker-scroll-vertical {
-  animation: ticker-scroll-vertical linear infinite;
+.ticker-scroll-horizontal {
+  animation: ticker-scroll-horizontal linear infinite;
 }
-.ticker-scroll-vertical:hover {
+.ticker-scroll-horizontal:hover {
   animation-play-state: paused;
 }
