@@ -68,7 +68,7 @@ export function AnnouncementBoard() {
   return (
     <>
       {/* ── Status strip ────────────────────────────────────────── */}
-      <header className="relative z-30 flex w-full shrink-0 items-center gap-4 overflow-hidden border-b border-emerald-400/10 bg-[#041512]/95 px-4 py-2 text-xs shadow-md backdrop-blur sm:px-6 lg:px-8">
+      <header className="relative z-30 flex w-full shrink-0 items-center gap-4 overflow-hidden border-b border-white/10 bg-white/[0.03] px-4 py-2 text-xs backdrop-blur-xl sm:px-6 lg:px-8">
         <div className="flex shrink-0 items-center gap-2 border-r border-emerald-400/15 pr-4 font-mono text-[11px] font-semibold uppercase tracking-wider text-white">
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75 motion-reduce:hidden" />
@@ -127,9 +127,14 @@ export function AnnouncementBoard() {
       {cards.length > 0 && (
         <section
           aria-label="Clinical directives and district bulletins"
-          className="login-rise relative z-20 w-full shrink-0 border-b border-emerald-500/25 bg-[#041512]/90 px-4 py-2.5 shadow-md backdrop-blur-md sm:px-6 lg:px-8"
+          className="login-rise relative z-20 w-full shrink-0 border-b border-white/10 bg-white/[0.04] px-4 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.25)] backdrop-blur-xl sm:px-6 lg:px-8"
         >
-          <div className="mx-auto max-w-7xl">
+          {/* Top sheen — the white catchlight that reads as glass. */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent"
+          />
+          <div className="relative mx-auto max-w-7xl">
             <div className="mb-2 flex items-center justify-between gap-3">
               <h2 className="flex items-center gap-2.5 font-mono text-xs font-extrabold uppercase tracking-wider text-slate-100">
                 <span className="relative flex h-2.5 w-2.5">
@@ -140,7 +145,7 @@ export function AnnouncementBoard() {
                 Clinical Directives &amp; District Bulletins
               </h2>
               {latest && (
-                <span className="hidden items-center gap-1.5 rounded-md border border-emerald-500/30 bg-[#06231d]/90 px-2.5 py-1 font-mono text-[11px] font-medium text-emerald-300 sm:flex">
+                <span className="hidden items-center gap-1.5 rounded-md border border-white/15 bg-white/[0.06] px-2.5 py-1 font-mono text-[11px] font-medium text-emerald-200 sm:flex">
                   <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
                   Live Synced • Updated{" "}
                   {formatDistanceToNowStrict(new Date(latest.created_at), { addSuffix: true })}
@@ -155,12 +160,13 @@ export function AnnouncementBoard() {
                   <article
                     key={a.id}
                     className={cn(
-                      "login-rise rounded-xl border border-emerald-400/10 border-l-4 bg-[#06231d]/80 px-3.5 py-3 shadow-sm backdrop-blur transition-colors hover:bg-[#072a23]/90",
+                      "login-rise rounded-xl border border-white/10 border-l-4 bg-white/[0.07] px-4 py-3.5 backdrop-blur-xl transition-colors hover:bg-white/[0.11]",
+                      "shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_4px_20px_rgba(0,0,0,0.25)]",
                       accent.bar,
                     )}
                     style={{ animationDelay: `${80 + i * 70}ms` }}
                   >
-                    <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+                    <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
                       <span className={cn("inline-flex items-center gap-1.5 font-bold tracking-wide", accent.text)}>
                         <span className={cn("h-2 w-2 rounded-full", accent.dot)} />
                         Bulletin {i + 1}
@@ -169,11 +175,9 @@ export function AnnouncementBoard() {
                         {formatDistanceToNowStrict(new Date(a.created_at), { addSuffix: true })}
                       </span>
                     </div>
-                    {/* Two lines keeps the auth card above the fold on a
-                        900px-tall window; the full text is one hover away. */}
-                    <p className="line-clamp-2 text-xs leading-relaxed text-slate-200" title={a.message}>
-                      {a.message}
-                    </p>
+                    {/* Full message, never clamped — a bulletin cut mid-sentence
+                        is worse than a few px of scroll on short windows. */}
+                    <p className="text-[13px] leading-relaxed text-white/90">{a.message}</p>
                   </article>
                 );
               })}

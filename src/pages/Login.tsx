@@ -160,6 +160,19 @@ export default function Login() {
             "radial-gradient(ellipse 70% 60% at 50% 50%, transparent 0%, rgba(4,21,18,0.55) 100%)",
         }}
       />
+      {/* White catchlights, layered above the vignette so it can't swallow
+          them — gives the glass panels something to refract and stops the
+          whole page reading as one flat green. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse 55% 35% at 15% 0%, rgba(255,255,255,0.18) 0%, transparent 65%)," +
+            "radial-gradient(ellipse 40% 30% at 95% 25%, rgba(255,255,255,0.12) 0%, transparent 65%)," +
+            "radial-gradient(ellipse 45% 25% at 35% 100%, rgba(255,255,255,0.07) 0%, transparent 65%)",
+        }}
+      />
 
       {/* ── Pinned top: live status strip + glass bulletin board ──
           Admin-authored at /settings. The strip always renders (it carries
@@ -193,7 +206,7 @@ export default function Login() {
         </div>
 
         {/* ── Central stage: hero + auth card ─────────────────── */}
-        <div className="grid flex-1 grid-cols-1 items-center gap-6 py-2.5 lg:grid-cols-12">
+        <div className="grid flex-1 grid-cols-1 items-center gap-6 py-1.5 lg:grid-cols-12">
           {/* Hero narrative */}
           <div className="space-y-4 lg:col-span-6">
             <div className="login-rise space-y-3" style={{ animationDelay: "100ms" }}>
@@ -212,10 +225,10 @@ export default function Login() {
 
             {/* Capabilities — every row is a real route in the app. */}
             <div
-              className="login-rise hidden rounded-xl border border-emerald-500/20 bg-[#06231d]/85 p-3 shadow-2xl backdrop-blur-md lg:block"
+              className="login-rise hidden rounded-xl border border-white/10 bg-white/[0.05] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_20px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl lg:block"
               style={{ animationDelay: "220ms" }}
             >
-              <ul className="divide-y divide-emerald-400/10">
+              <ul className="divide-y divide-white/[0.07]">
                 {[
                   {
                     icon: ShieldCheck,
