@@ -45,7 +45,11 @@ export function AnnouncementTicker() {
   // motion — only animate when there's an actual stack to cycle through.
   const scrolling = announcements.length > 2;
   const rows = scrolling ? [...announcements, ...announcements] : announcements;
-  const durationS = announcements.length * 4.5;
+  // A floor, not just a per-item scale: below it a short list flicks past
+  // instead of crawling, which read as "not smooth" even though the
+  // animation itself was linear — the eye reads a fast constant scroll as a
+  // stutter, a slow one as motion.
+  const durationS = Math.max(16, announcements.length * 6);
   // Fixed viewport: ~2.2 cards tall regardless of message length, so the
   // fade masks always sit over real content instead of guessing at a
   // per-card pixel height that message text would drift anyway.
@@ -63,17 +67,22 @@ export function AnnouncementTicker() {
         <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-5 bg-gradient-to-b from-[#04140d] to-transparent" />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-5 bg-gradient-to-t from-[#04140d] to-transparent" />
         <div
-          className={cn("space-y-2.5", scrolling && "ticker-scroll-vertical")}
+          className={cn("space-y-2.5 will-change-transform", scrolling && "ticker-scroll-vertical")}
           style={scrolling ? { animationDuration: `${durationS}s` } : undefined}
         >
           {rows.map((a, i) => {
-            const accent = ACCENTS[i % ACCENTS.length];
+            // Modulo by announcements.length first: maps the duplicated
+            // second half back onto the same original index as its twin, so
+            // both halves get the same accent. Without that step, a count
+            // that isn't a multiple of ACCENTS.length makes the loop's two
+            // halves fall out of sync — a card visibly recolors mid-scroll.
+            const accent = ACCENTS[(i % announcements.length) % ACCENTS.length];
             return (
               <article
                 key={`${a.id}-${i}`}
                 aria-hidden={i >= announcements.length ? true : undefined}
                 className={cn(
-                  "min-h-[72px] rounded-xl border-y border-r border-white/10 border-l-4 bg-white/[0.03] p-3.5 shadow-md transition-colors hover:bg-white/[0.06]",
+                  "min-h-[72px] rounded-xl border-y border-r border-white/10 border-l-4 bg-[#0a2a20] p-3.5 shadow-md",
                   accent.border,
                 )}
               >
@@ -86,7 +95,7 @@ export function AnnouncementTicker() {
                     {formatDistanceToNowStrict(new Date(a.created_at), { addSuffix: true })}
                   </span>
                 </div>
-                <p className="text-xs leading-relaxed text-slate-300">{a.message}</p>
+                <p className="text-xs leading-relaxed text-slate-100">{a.message}</p>
               </article>
             );
           })}
