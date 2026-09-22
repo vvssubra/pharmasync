@@ -53,7 +53,7 @@ export function AnnouncementTicker() {
   // Fixed viewport: ~2.2 cards tall regardless of message length, so the
   // fade masks always sit over real content instead of guessing at a
   // per-card pixel height that message text would drift anyway.
-  const viewportH = 190;
+  const viewportH = 260;
 
   return (
     <div className="pt-2 max-w-2xl">
@@ -82,20 +82,20 @@ export function AnnouncementTicker() {
                 key={`${a.id}-${i}`}
                 aria-hidden={i >= announcements.length ? true : undefined}
                 className={cn(
-                  "min-h-[72px] rounded-xl border-y border-r border-white/10 border-l-4 bg-[#0a2a20] p-3.5 shadow-md",
+                  "min-h-[92px] rounded-xl border-y border-r border-white/10 border-l-4 bg-[#0a2a20] p-4 shadow-md",
                   accent.border,
                 )}
               >
-                <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+                <div className="mb-1.5 flex items-center justify-between gap-2 text-xs">
                   <span className={cn("inline-flex items-center gap-1.5 font-semibold", accent.text)}>
                     <span className={cn("h-1.5 w-1.5 rounded-full", accent.dot)} />
                     District Bulletin
                   </span>
-                  <span className="whitespace-nowrap font-mono text-[11px] text-slate-400">
+                  <span className="whitespace-nowrap font-mono text-xs text-slate-400">
                     {formatDistanceToNowStrict(new Date(a.created_at), { addSuffix: true })}
                   </span>
                 </div>
-                <p className="text-xs leading-relaxed text-slate-100">{a.message}</p>
+                <p className="text-sm leading-relaxed text-slate-100">{a.message}</p>
               </article>
             );
           })}
