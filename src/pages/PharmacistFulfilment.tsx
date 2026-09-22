@@ -1,15 +1,17 @@
-import { useState, useMemo } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables } from "@/integrations/supabase/types";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { formatDistanceToNow, startOfDay, format } from "date-fns";
-import { AlertTriangle, Check } from "lucide-react";
+import { AlertTriangle, Check, PackageX, ClipboardList, ShieldCheck, CheckCircle2, Pill, Stethoscope } from "lucide-react";
 import { computeStockByDrug } from "@/lib/stock";
 import { useClinicDrugSettings, resolveDrugSettings } from "@/hooks/useClinicDrugSettings";
+import { cn, initials } from "@/lib/utils";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ExpandableStatCard } from "@/components/ui/expandable-stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -26,12 +28,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { AntibioticFormReadOnly } from "@/components/AntibioticFormReadOnly";
-
-function formatIC(ic: string) {
-  const d = ic.replace(/\D/g, "");
-  if (d.length === 12) return `${d.slice(0, 6)}-${d.slice(6, 8)}-${d.slice(8)}`;
-  return ic;
-}
+import { formatIC } from "@/lib/ic";
 
 // Rows as this page queries them: dispensing requests join the drug columns the
 // fulfilment flow needs; antibiotic forms come straight off the table.
@@ -47,10 +44,171 @@ type FulfilmentRow = Tables<"dispensing_requests"> & {
 // below — antibiotic_forms has no FK to profiles for PostgREST to embed.
 type AbFormRow = Tables<"antibiotic_forms"> & { submitted_by_name: string };
 
+type TopTab = "pending" | "fulfilled" | "antibiotik";
+
+// A request is blocked when the ledger cannot cover it. This is the single
+// definition behind the "Stock Blocked" KPI, the queue filter and the Complete
+// button, so the three can never disagree.
+function isStockBlocked(stock: number, quantity: number) {
+  return stock < quantity;
+}
+
+// Row-level components are memoized so typing in a dialog or ticking one
+// checkbox re-renders only the row that changed, not every card in the queue.
+
+interface PendingRequestCardProps {
+  req: FulfilmentRow;
+  currentStock: number;
+  stokMin: number;
+  onFulfil: (req: FulfilmentRow) => void;
+  onReject: (req: FulfilmentRow) => void;
+  onDefer: (id: string) => void;
+}
+
+const PendingRequestCard = memo(function PendingRequestCard({
+  req, currentStock, stokMin, onFulfil, onReject, onDefer,
+}: PendingRequestCardProps) {
+  const drug = req.drugs;
+  const afterStock = currentStock - req.quantity;
+  const blocked = isStockBlocked(currentStock, req.quantity);
+  const outOfStock = currentStock <= 0;
+  const belowMin = afterStock < stokMin;
+  const isSpecialistApproved = !!drug?.perlu_kelulusan_pakar;
+  const isDeferred = !!req.deferred_date;
+
+  return (
+    <Card
+      noGlow
+      className={cn(
+        "border-l-4",
+        blocked || belowMin ? "border-l-destructive" : isSpecialistApproved ? "border-l-green-600" : "border-l-primary",
+      )}
+    >
+      <CardHeader className="pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+              {initials(req.patient_name)}
+            </span>
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <CardTitle className="text-base">{req.patient_name}</CardTitle>
+                <Badge variant="outline" className="text-[10px] font-mono">{formatIC(req.no_ic)}</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {formatDistanceToNow(new Date(req.created_at), { addSuffix: true })}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {isSpecialistApproved && <Badge className="bg-green-100 text-green-700 border-green-300 text-[10px] inline-flex items-center gap-1"><Check className="h-3 w-3" /> Specialist Approved</Badge>}
+            {isDeferred && <Badge variant="secondary" className="text-[10px]">Deferred</Badge>}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="mb-4 grid grid-cols-1 gap-3 rounded-lg bg-muted/40 p-3 text-sm sm:grid-cols-3">
+          <div>
+            <span className="flex items-center gap-1 text-xs text-muted-foreground"><Pill className="h-3 w-3" aria-hidden />Drug &amp; Quantity</span>
+            <p className="font-medium text-primary">{drug?.drug_name}</p>
+            <p className="font-mono text-xs text-foreground">{req.quantity} {drug?.unit_pengukuran}</p>
+          </div>
+          <div>
+            <span className="flex items-center gap-1 text-xs text-muted-foreground"><Stethoscope className="h-3 w-3" aria-hidden />Prescriber</span>
+            <p className="font-medium">{req.prescriber_name}</p>
+          </div>
+          <div>
+            <span className="text-xs text-muted-foreground">Current Stock</span>
+            <p className={cn("font-medium", (blocked || belowMin) && "text-destructive")}>{currentStock} → {afterStock} after completion</p>
+            {blocked ? (
+              <p className="mt-1 flex items-center gap-1 text-xs font-medium text-destructive">
+                <PackageX className="h-3 w-3" aria-hidden />
+                {outOfStock ? "Out of Stock" : "Insufficient stock"} — Add Receipt first
+              </p>
+            ) : belowMin && (
+              <p className="mt-1 flex items-center gap-1 text-xs font-medium text-destructive"><AlertTriangle className="h-3 w-3" aria-hidden /> Below minimum level</p>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Other Actions</Button></DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => onReject(req)}>Reject</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onDefer(req.id)}>Defer to tomorrow</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button className="gap-1.5" onClick={() => onFulfil(req)} disabled={blocked}>
+            <CheckCircle2 className="h-4 w-4" aria-hidden />
+            Complete
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+});
+
+interface AntibioticFormCardProps {
+  form: AbFormRow;
+  selected: boolean;
+  onToggle: (id: string) => void;
+  onView: (form: AbFormRow) => void;
+  onAcknowledge: (form: AbFormRow) => void;
+}
+
+const AntibioticFormCard = memo(function AntibioticFormCard({
+  form: f, selected, onToggle, onView, onAcknowledge,
+}: AntibioticFormCardProps) {
+  return (
+    <Card noGlow className="border-l-4 border-l-teal-500">
+      <CardHeader className="pb-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-3">
+            <Checkbox
+              checked={selected}
+              aria-label={`Select form for ${f.patient_name}`}
+              onCheckedChange={() => onToggle(f.id)}
+            />
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-teal-100 text-sm font-bold text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">
+              {initials(f.patient_name)}
+            </span>
+            <div>
+              <CardTitle className="text-base">{f.patient_name}</CardTitle>
+              <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(f.created_at), { addSuffix: true })}</span>
+            </div>
+          </div>
+          <Badge className="bg-green-100 text-green-700 border-green-300 text-[10px] inline-flex items-center gap-1"><Check className="h-3 w-3" /> Specialist Approved</Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="mb-4 grid grid-cols-1 gap-3 rounded-lg bg-muted/40 p-3 text-sm sm:grid-cols-2 md:grid-cols-4">
+          <div><span className="text-muted-foreground text-xs">IC</span><p className="font-mono">{formatIC(f.patient_ic)}</p></div>
+          <div><span className="text-muted-foreground text-xs">Diagnosis</span><p className="truncate max-w-[150px]">{f.diagnosis}</p></div>
+          <div><span className="text-muted-foreground text-xs">Unit</span><Badge variant="outline" className="text-[10px]">{f.prescription_unit || "—"}</Badge></div>
+          <div>
+            <span className="flex items-center gap-1 text-xs text-muted-foreground"><Pill className="h-3 w-3" aria-hidden />Antibiotic</span>
+            <p className="truncate max-w-[150px] font-medium text-primary">{f.antibiotic_regimen || "—"}</p>
+          </div>
+        </div>
+        {f.fms_code && <p className="text-xs text-muted-foreground mb-2">FMS Code: {f.fms_code}</p>}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Button variant="outline" size="sm" onClick={() => onView(f)}>Review Form</Button>
+          <Button size="sm" className="gap-1.5 bg-green-600 hover:bg-green-700 text-white" onClick={() => onAcknowledge(f)}>
+            <CheckCircle2 className="h-4 w-4" aria-hidden />
+            Acknowledge
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+});
+
 export default function PharmacistFulfilment() {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const { byDrugId: settingsByDrugId } = useClinicDrugSettings();
+  const [tab, setTab] = useState<TopTab>("pending");
+  const [blockedOnly, setBlockedOnly] = useState(false);
   const [fulfillTarget, setFulfillTarget] = useState<FulfilmentRow | null>(null);
   const [rejectTarget, setRejectTarget] = useState<FulfilmentRow | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -74,22 +232,33 @@ export default function PharmacistFulfilment() {
     },
   });
 
-  const { data: allTx = [] } = useQuery({
-    queryKey: ["all-transactions-for-stock"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("transactions").select("drug_id, jenis, kuantiti, tarikh, created_at");
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const stockMap = useMemo(() => computeStockByDrug(allTx), [allTx]);
-
   const todayStart = startOfDay(new Date()).toISOString();
   const pending = useMemo(() => requests.filter(r => r.status === "pending_pharmacy"), [requests]);
   const fulfilledToday = useMemo(() =>
     requests.filter(r => r.status === "fulfilled" && r.fulfilled_at && r.fulfilled_at >= todayStart),
     [requests, todayStart]);
+
+  // Stock is only ever read for drugs sitting in the queue, so the ledger
+  // fetch is scoped to those ids instead of pulling every transaction in the
+  // clinic. The sorted id list is part of the key: the 15s request refetch
+  // leaves it unchanged, so it does not trigger a ledger refetch on its own.
+  const pendingDrugIds = useMemo(
+    () => [...new Set(pending.map(r => r.drug_id))].sort(),
+    [pending],
+  );
+  const { data: queueTx = [] } = useQuery({
+    queryKey: ["fulfilment-stock-tx", pendingDrugIds],
+    enabled: pendingDrugIds.length > 0,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("drug_id, jenis, kuantiti, tarikh, created_at")
+        .in("drug_id", pendingDrugIds);
+      if (error) throw error;
+      return data;
+    },
+  });
+  const stockMap = useMemo(() => computeStockByDrug(queueTx), [queueTx]);
 
   // --- Antibiotic Forms ---
   const { data: abForms = [] } = useQuery({
@@ -136,14 +305,20 @@ export default function PharmacistFulfilment() {
   );
   const abAllPendingSelected = abPendingAck.length > 0 && abSelectedIds.length === abPendingAck.length;
 
-  const toggleAbAckSelected = (id: string) => setAbAckSelected((prev) => {
+  const toggleAbAckSelected = useCallback((id: string) => setAbAckSelected((prev) => {
     const next = new Set(prev);
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
-  });
+  }), []);
   const abAckedToday = useMemo(() =>
     abForms.filter((f) => f.acknowledged_at && f.acknowledged_at >= todayStart),
     [abForms, todayStart]);
+
+  const blockedPending = useMemo(
+    () => pending.filter(r => isStockBlocked(stockMap.get(r.drug_id) ?? 0, r.quantity)),
+    [pending, stockMap],
+  );
+  const visiblePending = blockedOnly ? blockedPending : pending;
 
   // --- Mutations ---
   const fulfillMutation = useMutation({
@@ -189,14 +364,14 @@ export default function PharmacistFulfilment() {
       toast.success(`Complete. New balance of ${result.drugName}: ${result.stockAfter} ${result.unit}`);
       setFulfillTarget(null);
       queryClient.invalidateQueries({ queryKey: ["fulfilment-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["all-transactions-for-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["fulfilment-stock-tx"] });
     },
     onError: () => toast.error("Failed to process request"),
   });
 
   const rejectMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from("dispensing_requests").update({ status: "rejected", rejection_reason: rejectReason }).eq("id", rejectTarget.id);
+      const { error } = await supabase.from("dispensing_requests").update({ status: "rejected", rejection_reason: rejectReason }).eq("id", rejectTarget!.id);
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Request rejected"); setRejectTarget(null); setRejectReason(""); queryClient.invalidateQueries({ queryKey: ["fulfilment-requests"] }); },
@@ -210,6 +385,7 @@ export default function PharmacistFulfilment() {
       if (error) throw error;
     },
     onSuccess: () => { toast.success("Request deferred to tomorrow"); queryClient.invalidateQueries({ queryKey: ["fulfilment-requests"] }); },
+    onError: () => toast.error("Failed to defer request"),
   });
 
   const abAckMutation = useMutation({
@@ -259,14 +435,73 @@ export default function PharmacistFulfilment() {
     onError: () => toast.error("Failed to acknowledge the selected forms"),
   });
 
+  // Stable handlers so the memoized row cards skip re-rendering on unrelated
+  // parent state changes (dialog text, selection, tab).
+  const deferRequest = deferMutation.mutate;
+  const showAllPending = useCallback(() => { setBlockedOnly(false); setTab("pending"); }, []);
+  const toggleBlockedOnly = useCallback(() => { setBlockedOnly(v => !v); setTab("pending"); }, []);
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-foreground">Requests to Fulfil</h1>
-        <p className="text-sm text-muted-foreground">Click Complete to confirm dispensing and deduct stock</p>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <span className="rounded bg-secondary px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-secondary-foreground">
+            {profile?.clinic_name ? `Dispensary: ${profile.clinic_name}` : "Clinical Dispensary"}
+          </span>
+          <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground">
+            <Pill className="h-6 w-6 text-primary" aria-hidden />
+            Requests to Fulfil
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Verify prescriptions, review specialist-approved antibiotic forms, and confirm dispensation to deduct inventory stock.
+          </p>
+        </div>
+      </header>
+
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <ExpandableStatCard
+          icon={ClipboardList}
+          count={pending.length}
+          label="Awaiting Confirmation"
+          bgClassName="bg-blue-100 dark:bg-blue-900/30"
+          colorClassName="text-blue-700 dark:text-blue-400"
+          active={tab === "pending" && !blockedOnly}
+          onClick={showAllPending}
+        />
+        <ExpandableStatCard
+          icon={ShieldCheck}
+          count={abPendingAck.length}
+          label="Antibiotic Forms (Restricted)"
+          bgClassName="bg-teal-100 dark:bg-teal-900/30"
+          colorClassName="text-teal-700 dark:text-teal-400"
+          active={tab === "antibiotik"}
+          onClick={() => setTab("antibiotik")}
+        />
+        <ExpandableStatCard
+          icon={CheckCircle2}
+          count={fulfilledToday.length + abAckedToday.length}
+          label="Completed Today"
+          bgClassName="bg-green-100 dark:bg-green-900/30"
+          colorClassName="text-green-700 dark:text-green-400"
+          breakdown={[
+            { label: "Drug requests", value: fulfilledToday.length },
+            { label: "Antibiotic forms", value: abAckedToday.length },
+          ]}
+          active={tab === "fulfilled"}
+          onClick={() => setTab("fulfilled")}
+        />
+        <ExpandableStatCard
+          icon={PackageX}
+          count={blockedPending.length}
+          label="Stock Blocked"
+          bgClassName="bg-red-100 dark:bg-red-900/30"
+          colorClassName="text-red-700 dark:text-red-400"
+          active={tab === "pending" && blockedOnly}
+          onClick={toggleBlockedOnly}
+        />
       </div>
 
-      <Tabs defaultValue="pending">
+      <Tabs value={tab} onValueChange={(v) => setTab(v as TopTab)}>
         <TabsList>
           <TabsTrigger value="pending">Awaiting Confirmation ({pending.length})</TabsTrigger>
           <TabsTrigger value="fulfilled">Completed Today ({fulfilledToday.length})</TabsTrigger>
@@ -280,60 +515,30 @@ export default function PharmacistFulfilment() {
 
         {/* Tab 1: Pending ubat kawalan */}
         <TabsContent value="pending" className="space-y-4 mt-4">
-          {pending.length === 0 ? (
-            <Card><CardContent className="py-12 text-center text-muted-foreground">No pending requests</CardContent></Card>
-          ) : pending.map(req => {
-            const drug = req.drugs;
-            const currentStock = stockMap.get(req.drug_id) ?? 0;
-            const afterStock = currentStock - req.quantity;
-            const belowMin = afterStock < resolveDrugSettings(settingsByDrugId, req.drug_id).stok_min;
-            const outOfStock = currentStock <= 0;
-            const isSpecialistApproved = drug?.perlu_kelulusan_pakar;
-            const isDeferred = !!req.deferred_date;
-
-            return (
-              <Card key={req.id} className="overflow-hidden" style={{ borderLeft: `4px solid ${outOfStock ? '#dc2626' : belowMin ? '#dc2626' : isSpecialistApproved ? '#16A34A' : '#2E75B6'}` }}>
-                <CardHeader className="pb-2">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <CardTitle className="text-base">{drug?.drug_name}</CardTitle>
-                      <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(req.created_at), { addSuffix: true })}</span>
-                    </div>
-                    <div className="flex gap-1">
-                      {isSpecialistApproved && <Badge className="bg-green-100 text-green-700 border-green-300 text-[10px] inline-flex items-center gap-1"><Check className="h-3 w-3" /> Specialist Approved</Badge>}
-                      {isDeferred && <Badge variant="secondary" className="text-[10px]">Deferred</Badge>}
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-5 text-sm mb-4">
-                    <div><span className="text-muted-foreground text-xs">Patient</span><p className="font-medium">{req.patient_name}</p></div>
-                    <div><span className="text-muted-foreground text-xs">IC</span><p>{formatIC(req.no_ic)}</p></div>
-                    <div><span className="text-muted-foreground text-xs">Quantity</span><p>{req.quantity} {drug?.unit_pengukuran}</p></div>
-                    <div><span className="text-muted-foreground text-xs">Doctor</span><p>{req.prescriber_name}</p></div>
-                    <div>
-                      <span className="text-muted-foreground text-xs">Current Stock</span>
-                      <p className={belowMin ? "text-destructive font-medium" : ""}>{currentStock} → {afterStock} after completion</p>
-                    </div>
-                  </div>
-                  {belowMin && !outOfStock && (
-                    <p className="text-xs text-destructive flex items-center gap-1 mb-3"><AlertTriangle className="h-3 w-3" /> Stock below minimum level</p>
-                  )}
-                  {outOfStock && <p className="text-xs text-destructive font-medium mb-3">Out of Stock — Add Receipt first</p>}
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild><Button variant="outline" size="sm">Other Actions</Button></DropdownMenuTrigger>
-                      <DropdownMenuContent>
-                        <DropdownMenuItem onClick={() => setRejectTarget(req)}>Reject</DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => deferMutation.mutate(req.id)}>Defer to tomorrow</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    <Button onClick={() => setFulfillTarget(req)} disabled={outOfStock}>Complete</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+          {blockedOnly && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm">
+              <span className="flex items-center gap-1.5 text-destructive">
+                <PackageX className="h-4 w-4" aria-hidden />
+                Showing {blockedPending.length} stock-blocked request(s)
+              </span>
+              <Button variant="ghost" size="sm" onClick={showAllPending}>Show all</Button>
+            </div>
+          )}
+          {visiblePending.length === 0 ? (
+            <Card><CardContent className="py-12 text-center text-muted-foreground">
+              {blockedOnly ? "No stock-blocked requests" : "No pending requests"}
+            </CardContent></Card>
+          ) : visiblePending.map(req => (
+            <PendingRequestCard
+              key={req.id}
+              req={req}
+              currentStock={stockMap.get(req.drug_id) ?? 0}
+              stokMin={resolveDrugSettings(settingsByDrugId, req.drug_id).stok_min}
+              onFulfil={setFulfillTarget}
+              onReject={setRejectTarget}
+              onDefer={deferRequest}
+            />
+          ))}
         </TabsContent>
 
         {/* Tab 2: Fulfilled today */}
@@ -342,22 +547,20 @@ export default function PharmacistFulfilment() {
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead>Time</TableHead><TableHead>Patient</TableHead><TableHead>IC</TableHead><TableHead>Drug</TableHead><TableHead>Quantity</TableHead><TableHead>Balance After</TableHead><TableHead>Officer</TableHead>
+                  <TableRow className="[&>th]:text-[11px] [&>th]:uppercase [&>th]:tracking-wide [&>th]:text-muted-foreground">
+                    <TableHead>Time</TableHead><TableHead>Patient</TableHead><TableHead>IC</TableHead><TableHead>Drug</TableHead><TableHead>Quantity</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {fulfilledToday.length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No dispensing today</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No dispensing today</TableCell></TableRow>
                   ) : fulfilledToday.map(r => (
                     <TableRow key={r.id}>
                       <TableCell className="text-xs">{r.fulfilled_at ? formatDistanceToNow(new Date(r.fulfilled_at), { addSuffix: true }) : "—"}</TableCell>
                       <TableCell>{r.patient_name}</TableCell>
                       <TableCell className="text-xs">{formatIC(r.no_ic)}</TableCell>
                       <TableCell>{r.drugs?.drug_name}</TableCell>
-                      <TableCell>{r.quantity}</TableCell>
-                      <TableCell>—</TableCell>
-                      <TableCell className="text-xs">—</TableCell>
+                      <TableCell>{r.quantity} {r.drugs?.unit_pengukuran}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -378,7 +581,7 @@ export default function PharmacistFulfilment() {
               {abPendingAck.length === 0 ? (
                 <Card><CardContent className="py-12 text-center text-muted-foreground">No antibiotic forms awaiting confirmation</CardContent></Card>
               ) : (<>
-              <Card>
+              <Card noGlow className="bg-muted/40">
                 <CardContent className="flex flex-wrap items-center justify-between gap-3 py-3">
                   <label className="flex items-center gap-2 text-sm cursor-pointer">
                     <Checkbox
@@ -393,45 +596,25 @@ export default function PharmacistFulfilment() {
                     <span className="text-sm text-muted-foreground">{abSelectedIds.length} selected</span>
                     <Button
                       size="sm"
-                      className="bg-green-600 hover:bg-green-700 text-white"
+                      className="gap-1.5 bg-green-600 hover:bg-green-700 text-white"
                       disabled={abSelectedIds.length === 0}
                       onClick={() => setAbBulkAckOpen(true)}
                     >
+                      <CheckCircle2 className="h-4 w-4" aria-hidden />
                       Acknowledge Selected
                     </Button>
                   </div>
                 </CardContent>
               </Card>
               {abPendingAck.map((f) => (
-                <Card key={f.id} className="overflow-hidden" style={{ borderLeft: "4px solid #0891B2" }}>
-                  <CardHeader className="pb-2">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          checked={abAckSelected.has(f.id)}
-                          aria-label={`Select form for ${f.patient_name}`}
-                          onCheckedChange={() => toggleAbAckSelected(f.id)}
-                        />
-                        <CardTitle className="text-base">{f.patient_name}</CardTitle>
-                        <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(f.created_at), { addSuffix: true })}</span>
-                      </div>
-                      <Badge className="bg-green-100 text-green-700 border-green-300 text-[10px] inline-flex items-center gap-1"><Check className="h-3 w-3" /> Specialist Approved</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-4 text-sm mb-4">
-                      <div><span className="text-muted-foreground text-xs">IC</span><p>{formatIC(f.patient_ic)}</p></div>
-                      <div><span className="text-muted-foreground text-xs">Diagnosis</span><p className="truncate max-w-[150px]">{f.diagnosis}</p></div>
-                      <div><span className="text-muted-foreground text-xs">Unit</span><Badge variant="outline" className="text-[10px]">{f.prescription_unit || "—"}</Badge></div>
-                      <div><span className="text-muted-foreground text-xs">Antibiotic</span><p className="truncate max-w-[150px]">{f.antibiotic_regimen || "—"}</p></div>
-                    </div>
-                    {f.fms_code && <p className="text-xs text-muted-foreground mb-2">FMS Code: {f.fms_code}</p>}
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <Button variant="outline" size="sm" onClick={() => setAbViewTarget(f)}>Review Form</Button>
-                      <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => setAbAckTarget(f)}>Acknowledge</Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                <AntibioticFormCard
+                  key={f.id}
+                  form={f}
+                  selected={abAckSelected.has(f.id)}
+                  onToggle={toggleAbAckSelected}
+                  onView={setAbViewTarget}
+                  onAcknowledge={setAbAckTarget}
+                />
               ))}
               </>)}
             </TabsContent>
@@ -441,7 +624,7 @@ export default function PharmacistFulfilment() {
                 <CardContent className="p-0">
                   <Table>
                     <TableHeader>
-                      <TableRow>
+                      <TableRow className="[&>th]:text-[11px] [&>th]:uppercase [&>th]:tracking-wide [&>th]:text-muted-foreground">
                         <TableHead>Time</TableHead><TableHead>Patient</TableHead><TableHead>IC</TableHead><TableHead>Diagnosis</TableHead><TableHead>Antibiotic</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -501,8 +684,22 @@ export default function PharmacistFulfilment() {
       {/* Antibiotic View Dialog */}
       <Dialog open={!!abViewTarget} onOpenChange={(o) => !o && setAbViewTarget(null)}>
         <DialogContent className="max-w-3xl">
-          <DialogHeader><DialogTitle>Antibiotic Form — {abViewTarget?.patient_name}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">
+                <ShieldCheck className="h-[18px] w-[18px]" aria-hidden />
+              </span>
+              <div className="min-w-0 text-left">
+                <DialogTitle>Antibiotic Form — {abViewTarget?.patient_name}</DialogTitle>
+                <p className="text-xs text-muted-foreground">Specialist-endorsed clinical record</p>
+              </div>
+            </div>
+          </DialogHeader>
           {abViewTarget && <AntibioticFormReadOnly form={abViewTarget} />}
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            Verify patient identity and weight-based dosage against this record before dispensing.
+          </p>
           <DialogFooter>
             <Button variant="outline" onClick={() => setAbViewTarget(null)}>Close</Button>
           </DialogFooter>

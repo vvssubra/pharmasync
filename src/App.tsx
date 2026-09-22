@@ -1,3 +1,5 @@
+import type React from "react";
+import { Suspense, lazy } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -9,31 +11,58 @@ import { PwaUpdatePrompt } from "@/components/PwaUpdatePrompt";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { NotificationSetup } from "@/components/NotificationSetup";
 import { IdleTimeout } from "@/components/IdleTimeout";
+import { PageSkeleton } from "@/components/PageSkeleton";
 import Login from "@/pages/Login";
-import Dashboard from "@/pages/Index";
-import FmsDashboard from "@/pages/FmsDashboard";
-import MoDashboard from "@/pages/MoDashboard";
-import DrugMaster from "@/pages/DrugMaster";
-import Terimaan from "@/pages/Terimaan";
-import Laporan from "@/pages/Laporan";
-import DrugLedger from "@/pages/DrugLedger";
-import DoctorLanding from "@/pages/DoctorLanding";
-import DoctorRequest from "@/pages/DoctorRequest";
-import AntibioticForm from "@/pages/AntibioticForm";
-import SpecialistDashboard from "@/pages/SpecialistDashboard";
-import PharmacistFulfilment from "@/pages/PharmacistFulfilment";
-import AntibioticArchive from "@/pages/AntibioticArchive";
-import PatientRegistry from "@/pages/PatientRegistry";
-import RoleManagement from "@/pages/RoleManagement";
-import Clinics from "@/pages/Clinics";
-import Settings from "@/pages/Settings";
-import ResetPassword from "@/pages/ResetPassword";
-import ChangePassword from "@/pages/ChangePassword";
-import PaedsDoseCalculator from "@/pages/PaedsDoseCalculator";
-import G6pdDeficiency from "@/pages/G6pdDeficiency";
-import Survey from "@/pages/Survey";
-import LogistikDashboard from "@/pages/LogistikDashboard";
 import NotFound from "@/pages/NotFound";
+
+// Route-level code splitting: each page ships as its own chunk and is fetched
+// on first navigation, so the initial load carries the login screen and the
+// shell, not every dashboard in the app.
+//
+// A deploy renames every chunk. A tab opened before the deploy still holds the
+// old chunk names, so its first navigation afterwards 404s. One reload picks
+// up the new index; the sessionStorage flag stops a genuinely broken build
+// from reload-looping.
+const RELOAD_FLAG = "pharmasync:chunk-reloaded";
+function lazyPage<T extends React.ComponentType>(load: () => Promise<{ default: T }>) {
+  return lazy(() =>
+    load().then((mod) => {
+      sessionStorage.removeItem(RELOAD_FLAG);
+      return mod;
+    }).catch((err) => {
+      if (!sessionStorage.getItem(RELOAD_FLAG)) {
+        sessionStorage.setItem(RELOAD_FLAG, "1");
+        window.location.reload();
+        return new Promise<never>(() => {});
+      }
+      throw err;
+    }),
+  );
+}
+
+const Dashboard = lazyPage(() => import("@/pages/Index"));
+const FmsDashboard = lazyPage(() => import("@/pages/FmsDashboard"));
+const MoDashboard = lazyPage(() => import("@/pages/MoDashboard"));
+const DrugMaster = lazyPage(() => import("@/pages/DrugMaster"));
+const Terimaan = lazyPage(() => import("@/pages/Terimaan"));
+const Laporan = lazyPage(() => import("@/pages/Laporan"));
+const DrugLedger = lazyPage(() => import("@/pages/DrugLedger"));
+const DoctorLanding = lazyPage(() => import("@/pages/DoctorLanding"));
+const DoctorRequest = lazyPage(() => import("@/pages/DoctorRequest"));
+const AntibioticForm = lazyPage(() => import("@/pages/AntibioticForm"));
+const SpecialistDashboard = lazyPage(() => import("@/pages/SpecialistDashboard"));
+const PharmacistFulfilment = lazyPage(() => import("@/pages/PharmacistFulfilment"));
+const AntibioticArchive = lazyPage(() => import("@/pages/AntibioticArchive"));
+const PatientRegistry = lazyPage(() => import("@/pages/PatientRegistry"));
+const RoleManagement = lazyPage(() => import("@/pages/RoleManagement"));
+const Clinics = lazyPage(() => import("@/pages/Clinics"));
+const Settings = lazyPage(() => import("@/pages/Settings"));
+const ResetPassword = lazyPage(() => import("@/pages/ResetPassword"));
+const ChangePassword = lazyPage(() => import("@/pages/ChangePassword"));
+const PaedsDoseCalculator = lazyPage(() => import("@/pages/PaedsDoseCalculator"));
+const G6pdDeficiency = lazyPage(() => import("@/pages/G6pdDeficiency"));
+const Survey = lazyPage(() => import("@/pages/Survey"));
+const LogistikDashboard = lazyPage(() => import("@/pages/LogistikDashboard"));
 
 const queryClient = new QueryClient();
 
@@ -63,6 +92,9 @@ const App = () => (
         {/* Signs the user out after 1 hour with no activity; warns 2 min before. */}
         <IdleTimeout />
         <BrowserRouter>
+          {/* Same skeleton ProtectedRoute shows while auth resolves, so a
+              chunk fetch and an auth check look identical to the user. */}
+          <Suspense fallback={<PageSkeleton />}>
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/reset-password" element={<ResetPassword />} />
@@ -101,6 +133,7 @@ const App = () => (
             <Route path="/logistik" element={<ProtectedRoute><AppLayout><LogistikDashboard /></AppLayout></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
         </BrowserRouter>
       </AuthProvider>
     </TooltipProvider>

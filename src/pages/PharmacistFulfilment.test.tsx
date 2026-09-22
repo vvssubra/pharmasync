@@ -35,6 +35,8 @@ const PENDING = [
 const abUpdateSpy = vi.fn();
 let abUpdateResult: { data: unknown[]; error: null } = { data: [], error: null };
 let abFormsData: unknown[] = [];
+let requestsData: unknown[] = [];
+let txData: unknown[] = [];
 
 function thenable(resolver: () => { data: unknown[]; error: null }) {
   const chain: Record<string, unknown> = {};
@@ -71,9 +73,10 @@ vi.mock("@/integrations/supabase/client", () => ({
           },
         };
       }
-      // Every other table this page touches (dispensing_requests, transactions,
-      // profiles, patient_registry, patient_drug_history) stays empty — the
-      // antibiotic tab is the only one these tests exercise.
+      if (table === "dispensing_requests") return thenable(() => ({ data: requestsData, error: null }));
+      if (table === "transactions") return thenable(() => ({ data: txData, error: null }));
+      // Every other table this page touches (profiles, patient_registry,
+      // patient_drug_history) stays empty.
       return thenable(() => ({ data: [], error: null }));
     },
   },
@@ -122,6 +125,8 @@ async function openAntibioticTab() {
 describe("PharmacistFulfilment — bulk acknowledge", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    requestsData = [];
+    txData = [];
     abFormsData = PENDING;
     abUpdateResult = { data: PENDING.map(f => ({ id: f.id })), error: null };
   });
@@ -185,5 +190,88 @@ describe("PharmacistFulfilment — bulk acknowledge", () => {
 
     await waitFor(() => expect(abUpdateSpy).toHaveBeenCalledTimes(1));
     expect(abUpdateSpy.mock.calls[0][0].filters["in:id"]).toEqual(["form-1", "form-2"]);
+  });
+});
+
+function makeRequest(id: string, patient_name: string, drug_id: string, quantity: number, extra: Record<string, unknown> = {}) {
+  return {
+    id,
+    patient_name,
+    no_ic: "900101011234",
+    drug_id,
+    quantity,
+    prescriber_name: "Dr Hana",
+    status: "pending_pharmacy",
+    is_pesara: false,
+    deferred_date: null,
+    fulfilled_at: null,
+    created_at: "2026-08-26T10:00:00Z",
+    drugs: { id: drug_id, drug_name: `Drug ${drug_id}`, unit_pengukuran: "tab", perlu_kelulusan_pakar: false },
+    ...extra,
+  };
+}
+
+describe("PharmacistFulfilment — KPI row", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    const now = new Date().toISOString();
+    // Stock: A=5, B=10, C=0 (no ledger rows at all).
+    txData = [
+      { drug_id: "A", jenis: "terimaan", kuantiti: 5, tarikh: "2026-08-01", created_at: "2026-08-01T00:00:00Z" },
+      { drug_id: "B", jenis: "terimaan", kuantiti: 10, tarikh: "2026-08-01", created_at: "2026-08-01T00:00:00Z" },
+    ];
+    requestsData = [
+      makeRequest("r1", "AISHA BINTI ALI", "A", 20),     // stock 5 < qty 20 — blocked
+      makeRequest("r2", "BALA A/L RAJ", "B", 5),          // stock 10 >= qty 5 — ok
+      makeRequest("r3", "CHONG WEI LING", "C", 1),        // no stock — blocked
+      makeRequest("r4", "DANIEL LEE", "B", 2, { status: "fulfilled", fulfilled_at: now }),
+    ];
+    abFormsData = [
+      makeForm("form-1", "FARZANA IZZATI BINTI ROSDI"),
+      { ...makeForm("form-2", "MUHAMMAD AYDEEN HARIS"), acknowledged_by: "pharm-2", acknowledged_at: now },
+    ];
+    abUpdateResult = { data: [], error: null };
+  });
+
+  it("derives the four counts from the queue, the ledger and today's completions", async () => {
+    renderPage();
+    // The ledger query starts only once the queue is known, so wait for the
+    // stock-derived count rather than the first painted patient name.
+    await waitFor(() => expect(screen.getByTestId("stat-card-Stock Blocked")).toHaveTextContent("2"));
+
+    expect(screen.getByTestId("stat-card-Awaiting Confirmation")).toHaveTextContent("3");
+    expect(screen.getByTestId("stat-card-Antibiotic Forms (Restricted)")).toHaveTextContent("1");
+    // 1 fulfilled request + 1 acknowledged form.
+    expect(screen.getByTestId("stat-card-Completed Today")).toHaveTextContent("2");
+    // Stock Blocked = 2: insufficient (5 < 20) and out-of-stock both count; a
+    // coverable request does not.
+  });
+
+  it("disables Complete only for requests the ledger cannot cover", async () => {
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId("stat-card-Stock Blocked")).toHaveTextContent("2"));
+
+    const complete = screen.getAllByRole("button", { name: /^Complete$/ });
+    expect(complete).toHaveLength(3);
+    // Queue order is newest-first as returned by the mock: r1, r2, r3.
+    expect(complete[0]).toBeDisabled();
+    expect(complete[1]).toBeEnabled();
+    expect(complete[2]).toBeDisabled();
+    expect(screen.getByText(/Insufficient stock/)).toBeInTheDocument();
+    expect(screen.getByText(/Out of Stock/)).toBeInTheDocument();
+  });
+
+  it("filters the queue to blocked requests when the Stock Blocked card is clicked", async () => {
+    const user = userEvent.setup({ delay: null });
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId("stat-card-Stock Blocked")).toHaveTextContent("2"));
+
+    await user.click(screen.getByTestId("stat-card-Stock Blocked"));
+    expect(screen.queryByText("BALA A/L RAJ")).not.toBeInTheDocument();
+    expect(screen.getByText("AISHA BINTI ALI")).toBeInTheDocument();
+    expect(screen.getByText("CHONG WEI LING")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Show all" }));
+    expect(screen.getByText("BALA A/L RAJ")).toBeInTheDocument();
   });
 });
