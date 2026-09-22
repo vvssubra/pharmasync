@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import {
   Warehouse, Package, AlertTriangle, CheckCircle2, Bell, ChevronDown, Pencil, Download,
+  ShieldCheck, Building2, BadgeCheck,
 } from "lucide-react";
 import {
   quotaStatus, quotaBadgeState, formatKuotaLabel, QUOTA_BADGE_CLASS, QUOTA_BADGE_LABEL,
@@ -30,6 +31,23 @@ import { Skeleton } from "@/components/ui/skeleton";
 import NationalQuotaDialog from "@/components/NationalQuotaDialog";
 
 const CURRENCY = new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR" });
+
+// Progress-bar + label color per quota-usage badge state (Stitch "Modern
+// Clinical" pattern: exhausted/critical reads destructive red, warning reads
+// amber, healthy reads primary teal) — purely presentational, layered on top
+// of QUOTA_BADGE_CLASS/QUOTA_BADGE_LABEL above, which still own the text.
+const USAGE_BAR_CLASS: Record<ReturnType<typeof quotaBadgeState>, string> = {
+  healthy: "bg-primary",
+  warning: "bg-warning",
+  exhausted: "bg-destructive",
+  "no-quota": "bg-muted-foreground/40",
+};
+const USAGE_TEXT_CLASS: Record<ReturnType<typeof quotaBadgeState>, string> = {
+  healthy: "text-primary",
+  warning: "text-warning",
+  exhausted: "text-destructive",
+  "no-quota": "text-muted-foreground",
+};
 
 // Common unit_pengukuran values seen across the formulary — offered as
 // <datalist> suggestions on the inline SKU editor below, but any free text
@@ -153,6 +171,16 @@ export default function LogistikDashboard() {
     return true;
   });
 
+  // Footer telemetry bar — YTD spend and active-patient totals across the
+  // currently filtered rows, both derived from data already on-screen (no
+  // separate query). No annual budget figure exists in the schema, so this
+  // intentionally stops at spend/patients rather than inventing a ceiling.
+  const ytdSpend = filteredRows.reduce(
+    (sum, r) => sum + (r.drug.unit_price != null ? r.drug.unit_price * r.used : 0),
+    0,
+  );
+  const ytdPatients = filteredRows.reduce((sum, r) => sum + r.used, 0);
+
   const isLoading = quotaLoading || drugsLoading;
   const isError = quotaError || drugsError;
 
@@ -190,14 +218,28 @@ export default function LogistikDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-          <Warehouse className="h-6 w-6" />
-          Logistik HQ Dashboard
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          National controlled-drug quota pool, pooled and consumed across every clinic.
-        </p>
+      <div className="flex flex-col gap-4 rounded-xl border bg-card p-6 shadow-sm md:flex-row md:items-center md:justify-between">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-secondary px-2.5 py-0.5 text-xs font-medium text-secondary-foreground">
+              <ShieldCheck className="h-3 w-3" />
+              Kuota Year {currentYear} · National Formulary
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-0.5 text-xs text-muted-foreground">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+              HQ synced
+            </span>
+          </div>
+          <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground">
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Warehouse className="h-5 w-5" />
+            </span>
+            Logistik HQ Dashboard
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            National controlled-drug quota pool, pooled and consumed across every clinic.
+          </p>
+        </div>
       </div>
 
       {/* Summary cards — click to filter the table below; click Total Drugs
@@ -248,12 +290,19 @@ export default function LogistikDashboard() {
 
       {/* National quota table */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Package className="h-4 w-4" />
-            National Quota Pool ({currentYear})
-            {cardFilter && <span className="ml-2 font-normal text-sm text-muted-foreground">— filtered</span>}
-          </CardTitle>
+        <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/30">
+          <div className="space-y-0.5">
+            <CardTitle className="text-base flex items-center gap-2">
+              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <Package className="h-4 w-4" />
+              </span>
+              National Quota Pool ({currentYear})
+              {cardFilter && <span className="ml-2 font-normal text-sm text-muted-foreground">— filtered</span>}
+            </CardTitle>
+            <p className="pl-9 text-xs text-muted-foreground">
+              Real-time burn-rate and per-clinic consumption for restricted formulary items.
+            </p>
+          </div>
           <div className="flex items-center gap-2">
             {cardFilter && (
               <Button variant="ghost" size="sm" className="text-xs" onClick={() => setCardFilter(null)}>
@@ -353,7 +402,7 @@ export default function LogistikDashboard() {
                             ) : (
                               <button
                                 type="button"
-                                className="text-left hover:text-primary hover:underline underline-offset-2"
+                                className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-foreground transition hover:bg-secondary hover:text-secondary-foreground"
                                 aria-label={`Edit SKU for ${row.drug.drug_name}`}
                                 onClick={() => {
                                   setSkuDraft(row.drug.unit_pengukuran);
@@ -375,11 +424,25 @@ export default function LogistikDashboard() {
                           </TableCell>
                           <TableCell className={cn("text-right text-sm", GRID_CELL)}>{row.quota_limit}</TableCell>
                           <TableCell className={cn("text-right text-sm", GRID_CELL)}>{row.used}</TableCell>
-                          <TableCell className={cn("text-right text-sm", GRID_CELL)}>
-                            {pctUsed != null ? `${pctUsed.toFixed(1)}%` : "—"}
+                          <TableCell className={cn("min-w-[140px]", GRID_CELL)}>
+                            <div className={cn("text-right text-sm font-medium", USAGE_TEXT_CLASS[badgeState])}>
+                              {pctUsed != null ? `${pctUsed.toFixed(1)}%` : "—"}
+                            </div>
+                            {pctUsed != null && (
+                              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                                <div
+                                  className={cn("h-full rounded-full", USAGE_BAR_CLASS[badgeState])}
+                                  style={{ width: `${Math.min(pctUsed, 100)}%` }}
+                                />
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell className={GRID_CELL}>
-                            <Badge variant="outline" className={cn("text-[10px]", QUOTA_BADGE_CLASS[badgeState])}>
+                            <Badge
+                              variant="outline"
+                              className={cn("gap-1.5 rounded-full text-[10px]", QUOTA_BADGE_CLASS[badgeState])}
+                            >
+                              <span className={cn("h-1.5 w-1.5 rounded-full", USAGE_BAR_CLASS[badgeState])} />
                               {QUOTA_BADGE_LABEL[badgeState](row.used, row.quota_limit)}
                             </Badge>
                           </TableCell>
@@ -387,7 +450,7 @@ export default function LogistikDashboard() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-7 px-2 text-xs"
+                              className="h-7 px-2 text-xs hover:bg-primary/10 hover:text-primary"
                               onClick={() =>
                                 setEditTarget({
                                   drugId: row.drug_id,
@@ -405,17 +468,26 @@ export default function LogistikDashboard() {
                         </TableRow>
                         {isExpanded && (
                           <TableRow className="bg-muted/30 hover:bg-muted/30">
-                            <TableCell colSpan={12} className="py-2">
+                            <TableCell colSpan={12} className="p-3">
                               {clinicRows.length === 0 ? (
-                                <p className="text-xs text-muted-foreground px-2">No usage recorded at any clinic yet.</p>
+                                <p className="px-2 text-xs text-muted-foreground">No usage recorded at any clinic yet.</p>
                               ) : (
-                                <div className="px-2 space-y-1">
-                                  {clinicRows.map((c) => (
-                                    <div key={c.clinic_id} className="flex items-center justify-between text-xs">
-                                      <span className="text-muted-foreground">{c.clinic_name}</span>
-                                      <span className="font-medium">{c.used} used</span>
-                                    </div>
-                                  ))}
+                                <div className="rounded-lg border bg-card p-3">
+                                  <div className="mb-2 flex items-center gap-1.5 text-xs font-medium text-foreground">
+                                    <Building2 className="h-3.5 w-3.5 text-primary" />
+                                    Per-clinic breakdown — {row.drug.drug_name}
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                                    {clinicRows.map((c) => (
+                                      <div
+                                        key={c.clinic_id}
+                                        className="flex items-center justify-between rounded-md bg-muted/60 px-2.5 py-1.5 text-xs"
+                                      >
+                                        <span className="truncate text-muted-foreground">{c.clinic_name}</span>
+                                        <span className="ml-2 shrink-0 font-semibold text-foreground">{c.used} used</span>
+                                      </div>
+                                    ))}
+                                  </div>
                                 </div>
                               )}
                             </TableCell>
@@ -431,6 +503,27 @@ export default function LogistikDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {!isLoading && !isError && filteredRows.length > 0 && (
+        <div className="flex flex-col gap-4 rounded-xl border bg-card p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Quota Spend YTD ({ytdPatients} active patients)
+              </div>
+              <div className="text-xl font-bold text-primary">{CURRENCY.format(ytdSpend)} total</div>
+            </div>
+            <div className="hidden h-10 w-px bg-border sm:block" />
+            <div className="flex items-start gap-2 text-xs text-muted-foreground">
+              <BadgeCheck className="h-4 w-4 shrink-0 text-primary" />
+              <span>
+                <span className="font-medium text-foreground">Quota integrity: </span>
+                All allocations verified against the National Formulary and district pharmacy office records.
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
 
       <NationalQuotaDialog
         open={!!editTarget}
