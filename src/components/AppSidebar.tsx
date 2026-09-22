@@ -1,4 +1,4 @@
-import { Home, Pill, PackagePlus, FileText, Bell, Users, Stethoscope, ShieldCheck, UserCog, BarChart2, ClipboardList, Archive, Baby, ShieldAlert, Warehouse, Building2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Home, Pill, PackagePlus, FileText, Bell, Users, Stethoscope, ShieldCheck, UserCog, BarChart2, ClipboardList, Archive, Baby, ShieldAlert, Warehouse, Building2, Megaphone, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -73,6 +73,7 @@ const navGroups: NavGroup[] = [
       // this is how a super_admin-only entry is spelled — matching /clinics'
       // ROUTE_PERMISSIONS entry, which is super_admin only too.
       { title: "Clinics", url: "/clinics", icon: Building2, roles: [] },
+      { title: "Settings", url: "/settings", icon: Megaphone, roles: ["admin"] },
     ],
   },
 ];

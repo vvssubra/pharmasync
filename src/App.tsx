@@ -26,6 +26,7 @@ import AntibioticArchive from "@/pages/AntibioticArchive";
 import PatientRegistry from "@/pages/PatientRegistry";
 import RoleManagement from "@/pages/RoleManagement";
 import Clinics from "@/pages/Clinics";
+import Settings from "@/pages/Settings";
 import ResetPassword from "@/pages/ResetPassword";
 import ChangePassword from "@/pages/ChangePassword";
 import PaedsDoseCalculator from "@/pages/PaedsDoseCalculator";
@@ -94,6 +95,8 @@ const App = () => (
             <Route path="/role-management" element={<ProtectedRoute><AppLayout><RoleManagement /></AppLayout></ProtectedRoute>} />
             {/* super_admin only — see ROUTE_PERMISSIONS in ProtectedRoute. */}
             <Route path="/clinics" element={<ProtectedRoute><AppLayout><Clinics /></AppLayout></ProtectedRoute>} />
+            {/* admin + super_admin — login page announcement ticker. */}
+            <Route path="/settings" element={<ProtectedRoute><AppLayout><Settings /></AppLayout></ProtectedRoute>} />
             {/* Logistic pharmacist HQ dashboard */}
             <Route path="/logistik" element={<ProtectedRoute><AppLayout><LogistikDashboard /></AppLayout></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />

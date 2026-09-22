@@ -13,6 +13,7 @@ const ROUTE_PERMISSIONS: Array<{ prefix: string; roles: AppRole[] }> = [
   // clinic-scoped one — super_admin only. Must stay above the "/" entry:
   // getAllowedRoles() is first-match-wins and "/" would otherwise claim it.
   { prefix: "/clinics",         roles: ["super_admin"] },
+  { prefix: "/settings",        roles: ["admin", "super_admin"] },
   { prefix: "/role-management", roles: ["admin", "super_admin"] },
   { prefix: "/fms",             roles: ["admin", "fms", "super_admin"] },
   { prefix: "/mo",              roles: ["admin", "mo", "super_admin"] },

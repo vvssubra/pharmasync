@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Check, Loader2, Lock, Pill, ShieldCheck } from "lucide-react";
+import {
+  ArrowLeft, Check, Eye, EyeOff, Loader2, Lock, Mail, Pill, ShieldCheck,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Input } from "@/components/ui/input";
@@ -10,11 +12,13 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import PharmaMatrix from "@/components/ui/pharma-matrix";
+import { AnnouncementTicker } from "@/components/AnnouncementTicker";
 
 export default function Login() {
   const { user, loading, authError } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [fullName, setFullName] = useState("");
   const [clinicId, setClinicId] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -116,6 +120,9 @@ export default function Login() {
     setForgotLoading(false);
   };
 
+  const fieldClass =
+    "h-11 border-slate-200 bg-slate-50/70 pl-10 text-slate-900 placeholder:text-slate-400 " +
+    "focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-emerald-600/40 focus-visible:border-emerald-600";
   const inputClass =
     "h-11 border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 " +
     "focus-visible:ring-2 focus-visible:ring-emerald-500/40 focus-visible:border-emerald-500";
@@ -127,7 +134,7 @@ export default function Login() {
   return (
     <div className="flex min-h-dvh bg-slate-50">
       {/* ── Brand panel (desktop) ─────────────────────────────── */}
-      <aside className="relative hidden w-[46%] max-w-[620px] flex-col justify-between overflow-hidden bg-[#04140d] px-12 py-11 text-white lg:flex">
+      <aside className="relative hidden w-[46%] max-w-[620px] flex-col justify-between overflow-hidden bg-[#04140d] px-12 py-11 text-white lg:flex lg:overflow-y-auto">
         {/* Depth wash */}
         <div
           aria-hidden
@@ -145,61 +152,73 @@ export default function Login() {
           style={{ background: "radial-gradient(circle, #10b981 0%, transparent 70%)", filter: "blur(70px)" }}
         />
 
-        {/* Identity */}
-        <div className="login-rise pointer-events-none relative z-10 flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-emerald-300/20 bg-emerald-400/10 backdrop-blur-sm">
-            <Pill className="h-6 w-6 text-emerald-300" />
+        <div className="relative z-10 space-y-8">
+          {/* Identity */}
+          <div className="login-rise pointer-events-none flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-emerald-300/20 bg-emerald-400/10 backdrop-blur-sm">
+              <Pill className="h-6 w-6 text-emerald-300" />
+            </div>
+            <div className="leading-tight">
+              {/* District identity, not a clinic's. Nobody is signed in yet, so
+                  there is no clinic to name — and naming one tells staff at the
+                  other 14 they are in the wrong place. */}
+              <p className="text-sm font-semibold tracking-wide">PEJABAT KESIHATAN JOHOR BAHRU</p>
+              <p className="text-xs text-emerald-200/60">DIGITAL BIN CARD SYSTEM</p>
+            </div>
           </div>
-          <div className="leading-tight">
-            {/* District identity, not a clinic's. Nobody is signed in yet, so
-                there is no clinic to name — and naming one tells staff at the
-                other 14 they are in the wrong place. */}
-            <p className="text-sm font-semibold tracking-wide">PEJABAT KESIHATAN JOHOR BAHRU</p>
-            <p className="text-xs text-emerald-200/60">DIGITAL BIN CARD SYSTEM</p>
+
+          {/* Headline */}
+          <div className="login-rise pointer-events-none max-w-md" style={{ animationDelay: "100ms" }}>
+            <h1
+              className="shimmer-emerald-on-dark text-6xl font-bold leading-[1.05] tracking-tight"
+              style={{ textWrap: "balance" as never }}
+            >
+              PharmaSync
+            </h1>
+            <p className="mt-4 text-[15px] leading-relaxed text-emerald-50/70">
+              Drug monitoring &amp; inventory for Johor Bahru district clinics — control stock,
+              drug requests, and antibiotic approvals in one place, precise and auditable.
+            </p>
+
+            {/* Double-bezel: outer tray + inner core with a concentric radius. */}
+            <div
+              className="login-rise mt-8 rounded-[2rem] bg-white/[0.04] p-1.5 ring-1 ring-white/10"
+              style={{ animationDelay: "260ms" }}
+            >
+              <ul className="divide-y divide-white/[0.07] rounded-[calc(2rem-0.375rem)] bg-[#04140d]/70 px-5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.10)]">
+                {[
+                  { icon: ShieldCheck, text: "Quota management for special drugs" },
+                  { icon: Check, text: "Antibiotic approval per Clinical Pathway NAG 2024" },
+                  { icon: Lock, text: "Role-based access — officers, specialists, pharmacy" },
+                ].map(({ icon: Icon, text }, i) => (
+                  <li
+                    key={text}
+                    className="login-rise flex items-start gap-3 py-3.5 text-sm text-emerald-50/85"
+                    style={{ animationDelay: `${360 + i * 80}ms` }}
+                  >
+                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-400/10 text-emerald-300 ring-1 ring-emerald-300/20">
+                      <Icon className="h-3.5 w-3.5" strokeWidth={1.5} />
+                    </span>
+                    {text}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+
+          {/* Live-fed announcement stack — admin-authored at /settings, empty
+              when nothing's posted (renders nothing, no placeholder card). */}
+          <div className="relative z-10" style={{ animationDelay: "420ms" }}>
+            <AnnouncementTicker />
           </div>
         </div>
 
-        {/* Headline */}
-        <div className="login-rise pointer-events-none relative z-10 max-w-md" style={{ animationDelay: "100ms" }}>
-          <h1
-            className="shimmer-emerald-on-dark text-6xl font-bold leading-[1.05] tracking-tight"
-            style={{ textWrap: "balance" as never }}
-          >
-            PharmaSync
-          </h1>
-          <p className="mt-4 text-[15px] leading-relaxed text-emerald-50/70">
-            Drug monitoring &amp; inventory for Johor Bahru district clinics — control stock,
-            drug requests, and antibiotic approvals in one place, precise and auditable.
-          </p>
-
-          {/* Double-bezel: outer tray + inner core with a concentric radius. */}
-          <div
-            className="login-rise mt-8 rounded-[2rem] bg-white/[0.04] p-1.5 ring-1 ring-white/10"
-            style={{ animationDelay: "260ms" }}
-          >
-            <ul className="divide-y divide-white/[0.07] rounded-[calc(2rem-0.375rem)] bg-[#04140d]/70 px-5 shadow-[inset_0_1px_1px_rgba(255,255,255,0.10)]">
-              {[
-                { icon: ShieldCheck, text: "Quota management for special drugs" },
-                { icon: Check, text: "Antibiotic approval per Clinical Pathway NAG 2024" },
-                { icon: Lock, text: "Role-based access — officers, specialists, pharmacy" },
-              ].map(({ icon: Icon, text }, i) => (
-                <li
-                  key={text}
-                  className="login-rise flex items-start gap-3 py-3.5 text-sm text-emerald-50/85"
-                  style={{ animationDelay: `${360 + i * 80}ms` }}
-                >
-                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-400/10 text-emerald-300 ring-1 ring-emerald-300/20">
-                    <Icon className="h-3.5 w-3.5" strokeWidth={1.5} />
-                  </span>
-                  {text}
-                </li>
-              ))}
-            </ul>
-          </div>
+        {/* Footer */}
+        <div className="relative z-10 mt-8 flex items-center gap-2 text-xs text-emerald-200/40">
+          <span>© {new Date().getFullYear()} PKD Johor Bahru</span>
+          <span>•</span>
+          <span>Cawangan Farmasi &amp; Bekalan</span>
         </div>
-
-        {/* Footer spacer keeps the three-row justify-between rhythm */}
-        <div className="relative z-10 h-1" />
       </aside>
 
       {/* ── Form panel ────────────────────────────────────────── */}
@@ -282,31 +301,38 @@ export default function Login() {
             /* ── Sign in / Sign up ── */
             <>
               <div className="mb-6">
+                <span className="mb-3 inline-flex items-center gap-1.5 rounded-md border border-emerald-200/60 bg-emerald-50 px-2.5 py-1 font-mono text-[11px] font-semibold text-emerald-700">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                  MOH SECURE GATEWAY
+                </span>
                 <h2 className="text-2xl font-bold tracking-tight text-slate-900">Welcome back</h2>
                 <p className="mt-1.5 text-sm text-slate-500">Sign in to continue to the pharmacy system.</p>
               </div>
 
               <Tabs defaultValue="login" onValueChange={() => setError(null)}>
-                <TabsList className="mb-6 grid w-full grid-cols-2 bg-slate-100">
-                  <TabsTrigger value="login">Sign In</TabsTrigger>
-                  <TabsTrigger value="signup">Sign Up</TabsTrigger>
+                <TabsList className="mb-6 grid w-full grid-cols-2 border border-slate-200 bg-slate-100/90 p-1">
+                  <TabsTrigger value="login" className="text-xs font-semibold sm:text-sm">Sign In</TabsTrigger>
+                  <TabsTrigger value="signup" className="text-xs font-semibold sm:text-sm">Sign Up</TabsTrigger>
                 </TabsList>
 
                 {/* Sign in */}
                 <TabsContent value="login">
                   <form onSubmit={handleLogin} className="space-y-4">
                     <div className="space-y-1.5">
-                      <Label htmlFor="login-email" className={labelClass}>Email</Label>
-                      <Input
-                        id="login-email"
-                        type="email"
-                        value={email}
-                        onChange={e => setEmail(e.target.value)}
-                        required
-                        autoComplete="email"
-                        placeholder="name@moh.gov.my"
-                        className={inputClass}
-                      />
+                      <Label htmlFor="login-email" className={labelClass}>Official Email / KKM ID</Label>
+                      <div className="relative">
+                        <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Input
+                          id="login-email"
+                          type="email"
+                          value={email}
+                          onChange={e => setEmail(e.target.value)}
+                          required
+                          autoComplete="email"
+                          placeholder="name@moh.gov.my"
+                          className={fieldClass}
+                        />
+                      </div>
                     </div>
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
@@ -319,16 +345,27 @@ export default function Login() {
                           Forgot password?
                         </button>
                       </div>
-                      <Input
-                        id="login-password"
-                        type="password"
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                        required
-                        autoComplete="current-password"
-                        placeholder="••••••••"
-                        className={inputClass}
-                      />
+                      <div className="relative">
+                        <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                        <Input
+                          id="login-password"
+                          type={showPassword ? "text" : "password"}
+                          value={password}
+                          onChange={e => setPassword(e.target.value)}
+                          required
+                          autoComplete="current-password"
+                          placeholder="••••••••"
+                          className={`${fieldClass} pr-10`}
+                        />
+                        <button
+                          type="button"
+                          aria-label={showPassword ? "Hide password" : "Show password"}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 transition-colors hover:text-slate-600"
+                          onClick={() => setShowPassword(s => !s)}
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </div>
                     {(error || authError) && (
                       <p id="login-error" role="alert" aria-live="polite" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">
@@ -449,6 +486,17 @@ export default function Login() {
                   </form>
                 </TabsContent>
               </Tabs>
+
+              {/* Compliance footer */}
+              <footer className="mt-7 border-t border-slate-100 pt-5 text-center">
+                <div className="mb-1 flex items-center justify-center gap-1.5 text-xs text-slate-400">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                  <span className="font-medium text-slate-600">Restricted Government Health System</span>
+                </div>
+                <p className="mx-auto max-w-xs text-[11px] leading-normal text-slate-400">
+                  Authorized Ministry of Health Malaysia personnel only. All access is logged for audit.
+                </p>
+              </footer>
             </>
           )}
         </div>
