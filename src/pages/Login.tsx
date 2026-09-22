@@ -175,10 +175,6 @@ export default function Login() {
             >
               PharmaSync
             </h1>
-            <p className="mt-2.5 text-xs leading-relaxed text-emerald-50/70">
-              Drug monitoring &amp; inventory for Johor Bahru district clinics — control stock,
-              drug requests, and antibiotic approvals in one place, precise and auditable.
-            </p>
 
             {/* Double-bezel: outer tray + inner core with a concentric radius. */}
             <div
