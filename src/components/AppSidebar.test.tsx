@@ -79,10 +79,9 @@ function renderSidebar(
 describe("AppSidebar navigation labels", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("renders 'New Requests' nav label for pharmacist", () => {
+  it("renders 'Dispensing' nav label for pharmacist", () => {
     renderSidebar("pharmacist");
-    // Currently shows "Permintaan Baharu" — this FAILS until ENGL-01 translation
-    expect(screen.getByText("New Requests")).toBeInTheDocument();
+    expect(screen.getByText("Dispensing")).toBeInTheDocument();
   });
 
   it("renders 'Patients' nav label for pharmacist", () => {
@@ -103,16 +102,16 @@ describe("AppSidebar navigation labels", () => {
     expect(screen.queryByText("Role Management")).not.toBeInTheDocument();
   });
 
-  it("renders 'Approvals' nav label for fms", () => {
+  it("renders 'Rx Dashboard' nav label for fms", () => {
     renderSidebar("fms");
-    // FMS is an antibiotic approver: AppSidebar gates Approvals to
+    // FMS is an antibiotic approver: AppSidebar gates Rx Dashboard to
     // ["admin", "fms", "pharmacist"], matching /specialist in ProtectedRoute.
-    expect(screen.getByText("Approvals")).toBeInTheDocument();
+    expect(screen.getByText("Rx Dashboard")).toBeInTheDocument();
   });
 
-  it("renders 'Approvals' nav label for pharmacist", () => {
+  it("renders 'Rx Dashboard' nav label for pharmacist", () => {
     renderSidebar("pharmacist");
-    expect(screen.getByText("Approvals")).toBeInTheDocument();
+    expect(screen.getByText("Rx Dashboard")).toBeInTheDocument();
   });
 
   it("does not render 'FMS Dashboard', 'MO Dashboard', 'Terimaan', 'Drug Request', or 'Antibiotic Form' nav labels for pharmacist", () => {
