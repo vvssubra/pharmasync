@@ -48,15 +48,15 @@ export function AnnouncementTicker() {
   const durationS = Math.max(18, totalChars / 10);
 
   return (
-    <div className="pt-2 max-w-2xl">
-      <div className="flex items-stretch overflow-hidden rounded-xl border border-white/10 bg-[#0a2a20] shadow-md">
-        <div className="flex shrink-0 items-center gap-1.5 border-r border-white/10 bg-black/20 px-3 text-xs font-semibold uppercase tracking-wider text-emerald-300">
+    <div className="w-full">
+      <div className="flex items-stretch overflow-hidden rounded-xl border border-emerald-400/15 bg-[#06231d]/90 shadow-lg shadow-black/30 backdrop-blur-sm">
+        <div className="flex shrink-0 items-center gap-1.5 border-r border-emerald-400/15 bg-black/25 px-3 font-mono text-[11px] font-semibold uppercase tracking-wider text-emerald-300">
           <Megaphone className="h-3.5 w-3.5" />
           Bulletins
         </div>
         <div className="relative min-w-0 flex-1 overflow-hidden">
-          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-[#0a2a20] to-transparent" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-[#0a2a20] to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-6 bg-gradient-to-r from-[#06231d] to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-6 bg-gradient-to-l from-[#06231d] to-transparent" />
           <div
             className={cn(
               "flex items-center gap-8 whitespace-nowrap py-3 pl-4 pr-4 will-change-transform",
