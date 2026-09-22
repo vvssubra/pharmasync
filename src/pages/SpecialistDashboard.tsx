@@ -6,7 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
 import { toast } from "sonner";
 import { formatDistanceToNow, startOfDay } from "date-fns";
-import { Clock, CheckCircle, XCircle, ChevronDown } from "lucide-react";
+import { Clock, CheckCircle, XCircle, ChevronDown, ShieldCheck, Pill } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ExpandableStatCard } from "@/components/ui/expandable-stat-card";
@@ -14,7 +14,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -29,8 +28,8 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { AntibioticFormReadOnly } from "@/components/AntibioticFormReadOnly";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { AntibioticReviewDialog, type AntibioticFormForReview } from "@/components/specialist/AntibioticReviewDialog";
+import { formatIC } from "@/lib/ic";
 import { quotaBadgeState, QUOTA_BADGE_CLASS, QUOTA_BADGE_LABEL } from "@/lib/quotaHelpers";
 
 // Rows as this page queries them: dispensing requests join the drug's name and
@@ -40,14 +39,8 @@ type DispensingRow = Tables<"dispensing_requests"> & {
 };
 type AbFormRow = Tables<"antibiotic_forms"> & { submitter_name: string };
 
-function formatIC(ic: string) {
-  const d = ic.replace(/\D/g, "");
-  if (d.length === 12) return `${d.slice(0, 6)}-${d.slice(6, 8)}-${d.slice(8)}`;
-  return ic;
-}
-
 export default function SpecialistDashboard() {
-  const { user, profile } = useAuth();
+  const { user, profile, role } = useAuth();
   const queryClient = useQueryClient();
   const [approveTarget, setApproveTarget] = useState<DispensingRow | null>(null);
   const [rejectTarget, setRejectTarget] = useState<DispensingRow | null>(null);
@@ -69,6 +62,11 @@ export default function SpecialistDashboard() {
   const [abRejectTarget, setAbRejectTarget] = useState<AbFormRow | null>(null);
   const [abNotes, setAbNotes] = useState("");
   const [abRejectReason, setAbRejectReason] = useState("");
+  // "Request MO Clarification" (from the review modal) reuses the same
+  // rejected-status flow as a full reject — antibiotic_forms has no separate
+  // clarification status — just framed differently so the MO reads it as a
+  // question rather than a refusal.
+  const [abRejectIsClarification, setAbRejectIsClarification] = useState(false);
 
   // --- Controlled Drug queries ---
   const { data: requests = [] } = useQuery({
@@ -238,7 +236,11 @@ export default function SpecialistDashboard() {
         .eq("id", abRejectTarget.id);
       if (error) throw error;
     },
-    onSuccess: () => { toast.success("Antibiotic form rejected"); setAbRejectTarget(null); setAbRejectReason(""); queryClient.invalidateQueries({ queryKey: ["specialist-antibiotic-forms"] }); },
+    onSuccess: () => {
+      toast.success(abRejectIsClarification ? "Clarification requested from MO" : "Antibiotic form rejected");
+      setAbRejectTarget(null); setAbRejectReason(""); setAbRejectIsClarification(false);
+      queryClient.invalidateQueries({ queryKey: ["specialist-antibiotic-forms"] });
+    },
     onError: () => toast.error("Failed to reject form"),
   });
 
@@ -276,6 +278,21 @@ export default function SpecialistDashboard() {
 
   return (
     <div className="space-y-6">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <span className="rounded bg-secondary px-1.5 py-0.5 text-xs font-semibold uppercase tracking-wide text-secondary-foreground">
+            {profile?.clinic_name ? `Clinic Governance: ${profile.clinic_name}` : "Clinical Governance"}
+          </span>
+          <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold tracking-tight text-foreground">
+            <ShieldCheck className="h-6 w-6 text-primary" aria-hidden />
+            Rx Dashboard
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Specialist prescription review — controlled substances and restricted antibiotic sanctions.
+          </p>
+        </div>
+      </header>
+
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-4">
         {stats.map(s => (
@@ -479,12 +496,15 @@ export default function SpecialistDashboard() {
 
         {/* TAB 2: Borang Antibiotik */}
         <TabsContent value="antibiotik" className="space-y-4 mt-4">
-          <Card>
-            <CardHeader><CardTitle className="text-base">Antibiotic Forms Pending Approval</CardTitle></CardHeader>
+          <Card className="overflow-hidden">
+            <CardHeader className="flex-row items-center gap-2 space-y-0">
+              {abPending.length > 0 && <span className="h-2 w-2 shrink-0 rounded-full bg-destructive" aria-hidden />}
+              <CardTitle className="text-base">Antibiotic Forms Pending Approval ({abPending.length})</CardTitle>
+            </CardHeader>
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="[&>th]:text-[11px] [&>th]:uppercase [&>th]:tracking-wide [&>th]:text-muted-foreground">
                     <TableHead>Time</TableHead>
                     <TableHead>Patient Name</TableHead>
                     <TableHead>Diagnosis</TableHead>
@@ -500,16 +520,24 @@ export default function SpecialistDashboard() {
                     <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No antibiotic forms pending</TableCell></TableRow>
                   ) : abPending.map((f) => (
                     <TableRow key={f.id}>
-                      <TableCell className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(f.created_at), { addSuffix: true })}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground whitespace-nowrap">{formatDistanceToNow(new Date(f.created_at), { addSuffix: true })}</TableCell>
                       <TableCell className="font-medium">{f.patient_name}</TableCell>
                       <TableCell className="text-xs max-w-[150px] truncate">{f.diagnosis}</TableCell>
-                      <TableCell className="text-xs max-w-[200px] whitespace-normal">{f.antibiotic_regimen || "—"}</TableCell>
+                      <TableCell className="text-xs max-w-[200px] whitespace-normal">
+                        <span className="flex items-center gap-1 font-medium text-primary">
+                          <Pill className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                          {f.antibiotic_regimen || "—"}
+                        </span>
+                      </TableCell>
                       <TableCell className="text-xs font-medium">{f.submitter_name}</TableCell>
                       <TableCell><Badge variant="outline" className="text-[10px]">{f.assigned_fms || "—"}</Badge></TableCell>
                       <TableCell><Badge variant="outline" className="text-[10px]">{f.prescription_unit || "—"}</Badge></TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-2">
-                          <Button size="touch" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => setAbApproveTarget(f)}>Review & Approve</Button>
+                          <Button size="touch" className="gap-1.5 bg-green-600 hover:bg-green-700 text-white" onClick={() => setAbApproveTarget(f)}>
+                            <ShieldCheck className="h-4 w-4" aria-hidden />
+                            Review &amp; Sanction
+                          </Button>
                           <Button size="touch" variant="destructive" onClick={() => setAbRejectTarget(f)}>Reject</Button>
                         </div>
                       </TableCell>
@@ -648,33 +676,34 @@ export default function SpecialistDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Antibiotic Approve Dialog — full form review */}
-      <Dialog open={!!abApproveTarget} onOpenChange={(o) => !o && setAbApproveTarget(null)}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader><DialogTitle>Review Antibiotic Form — {abApproveTarget?.patient_name}</DialogTitle></DialogHeader>
-          {abApproveTarget && (
-            <div className="space-y-4">
-              <AntibioticFormReadOnly form={abApproveTarget} />
-              <div className="space-y-2">
-                <Label>Approval Notes (optional)</Label>
-                <Textarea placeholder="Additional notes" value={abNotes} onChange={e => setAbNotes(e.target.value)} />
-              </div>
-            </div>
-          )}
-          {/* Pinned: this is the tallest overlay in the app (a full read-only
-              form plus a notes field), so on a phone the approve/cancel pair
-              would otherwise sit far below the fold. */}
-          <DialogFooter className="sticky bottom-0 -mx-6 -mb-6 bg-background px-6 pb-6 pt-3">
-            <Button variant="outline" onClick={() => setAbApproveTarget(null)}>Cancel</Button>
-            <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={() => abApproveMutation.mutate()} disabled={abApproveMutation.isPending}>{abApproveMutation.isPending ? "Processing..." : "Approve Form"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* Antibiotic Approve Dialog — full form review & sanction */}
+      <AntibioticReviewDialog
+        form={abApproveTarget as AntibioticFormForReview | null}
+        notes={abNotes}
+        onNotesChange={setAbNotes}
+        specialistName={profile?.full_name ? `${profile.full_name}${role ? ` (${role.toUpperCase()})` : ""}` : "Specialist"}
+        approvePending={abApproveMutation.isPending}
+        onApprove={() => abApproveMutation.mutate()}
+        onOpenChange={(open) => !open && setAbApproveTarget(null)}
+        onReject={() => {
+          setAbRejectIsClarification(false);
+          setAbRejectTarget(abApproveTarget);
+          setAbApproveTarget(null);
+        }}
+        onRequestClarification={() => {
+          setAbRejectIsClarification(true);
+          setAbRejectTarget(abApproveTarget);
+          setAbApproveTarget(null);
+        }}
+      />
 
-      {/* Antibiotic Reject Dialog */}
-      <Dialog open={!!abRejectTarget} onOpenChange={(o) => !o && setAbRejectTarget(null)}>
+      {/* Antibiotic Reject Dialog — also used for "Request MO Clarification",
+          which has no separate backing status (see abRejectIsClarification). */}
+      <Dialog open={!!abRejectTarget} onOpenChange={(o) => { if (!o) { setAbRejectTarget(null); setAbRejectIsClarification(false); } }}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Reject Antibiotic Form</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{abRejectIsClarification ? "Request MO Clarification" : "Reject Antibiotic Form"}</DialogTitle>
+          </DialogHeader>
           {abRejectTarget && (
             <div className="space-y-4">
               <div className="rounded border p-3 space-y-1 text-sm">
@@ -682,14 +711,20 @@ export default function SpecialistDashboard() {
                 <p><span className="text-muted-foreground">Diagnosis:</span> {abRejectTarget.diagnosis}</p>
               </div>
               <div className="space-y-2">
-                <Label>Rejection Reason *</Label>
-                <Textarea placeholder="Min 10 characters" value={abRejectReason} onChange={e => setAbRejectReason(e.target.value)} />
+                <Label>{abRejectIsClarification ? "What needs clarifying? *" : "Rejection Reason *"}</Label>
+                <Textarea
+                  placeholder={abRejectIsClarification ? "e.g. Confirm rapid strep result before I can sanction — min 10 characters" : "Min 10 characters"}
+                  value={abRejectReason}
+                  onChange={e => setAbRejectReason(e.target.value)}
+                />
               </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAbRejectTarget(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => abRejectMutation.mutate()} disabled={abRejectMutation.isPending || abRejectReason.length < 10}>{abRejectMutation.isPending ? "Processing..." : "Confirm Rejection"}</Button>
+            <Button variant="outline" onClick={() => { setAbRejectTarget(null); setAbRejectIsClarification(false); }}>Cancel</Button>
+            <Button variant="destructive" onClick={() => abRejectMutation.mutate()} disabled={abRejectMutation.isPending || abRejectReason.length < 10}>
+              {abRejectMutation.isPending ? "Processing..." : abRejectIsClarification ? "Send to MO" : "Confirm Rejection"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

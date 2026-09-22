@@ -14,7 +14,9 @@ const NAG_BADGE_CONFIG: Record<string, { label: string; cls: string }> = {
   unavailable:      { label: "— Unavailable",       cls: "bg-gray-100 text-gray-600 border-gray-300" },
 };
 
-function NagBadge({ result }: { result?: string | null }) {
+// Exported so the Rx Dashboard review modal can show the same verdict badge
+// without re-deriving the label/colour mapping.
+export function NagBadge({ result }: { result?: string | null }) {
   if (!result) return <span className="text-muted-foreground">—</span>;
   const c = NAG_BADGE_CONFIG[result] ?? { label: result, cls: "" };
   return <Badge variant="outline" className={`text-[10px] ${c.cls}`}>{c.label}</Badge>;
