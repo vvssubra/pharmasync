@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { formatIC, isValidIC } from "@/lib/ic";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/comp
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { cn, initials } from "@/lib/utils";
 import {
   QUOTA_STATUSES, isQuotaStatus, statusBadgeClass, type QuotaStatus,
 } from "@/lib/quotaStatus";
@@ -98,8 +98,15 @@ export function QuotaPatientTable({
                 className={cn("cursor-pointer", selectedPatientId === patient.id && "bg-muted/50")}
                 onClick={() => onSelect(patient.id)}
               >
-                <TableCell className="text-xs text-muted-foreground">{i + 1}</TableCell>
-                <TableCell className="font-medium">{patient.patient_name}</TableCell>
+                <TableCell className="text-xs text-muted-foreground text-center font-mono">{i + 1}</TableCell>
+                <TableCell className="font-medium">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                      {initials(patient.patient_name)}
+                    </div>
+                    <span>{patient.patient_name}</span>
+                  </div>
+                </TableCell>
                 <TableCell className="text-xs">
                   <div className="flex items-center gap-1">
                     {formatIC(patient.no_ic)}
@@ -148,13 +155,16 @@ export function QuotaPatientTable({
                       </Select>
                     </div>
                   ) : (
-                    <Badge variant="outline" className={statusBadgeClass(row.status)}>
+                    <Badge variant="outline" className={cn("gap-1", statusBadgeClass(row.status))}>
+                      {row.status.toUpperCase() === "AKTIF" && <CheckCircle2 className="h-3 w-3" />}
                       {row.status}
                     </Badge>
                   )}
                 </TableCell>
-                <TableCell className="text-xs whitespace-nowrap">{row.dosing ?? "—"}</TableCell>
-                <TableCell className="text-xs whitespace-nowrap">{row.fms_name ?? "—"}</TableCell>
+                <TableCell className="text-xs whitespace-nowrap">
+                  {row.dosing ? <span className="rounded bg-muted px-1.5 py-0.5 font-mono font-medium">{row.dosing}</span> : "—"}
+                </TableCell>
+                <TableCell className="text-xs whitespace-nowrap font-medium">{row.fms_name ?? "—"}</TableCell>
                 {showClinic && (
                   <TableCell className="text-xs whitespace-nowrap">{row.clinic_name ?? "—"}</TableCell>
                 )}

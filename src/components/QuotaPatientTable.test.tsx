@@ -111,7 +111,9 @@ describe("QuotaPatientTable", () => {
                   makeRow({ id: "b", patient_id: "p-b", clinic_name: "KK Larkin", patient_registry: { id: "p-b", patient_name: "B", no_ic: "580305715590" } }),
                   makeRow({ id: "c", patient_id: "p-c", clinic_name: null, patient_registry: { id: "p-c", patient_name: "C", no_ic: "580305715591" } })];
     render(<QuotaPatientTable rows={rows} selectedPatientId={null} onSelect={vi.fn()} emptyMessage="—" />);
-    const cRow = screen.getByText("C").closest("tr")!;
+    // Two "C"s on screen now — the name and its avatar-initial chip — so scope
+    // to the name span specifically.
+    const cRow = screen.getByText("C", { selector: "span" }).closest("tr")!;
     const cells = Array.from(cRow.querySelectorAll("td")).map(td => td.textContent);
     expect(cells[7]).toBe("—"); // KLINIK, the 8th cell once the column is shown
   });

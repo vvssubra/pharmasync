@@ -4,7 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { Search, UserPlus } from "lucide-react";
+import {
+  Search, UserPlus, Share2, Link2, FileSpreadsheet, ShieldCheck, RotateCcw, MapPin, Stethoscope, Clock3,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +21,7 @@ import { QuotaPatientTable, type QuotaPatientRow } from "@/components/QuotaPatie
 import { type QuotaStatus } from "@/lib/quotaStatus";
 import { PatientHistorySheet } from "@/components/PatientHistorySheet";
 import { RefillWalkinDialog } from "@/components/RefillWalkinDialog";
+import { formatIC } from "@/lib/ic";
 
 const THIS_YEAR = new Date().getFullYear();
 
@@ -299,16 +302,105 @@ export default function PatientRegistry() {
     onError: (err: Error) => toast.error(err.message),
   });
 
+  // "Semua ..." filters below are client-side over the rows already loaded for
+  // the selected drug/year — there is no separate query per filter, so a
+  // dropdown option only ever lists a value that actually appears on screen.
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [fmsFilter, setFmsFilter] = useState<string>("ALL");
+  const [dosingFilter, setDosingFilter] = useState<string>("ALL");
+  const [clinicFilter, setClinicFilter] = useState<string>("ALL");
+
+  const statusOptions = useMemo(
+    () => Array.from(new Set(namedRows.map(r => r.status).filter(Boolean))).sort(),
+    [namedRows],
+  );
+  const fmsOptions = useMemo(
+    () => Array.from(new Set(namedRows.map(r => r.fms_name).filter((v): v is string => !!v))).sort(),
+    [namedRows],
+  );
+  const dosingOptions = useMemo(
+    () => Array.from(new Set(namedRows.map(r => r.dosing).filter((v): v is string => !!v))).sort(),
+    [namedRows],
+  );
+  const clinicOptions = useMemo(
+    () => Array.from(new Set(namedRows.map(r => r.clinic_name).filter((v): v is string => !!v))).sort(),
+    [namedRows],
+  );
+  const showClinicFilter = clinicOptions.length > 1;
+
+  const hasActiveFilters = !!searchQ || statusFilter !== "ALL" || fmsFilter !== "ALL" || dosingFilter !== "ALL" || clinicFilter !== "ALL";
+  const resetFilters = () => {
+    setSearchQ("");
+    setStatusFilter("ALL");
+    setFmsFilter("ALL");
+    setDosingFilter("ALL");
+    setClinicFilter("ALL");
+  };
+
   const filteredRows = useMemo(() => {
-    if (!searchQ) return namedRows;
     const q = searchQ.trim().toLowerCase();
     const qDigits = q.replace(/\D/g, "");
-    return namedRows.filter(row =>
-      row.patient_registry.patient_name.toLowerCase().includes(q)
-      || (qDigits && row.patient_registry.no_ic.includes(qDigits)));
-  }, [namedRows, searchQ]);
+    return namedRows.filter(row => {
+      if (q && !(row.patient_registry.patient_name.toLowerCase().includes(q) || (qDigits && row.patient_registry.no_ic.includes(qDigits)))) return false;
+      if (statusFilter !== "ALL" && row.status !== statusFilter) return false;
+      if (fmsFilter !== "ALL" && row.fms_name !== fmsFilter) return false;
+      if (dosingFilter !== "ALL" && row.dosing !== dosingFilter) return false;
+      if (clinicFilter !== "ALL" && row.clinic_name !== clinicFilter) return false;
+      return true;
+    });
+  }, [namedRows, searchQ, statusFilter, fmsFilter, dosingFilter, clinicFilter]);
 
   const selectedDrugName = quotaDrugs.find(d => d.drug_id === effectiveDrugId)?.drugs.drug_name;
+  const shareUrl = effectiveDrugId ? `${window.location.origin}/pesakit?drug=${effectiveDrugId}` : window.location.origin;
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Pautan disalin");
+    } catch {
+      toast.error("Gagal menyalin pautan");
+    }
+  };
+
+  const shareLink = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: selectedDrugName ?? "Daftar Pesakit Kuota", url: shareUrl });
+      } catch {
+        // user cancelled the share sheet — no toast needed
+      }
+    } else {
+      await copyLink();
+    }
+  };
+
+  // Client-side CSV of exactly what's on screen (post-search, post-filter) —
+  // no server round-trip, since filteredRows already holds everything needed.
+  const exportCsv = () => {
+    const header = ["BIL", "NAMA PESAKIT", "NO IC", "TARIKH MULA RAWATAN", "STATUS", "DOSING", "FMS", "KLINIK", "CATATAN"];
+    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const lines = filteredRows.map((row, i) => [
+      String(i + 1),
+      row.patient_registry.patient_name,
+      formatIC(row.patient_registry.no_ic),
+      row.tarikh_mula_rawatan ?? "",
+      row.status,
+      row.dosing ?? "",
+      row.fms_name ?? "",
+      row.clinic_name ?? "",
+      row.catatan ?? "",
+    ].map(escape).join(","));
+    const csv = [header.map(escape).join(","), ...lines].join("\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `daftar-pesakit-kuota-${(selectedDrugName ?? "ubat").toLowerCase().replace(/\s+/g, "-")}-${year}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const openWalkin = () => {
     setRefillInitial(null);
@@ -329,19 +421,40 @@ export default function PatientRegistry() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-foreground">Daftar Pesakit Kuota</h1>
-          <p className="text-sm text-muted-foreground">
-            Senarai pesakit mengikut ubat kawalan khusus, tahun {year}
+    <div className="space-y-space-xl">
+      {/* Header */}
+      <div className="flex flex-col gap-space-base pb-space-xs md:flex-row md:items-center md:justify-between">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded bg-primary/10 px-2 py-0.5 text-xs font-semibold uppercase tracking-wider text-primary">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+              Clinical Registry · Restricted Formulary Protocol
+            </span>
+          </div>
+          <div className="flex flex-wrap items-baseline gap-2">
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">Daftar Pesakit Kuota</h1>
+            <span className="text-base font-medium text-muted-foreground">Patient Quota Registry</span>
+          </div>
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            Senarai pesakit mengikut ubat kawalan khusus, tahun rujukan {year}.
           </p>
         </div>
-        {canRefill && (
-          <Button onClick={openWalkin} style={{ backgroundColor: "#059669" }}>
-            <UserPlus className="mr-1 h-4 w-4" /> Isi Semula (Walk-in)
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={shareLink}>
+            <Share2 className="mr-1 h-4 w-4" /> Kongsi
           </Button>
-        )}
+          <Button variant="outline" size="sm" onClick={copyLink}>
+            <Link2 className="mr-1 h-4 w-4" /> Salin Pautan
+          </Button>
+          <Button variant="outline" size="sm" onClick={exportCsv} disabled={filteredRows.length === 0}>
+            <FileSpreadsheet className="mr-1 h-4 w-4" /> Export (CSV)
+          </Button>
+          {canRefill && (
+            <Button onClick={openWalkin} style={{ backgroundColor: "#059669" }}>
+              <UserPlus className="mr-1 h-4 w-4" /> Isi Semula (Walk-in)
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* usageLoading too: the drug list is derived from the usage RPC now, so
@@ -361,18 +474,25 @@ export default function PatientRegistry() {
         </Card>
       ) : (
         <>
-          <div className="w-full sm:max-w-xs">
-            <Select value={effectiveDrugId} onValueChange={setSelectedDrugId}>
-              <SelectTrigger aria-label="Pilih ubat">
-                <SelectValue placeholder="Pilih ubat...">{selectedDrugName}</SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                {quotaDrugs.map(d => (
-                  <SelectItem key={d.drug_id} value={d.drug_id}>{d.drugs.drug_name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Formulary drug selector strip */}
+          <Card className="shadow-sm">
+            <CardContent className="flex flex-col gap-space-base p-space-base sm:flex-row sm:items-center">
+              <div className="flex flex-1 items-center gap-2">
+                <ShieldCheck className="h-5 w-5 shrink-0 text-primary" />
+                <span className="shrink-0 text-sm font-medium text-muted-foreground">Pilihan Ubat Berkuota:</span>
+                <Select value={effectiveDrugId} onValueChange={setSelectedDrugId}>
+                  <SelectTrigger aria-label="Pilih ubat" className="max-w-xl">
+                    <SelectValue placeholder="Pilih ubat...">{selectedDrugName}</SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {quotaDrugs.map(d => (
+                      <SelectItem key={d.drug_id} value={d.drug_id}>{d.drugs.drug_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
 
           <QuotaBenchmarkCard
             drugId={effectiveDrugId}
@@ -387,14 +507,89 @@ export default function PatientRegistry() {
             isLoading={usageLoading}
           />
 
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Cari nama pesakit atau no. IC…"
-              value={searchQ}
-              onChange={(e) => setSearchQ(e.target.value)}
-              className="pl-9 text-base"
-            />
+          {/* Filters & quick search */}
+          <Card className="shadow-sm">
+            <CardContent className="flex flex-col gap-space-md p-space-base lg:flex-row lg:items-center lg:justify-between">
+              <div className="relative max-w-md flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Cari nama pesakit atau no. IC…"
+                  value={searchQ}
+                  onChange={(e) => setSearchQ(e.target.value)}
+                  className="pl-9 text-base"
+                />
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {showClinicFilter && (
+                  <div className="flex items-center gap-1.5 rounded bg-muted px-2 py-1">
+                    <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
+                    <Select value={clinicFilter} onValueChange={setClinicFilter}>
+                      <SelectTrigger aria-label="Tapis klinik" className="h-7 w-auto border-0 bg-transparent px-1 text-xs shadow-none focus:ring-0">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ALL">Semua Klinik</SelectItem>
+                        {clinicOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5 rounded bg-muted px-2 py-1">
+                  <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger aria-label="Tapis status" className="h-7 w-auto border-0 bg-transparent px-1 text-xs shadow-none focus:ring-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">Semua Status</SelectItem>
+                      {statusOptions.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-1.5 rounded bg-muted px-2 py-1">
+                  <Stethoscope className="h-3.5 w-3.5 text-muted-foreground" />
+                  <Select value={fmsFilter} onValueChange={setFmsFilter}>
+                    <SelectTrigger aria-label="Tapis FMS" className="h-7 w-auto border-0 bg-transparent px-1 text-xs shadow-none focus:ring-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">Semua FMS Pakar</SelectItem>
+                      {fmsOptions.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-1.5 rounded bg-muted px-2 py-1">
+                  <Clock3 className="h-3.5 w-3.5 text-muted-foreground" />
+                  <Select value={dosingFilter} onValueChange={setDosingFilter}>
+                    <SelectTrigger aria-label="Tapis dos" className="h-7 w-auto border-0 bg-transparent px-1 text-xs shadow-none focus:ring-0">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">Semua Dos</SelectItem>
+                      {dosingOptions.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                {hasActiveFilters && (
+                  <Button variant="ghost" size="icon" className="h-7 w-7" title="Tetap Semula Penapis" onClick={resetFilters}>
+                    <RotateCcw className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Status ribbon */}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-semibold text-foreground">{filteredRows.length} Pesakit Dipaparkan</span>
+              {usage && (
+                <>
+                  <span className="text-border">•</span>
+                  <span className="font-medium text-emerald-600">{Math.max(0, usage.remaining)} Baki Kuota Tersedia</span>
+                </>
+              )}
+            </div>
           </div>
 
           <QuotaPatientTable
@@ -413,11 +608,11 @@ export default function PatientRegistry() {
             }) : undefined}
             savingStatusRowId={statusMutation.isPending ? statusMutation.variables?.row.id ?? null : null}
             isLoading={patientsLoading}
-            emptyMessage={searchQ ? `Tiada padanan untuk "${searchQ}".` : "Tiada pesakit berdaftar untuk ubat ini."}
+            emptyMessage={hasActiveFilters ? "Tiada padanan untuk penapis semasa." : "Tiada pesakit berdaftar untuk ubat ini."}
           />
-          {searchQ && filteredRows.length === 0 && (
+          {hasActiveFilters && filteredRows.length === 0 && (
             <div className="text-center">
-              <Button variant="link" size="sm" onClick={() => setSearchQ("")}>Kosongkan carian</Button>
+              <Button variant="link" size="sm" onClick={resetFilters}>Kosongkan penapis</Button>
             </div>
           )}
         </>
