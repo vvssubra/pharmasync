@@ -2,7 +2,8 @@ import { useState } from "react";
 import { Navigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowLeft, ArrowRight, Check, Eye, EyeOff, Loader2, Lock, Mail, Pill, ShieldCheck,
+  AlertTriangle, ArrowLeft, ArrowRight, Calculator, Check, CheckCircle2, Eye, EyeOff,
+  Loader2, Lock, Mail, Pill, ShieldCheck,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,10 +13,11 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import CircuitTrail from "@/components/ui/circuit-trail";
-import { AnnouncementTicker } from "@/components/AnnouncementTicker";
+import { AnnouncementBoard } from "@/components/AnnouncementBoard";
 
 export default function Login() {
   const { user, loading, authError } = useAuth();
+  const [tab, setTab] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -121,23 +123,23 @@ export default function Login() {
   };
 
   const fieldClass =
-    "h-11 rounded-xl border-slate-200 bg-slate-50/70 pl-10 text-slate-900 placeholder:text-slate-400 " +
+    "h-9 rounded-lg border-slate-200 bg-slate-50/70 pl-10 text-sm text-slate-900 placeholder:text-slate-400 " +
     "focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-teal-700/40 focus-visible:border-teal-700";
   const inputClass =
-    "h-11 rounded-xl border-slate-200 bg-slate-50/70 text-slate-900 placeholder:text-slate-400 " +
+    "h-9 rounded-lg border-slate-200 bg-slate-50/70 text-sm text-slate-900 placeholder:text-slate-400 " +
     "focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-teal-700/40 focus-visible:border-teal-700";
   const labelClass = "font-mono text-xs font-semibold tracking-wide text-slate-700";
   const primaryBtn =
-    "group h-11 w-full rounded-xl bg-teal-700 text-sm font-semibold text-white shadow-md shadow-teal-900/10 " +
+    "group h-9 w-full rounded-lg bg-teal-700 text-sm font-semibold text-white shadow-md shadow-teal-900/10 " +
     "hover:bg-teal-800 hover:shadow-lg hover:shadow-teal-900/20 " +
     "transition-[background-color,box-shadow,transform] duration-150 active:scale-[0.98] motion-reduce:active:scale-100";
   const secondaryBtn =
-    "h-11 w-full rounded-xl border-slate-200 bg-white text-sm font-medium text-slate-700 shadow-sm " +
+    "h-9 w-full rounded-lg border-slate-200 bg-white text-sm font-medium text-slate-700 shadow-sm " +
     "hover:border-slate-300 hover:bg-slate-50 " +
     "transition-[background-color,border-color,transform] duration-150 active:scale-[0.98] motion-reduce:active:scale-100";
 
   return (
-    <div className="relative flex min-h-dvh flex-col overflow-hidden bg-[#041512] text-slate-100 antialiased">
+    <div className="relative flex min-h-dvh flex-col overflow-x-hidden bg-[#041512] text-slate-100 antialiased">
       {/* ── Canvas: depth wash + circuit light trails ─────────── */}
       <div
         aria-hidden
@@ -159,9 +161,15 @@ export default function Login() {
         }}
       />
 
-      <main className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col justify-between px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      {/* ── Pinned top: live status strip + glass bulletin board ──
+          Admin-authored at /settings. The strip always renders (it carries
+          the live dot + host); the card grid disappears when the feed is
+          empty so an empty board leaves no placeholder box. */}
+      <AnnouncementBoard />
+
+      <main className="relative z-10 mx-auto flex w-full max-w-7xl flex-1 flex-col justify-between px-4 py-2.5 sm:px-6 lg:px-8">
         {/* ── Top command bar: district identity ──────────────── */}
-        <div className="login-rise flex flex-col justify-between gap-4 border-b border-emerald-400/10 pb-6 sm:flex-row sm:items-center">
+        <div className="login-rise flex shrink-0 flex-col justify-between gap-2 border-b border-emerald-400/10 pb-2.5 sm:flex-row sm:items-center">
           <div className="flex items-center gap-3.5">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-emerald-300/30 bg-[#072a23] text-emerald-300 shadow-[0_0_15px_rgba(52,211,153,0.18)]">
               <Pill className="h-6 w-6" />
@@ -185,26 +193,26 @@ export default function Login() {
         </div>
 
         {/* ── Central stage: hero + auth card ─────────────────── */}
-        <div className="grid grid-cols-1 items-center gap-8 py-6 lg:grid-cols-12 lg:py-8">
+        <div className="grid flex-1 grid-cols-1 items-center gap-6 py-2.5 lg:grid-cols-12">
           {/* Hero narrative */}
-          <div className="space-y-6 lg:col-span-6">
+          <div className="space-y-4 lg:col-span-6">
             <div className="login-rise space-y-3" style={{ animationDelay: "100ms" }}>
-              <h1 className="text-4xl font-extrabold tracking-tight text-white drop-shadow-sm sm:text-5xl lg:text-6xl">
+              <h1 className="text-3xl font-extrabold tracking-tight text-white drop-shadow-sm sm:text-4xl lg:text-5xl">
                 Pharma
                 <span className="bg-gradient-to-r from-emerald-200 via-emerald-400 to-teal-200 bg-clip-text text-transparent">
                   Sync
                 </span>
               </h1>
-              <p className="max-w-xl text-base leading-relaxed text-slate-300 sm:text-lg">
+              <p className="max-w-xl text-sm leading-normal text-slate-300 sm:text-base">
                 Drug monitoring &amp; inventory for Johor Bahru district clinics — control
                 stock, drug requests, and antibiotic approvals in one place, precise and
                 auditable.
               </p>
             </div>
 
-            {/* Capabilities */}
+            {/* Capabilities — every row is a real route in the app. */}
             <div
-              className="login-rise hidden rounded-2xl border border-emerald-500/20 bg-[#06231d]/80 p-5 shadow-2xl backdrop-blur-md lg:block"
+              className="login-rise hidden rounded-xl border border-emerald-500/20 bg-[#06231d]/85 p-3 shadow-2xl backdrop-blur-md lg:block"
               style={{ animationDelay: "220ms" }}
             >
               <ul className="divide-y divide-emerald-400/10">
@@ -215,9 +223,19 @@ export default function Login() {
                     sub: "Annual patient kuota per controlled drug",
                   },
                   {
-                    icon: Check,
+                    icon: CheckCircle2,
                     title: "Antibiotic approval per Clinical Pathway NAG 2024",
                     sub: "Doctor → specialist endorsement before dispensing",
+                  },
+                  {
+                    icon: Calculator,
+                    title: "Paediatric Dose Calculator",
+                    sub: "Age & weight based dosing at the point of prescribing",
+                  },
+                  {
+                    icon: AlertTriangle,
+                    title: "G6PD Deficiency Reference",
+                    sub: "Contraindicated drugs & haemolysis risk alerts",
                   },
                   {
                     icon: Lock,
@@ -227,15 +245,15 @@ export default function Login() {
                 ].map(({ icon: Icon, title, sub }, i) => (
                   <li
                     key={title}
-                    className="login-rise flex items-start gap-3.5 py-3.5 first:pt-0 last:pb-0"
-                    style={{ animationDelay: `${320 + i * 80}ms` }}
+                    className="login-rise flex items-start gap-3 py-2 first:pt-0 last:pb-0"
+                    style={{ animationDelay: `${320 + i * 60}ms` }}
                   >
-                    <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-emerald-300/30 bg-emerald-900/60 text-emerald-300">
-                      <Icon className="h-4 w-4" strokeWidth={2.2} />
+                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-emerald-300/30 bg-emerald-900/60 text-emerald-300">
+                      <Icon className="h-3.5 w-3.5" strokeWidth={2.2} />
                     </span>
-                    <div className="text-sm">
+                    <div className="text-xs sm:text-sm">
                       <span className="font-semibold text-slate-100">{title}</span>
-                      <p className="mt-0.5 font-mono text-xs text-slate-400">{sub}</p>
+                      <p className="mt-0.5 font-mono text-[11px] text-slate-400">{sub}</p>
                     </div>
                   </li>
                 ))}
@@ -246,7 +264,7 @@ export default function Login() {
           {/* Auth card */}
           <div className="flex flex-col items-center lg:col-span-6 lg:items-end">
             <div
-              className="login-rise relative z-10 w-full max-w-md rounded-3xl border border-slate-200/90 bg-white p-7 text-slate-900 shadow-[0_25px_60px_rgba(0,0,0,0.5),0_0_40px_rgba(15,118,110,0.18)] sm:p-9"
+              className="login-rise relative z-10 w-full max-w-md rounded-2xl border border-slate-200/90 bg-white p-4 text-slate-900 shadow-[0_25px_60px_rgba(0,0,0,0.5),0_0_40px_rgba(15,118,110,0.18)]"
               style={{ animationDelay: "160ms" }}
             >
               {forgotMode ? (
@@ -312,24 +330,33 @@ export default function Login() {
               ) : (
                 /* ── Sign in / Sign up ── */
                 <>
-                  <div className="mb-5">
-                    <span className="mb-3 inline-flex items-center gap-1.5 rounded-md border border-teal-200/60 bg-teal-50 px-2.5 py-1 font-mono text-[11px] font-semibold text-teal-700">
+                  <div className="mb-3.5">
+                    <span className="mb-2.5 inline-flex items-center gap-1.5 rounded-md border border-teal-200/60 bg-teal-50 px-2.5 py-1 font-mono text-[11px] font-semibold text-teal-700">
                       <span className="h-1.5 w-1.5 rounded-full bg-teal-600" />
                       MOH SECURE GATEWAY
                     </span>
-                    <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl">Welcome back</h2>
-                    <p className="mt-1.5 text-sm text-slate-500">Sign in to continue to the pharmacy system.</p>
+                    <h2 className="text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">
+                      {tab === "signup" ? "Request access" : "Welcome back"}
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {tab === "signup"
+                        ? "Your clinic admin approves the account before first sign-in."
+                        : "Sign in to continue to the pharmacy system."}
+                    </p>
                   </div>
 
-                  <Tabs defaultValue="login" onValueChange={() => setError(null)}>
-                    <TabsList className="mb-5 grid h-auto w-full grid-cols-2 rounded-xl border border-slate-200 bg-slate-100/90 p-1">
-                      <TabsTrigger value="login" className="rounded-lg py-2 text-xs font-semibold sm:text-sm">Sign In</TabsTrigger>
-                      <TabsTrigger value="signup" className="rounded-lg py-2 text-xs font-semibold sm:text-sm">Sign Up</TabsTrigger>
+                  {/* Sign In / Sign Up switch lives in the quick links under the
+                      card (Stitch drops the segmented control to keep the card
+                      above the fold); Tabs stays purely as the content switch. */}
+                  <Tabs value={tab} onValueChange={v => { setTab(v as "login" | "signup"); setError(null); }}>
+                    <TabsList className="sr-only">
+                      <TabsTrigger value="login">Sign In</TabsTrigger>
+                      <TabsTrigger value="signup">Sign Up</TabsTrigger>
                     </TabsList>
 
                     {/* Sign in */}
                     <TabsContent value="login">
-                      <form onSubmit={handleLogin} className="space-y-4">
+                      <form onSubmit={handleLogin} className="space-y-2">
                         <div className="space-y-1.5">
                           <Label htmlFor="login-email" className={labelClass}>Official Email / KKM ID</Label>
                           <div className="relative">
@@ -384,7 +411,7 @@ export default function Login() {
                             {error || authError}
                           </p>
                         )}
-                        <div className="pt-1">
+                        <div className="pt-0.5">
                           <Button
                             type="submit"
                             className={primaryBtn}
@@ -402,7 +429,7 @@ export default function Login() {
                           </Button>
                         </div>
 
-                        <div className="relative flex items-center gap-3 py-1">
+                        <div className="relative flex items-center gap-3 py-0.5">
                           <div className="h-px flex-1 bg-slate-200" />
                           <span className="font-mono text-xs font-semibold uppercase tracking-wider text-slate-400">or</span>
                           <div className="h-px flex-1 bg-slate-200" />
@@ -434,7 +461,7 @@ export default function Login() {
 
                     {/* Sign up */}
                     <TabsContent value="signup">
-                      <form onSubmit={handleSignup} className="space-y-4">
+                      <form onSubmit={handleSignup} className="space-y-2">
                         <div className="space-y-1.5">
                           <Label htmlFor="signup-name" className={labelClass}>Full Name</Label>
                           <Input
@@ -509,30 +536,44 @@ export default function Login() {
                   </Tabs>
 
                   {/* Compliance footer */}
-                  <footer className="mt-6 border-t border-slate-100 pt-5 text-center">
-                    <div className="mb-1 flex items-center justify-center gap-1.5 text-xs text-slate-400">
+                  <footer className="mt-2.5 border-t border-slate-100 pt-2 text-center">
+                    <div className="mb-0.5 flex items-center justify-center gap-1.5 text-xs text-slate-400">
                       <ShieldCheck className="h-3.5 w-3.5 text-teal-600" />
                       <span className="font-mono font-medium text-slate-600">Restricted Government Health System</span>
                     </div>
-                    <p className="mx-auto max-w-xs text-[11px] leading-normal text-slate-400">
-                      Authorized Ministry of Health Malaysia personnel only. All access is logged for audit.
+                    <p className="text-[11px] leading-normal text-slate-400">
+                      Authorized MOH Malaysia personnel only. All access is logged for audit.
                     </p>
                   </footer>
                 </>
               )}
             </div>
+
+            {/* Quick assistance under the card — only real destinations. */}
+            {!forgotMode && (
+              <aside className="login-rise mt-1.5 flex w-full max-w-md items-center justify-center gap-4 font-mono text-xs text-slate-400" style={{ animationDelay: "300ms" }}>
+                <button
+                  type="button"
+                  className="transition-colors hover:text-emerald-300"
+                  onClick={() => { setTab(tab === "login" ? "signup" : "login"); setError(null); }}
+                >
+                  {tab === "login" ? "Need account access?" : "Already have an account?"}
+                </button>
+                <span>•</span>
+                <button
+                  type="button"
+                  className="transition-colors hover:text-emerald-300"
+                  onClick={() => { setForgotMode(true); setError(null); }}
+                >
+                  Forgot password?
+                </button>
+              </aside>
+            )}
           </div>
         </div>
 
-        {/* ── Bottom tray: live-fed district bulletins ────────────
-            Admin-authored at /settings; renders nothing when there are no
-            active rows, so an empty feed leaves no placeholder strip. */}
-        <div className="login-rise mt-2 border-t border-emerald-400/10 pt-5 empty:hidden" style={{ animationDelay: "420ms" }}>
-          <AnnouncementTicker />
-        </div>
-
         {/* ── Footer ───────────────────────────────────────────── */}
-        <footer className="mt-6 flex flex-col gap-3 border-t border-emerald-400/10 pt-5 font-mono text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+        <footer className="mt-1 flex shrink-0 flex-col gap-2 border-t border-emerald-400/10 pt-2 font-mono text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <span>© {new Date().getFullYear()} PKD Johor Bahru</span>
             <span>•</span>
