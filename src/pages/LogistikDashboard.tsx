@@ -25,6 +25,9 @@ import { ExpandableStatCard } from "@/components/ui/expandable-stat-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
+import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -79,6 +82,7 @@ type EditTarget = {
 export default function LogistikDashboard() {
   const currentYear = new Date().getFullYear();
   const [cardFilter, setCardFilter] = useState<CardFilter>(null);
+  const [selectedClinicId, setSelectedClinicId] = useState<string>("all");
   const [expandedDrugId, setExpandedDrugId] = useState<string | null>(null);
   const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -171,15 +175,42 @@ export default function LogistikDashboard() {
     return true;
   });
 
+  // Every KK that has ever recorded usage against the national pool, summed
+  // across all drugs and sorted highest-usage-first — this is what the "All
+  // KK usage" dropdown below lists, so HQ can jump straight to a facility's
+  // consumption without expanding every drug row one at a time.
+  const clinicSummaries = useMemo(() => {
+    const totals = new Map<string, { clinicId: string; clinicName: string; used: number }>();
+    for (const r of byClinicDrug.values()) {
+      const existing = totals.get(r.clinic_id);
+      if (existing) existing.used += r.used;
+      else totals.set(r.clinic_id, { clinicId: r.clinic_id, clinicName: r.clinic_name, used: r.used });
+    }
+    return Array.from(totals.values()).sort((a, b) => b.used - a.used);
+  }, [byClinicDrug]);
+
+  const selectedClinic =
+    selectedClinicId === "all" ? null : clinicSummaries.find((c) => c.clinicId === selectedClinicId) ?? null;
+
+  // Per-drug figures for the selected KK — used/limit swap to that clinic's
+  // own numbers (limit falls back to quota_per_fms, the per-facility
+  // ceiling, since the national quota_limit means nothing for one clinic).
+  const clinicRowValues = (row: (typeof rows)[number]) => {
+    if (!selectedClinic) return { used: row.used, limit: row.quota_limit };
+    const used = byClinicDrug.get(`${selectedClinic.clinicId}|${row.drug_id}`)?.used ?? 0;
+    const limit = row.quota_per_fms ?? row.quota_limit;
+    return { used, limit };
+  };
+
   // Footer telemetry bar — YTD spend and active-patient totals across the
   // currently filtered rows, both derived from data already on-screen (no
   // separate query). No annual budget figure exists in the schema, so this
   // intentionally stops at spend/patients rather than inventing a ceiling.
-  const ytdSpend = filteredRows.reduce(
-    (sum, r) => sum + (r.drug.unit_price != null ? r.drug.unit_price * r.used : 0),
-    0,
-  );
-  const ytdPatients = filteredRows.reduce((sum, r) => sum + r.used, 0);
+  const ytdSpend = filteredRows.reduce((sum, r) => {
+    const used = clinicRowValues(r).used;
+    return sum + (r.drug.unit_price != null ? r.drug.unit_price * used : 0);
+  }, 0);
+  const ytdPatients = filteredRows.reduce((sum, r) => sum + clinicRowValues(r).used, 0);
 
   const isLoading = quotaLoading || drugsLoading;
   const isError = quotaError || drugsError;
@@ -300,10 +331,26 @@ export default function LogistikDashboard() {
               {cardFilter && <span className="ml-2 font-normal text-sm text-muted-foreground">— filtered</span>}
             </CardTitle>
             <p className="pl-9 text-xs text-muted-foreground">
-              Real-time burn-rate and per-clinic consumption for restricted formulary items.
+              {selectedClinic
+                ? `Showing usage for ${selectedClinic.clinicName} only.`
+                : "Real-time burn-rate and per-clinic consumption for restricted formulary items."}
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Select value={selectedClinicId} onValueChange={setSelectedClinicId}>
+              <SelectTrigger className="h-8 w-56 text-xs">
+                <Building2 className="h-3.5 w-3.5 mr-1.5 text-primary shrink-0" />
+                <SelectValue placeholder="Semua KK" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua KK (All Clinics)</SelectItem>
+                {clinicSummaries.map((c) => (
+                  <SelectItem key={c.clinicId} value={c.clinicId}>
+                    {c.clinicName} — {c.used} pesakit
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             {cardFilter && (
               <Button variant="ghost" size="sm" className="text-xs" onClick={() => setCardFilter(null)}>
                 Clear filter
@@ -364,10 +411,13 @@ export default function LogistikDashboard() {
                 ) : (
                   filteredRows.map((row, index) => {
                     const isExpanded = expandedDrugId === row.drug_id;
-                    const badgeState = alertState(row);
+                    const { used: displayUsed, limit: displayLimit } = clinicRowValues(row);
+                    const badgeState = selectedClinic
+                      ? quotaBadgeState(displayUsed, displayLimit, row.alert_threshold_pct)
+                      : alertState(row);
                     const clinicRows = clinicRowsForDrug(row.drug_id);
-                    const pctUsed = row.quota_limit > 0 ? (row.used / row.quota_limit) * 100 : null;
-                    const totalHarga = row.drug.unit_price != null ? row.drug.unit_price * row.used : null;
+                    const pctUsed = displayLimit > 0 ? (displayUsed / displayLimit) * 100 : null;
+                    const totalHarga = row.drug.unit_price != null ? row.drug.unit_price * displayUsed : null;
                     return (
                       <Fragment key={row.drug_id}>
                         <TableRow>
@@ -420,10 +470,10 @@ export default function LogistikDashboard() {
                             {totalHarga != null ? CURRENCY.format(totalHarga) : "—"}
                           </TableCell>
                           <TableCell className={cn("text-sm whitespace-nowrap", GRID_CELL)}>
-                            {formatKuotaLabel(row.quota_per_fms, row.fms_count)}
+                            {selectedClinic ? "Per-KK ceiling" : formatKuotaLabel(row.quota_per_fms, row.fms_count)}
                           </TableCell>
-                          <TableCell className={cn("text-right text-sm", GRID_CELL)}>{row.quota_limit}</TableCell>
-                          <TableCell className={cn("text-right text-sm", GRID_CELL)}>{row.used}</TableCell>
+                          <TableCell className={cn("text-right text-sm", GRID_CELL)}>{displayLimit}</TableCell>
+                          <TableCell className={cn("text-right text-sm", GRID_CELL)}>{displayUsed}</TableCell>
                           <TableCell className={cn("min-w-[140px]", GRID_CELL)}>
                             <div className={cn("text-right text-sm font-medium", USAGE_TEXT_CLASS[badgeState])}>
                               {pctUsed != null ? `${pctUsed.toFixed(1)}%` : "—"}
@@ -443,7 +493,7 @@ export default function LogistikDashboard() {
                               className={cn("gap-1.5 rounded-full text-[10px]", QUOTA_BADGE_CLASS[badgeState])}
                             >
                               <span className={cn("h-1.5 w-1.5 rounded-full", USAGE_BAR_CLASS[badgeState])} />
-                              {QUOTA_BADGE_LABEL[badgeState](row.used, row.quota_limit)}
+                              {QUOTA_BADGE_LABEL[badgeState](displayUsed, displayLimit)}
                             </Badge>
                           </TableCell>
                           <TableCell className={cn("text-right", GRID_CELL)}>
