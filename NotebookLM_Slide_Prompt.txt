@@ -1,0 +1,26 @@
+Create an English slide deck for a Ministry of Health innovation panel (pharmacists and doctors). Use only the PharmaSync source.
+
+Slide order:
+1. Title: PharmaSync, Klinik Kesihatan Kempas
+2. The problem (UKK approval first, then the AMS antibiotic form)
+3. UKK feature: how a request moves from the medical officer to the FMS to the pharmacy counter
+4. UKK feature: district quota and Pesara exemption
+5. UKK feature: before vs after (steps, rework cycles, counter time)
+6. Antibiotic feature: digital AMS form and NAG 2024 check
+7. Antibiotic feature: before vs after (incomplete forms, dispensing time)
+8. Other features: G6PD checker, paediatric dose calculator, local AI suggestions
+9. Other features: stock management, login and roles, audit log
+10. What patients gain
+11. Cost
+12. Use in other clinics
+13. Innovation team
+14. Conclusion
+
+Rules:
+- Keep this order. UKK comes before antibiotics.
+- Copy every number exactly as written. Do not round, estimate or add statistics.
+- Spell out UKK (Controlled Drug), AMS, FMS, NAG and PKDJB on first use.
+- The medical officer's request is blocked when the quota is used up. At FMS approval the system only warns. Do not say FMS approval is blocked.
+- Say the MO still discusses with the FMS by phone and the FMS still countersigns the paper prescription.
+- The full medication history stays in PhIS, not PharmaSync.
+- Short plain bullets. No marketing words.
