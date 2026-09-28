@@ -377,7 +377,7 @@ export default function MoDashboard() {
       <FmsPanel
         icon={Pill}
         title="Available Drug Quota"
-        description="Live clinic stock and national annual quota per drug"
+        description="Live clinic stock and PKDJB annual quota per drug"
         flush
         action={
           <div className="flex flex-wrap items-center gap-2">
@@ -416,7 +416,7 @@ export default function MoDashboard() {
                   <TableHead className="text-right">Current Stock</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Protocol</TableHead>
-                  <TableHead className="min-w-[180px]">National Quota Remaining</TableHead>
+                  <TableHead className="min-w-[180px]">PKDJB Quota Remaining</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>

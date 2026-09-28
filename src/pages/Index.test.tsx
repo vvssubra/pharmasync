@@ -173,9 +173,9 @@ describe("Index dashboard — controlled drugs show a NATIONAL balance", () => {
     renderIndex();
 
     await waitFor(() => expect(screen.getByText("Insulin Novomix")).toBeInTheDocument());
-    expect(screen.getByText("national quota left")).toBeInTheDocument();
+    expect(screen.getByText("PKDJB quota left")).toBeInTheDocument();
     expect(
-      screen.getByText(/Controlled drugs show remaining national quota \(shared across all clinics\)/)
+      screen.getByText(/Controlled drugs show remaining PKDJB quota \(shared across all clinics\)/)
     ).toBeInTheDocument();
 
     ROWS.drugs = DRUGS;

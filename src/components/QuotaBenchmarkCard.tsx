@@ -96,7 +96,7 @@ export function QuotaBenchmarkCard({
   // get_drug_quota_usage, which since
   // 20260819000300_national_quota_pool.sql returns NATIONAL per-drug figures,
   // so this average is across drugs nationally, not across this clinic —
-  // hence "Purata kebangsaan" rather than the old "Purata klinik".
+  // hence "Purata PKDJB" rather than the old "Purata klinik".
   const peerRows = Array.from(allUsage.values()).filter((r) => r.drug_id !== drugId);
   const benchmarkAverage = peerRows.length > 0 ? Math.round(peerRows.reduce((sum, r) => sum + r.used, 0) / peerRows.length) : 0;
   const topPeers = peerRows.sort((a, b) => b.used - a.used).slice(0, 3);
@@ -146,8 +146,8 @@ export function QuotaBenchmarkCard({
             {/* Labelled "Kebangsaan" (national), not per-clinic: since
                 20260819000300_national_quota_pool.sql these figures come from
                 get_drug_quota_usage()'s NATIONAL rows. */}
-            <Metric label="Jumlah Kuota Kebangsaan" value={usage.quota_limit} />
-            <Metric label="Baki Kebangsaan" value={displayRemaining} tone="text-emerald-600" />
+            <Metric label="Jumlah Kuota PKDJB" value={usage.quota_limit} />
+            <Metric label="Baki PKDJB" value={displayRemaining} tone="text-emerald-600" />
           </div>
 
           <div className="space-y-1.5">
@@ -193,7 +193,7 @@ export function QuotaBenchmarkCard({
             </div>
           )}
           <div className="flex items-center justify-between border-t pt-3 text-xs">
-            <span className="text-muted-foreground">Purata kebangsaan</span>
+            <span className="text-muted-foreground">Purata PKDJB</span>
             <span className="font-semibold">{benchmarkAverage.toLocaleString()}</span>
           </div>
         </CardContent>

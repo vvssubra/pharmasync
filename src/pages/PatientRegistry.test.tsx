@@ -17,7 +17,7 @@ const LEVEMIR = { id: "drug-levemir", drug_name: "Insulin Levemir", unit_penguku
 const drugsData: unknown[] = [NOVOMIX, LEVEMIR];
 let quotaPatientsByDrug: Record<string, unknown[]> = {};
 let rpcData: unknown[] = [];
-// Approved dispensing requests that count toward national quota usage but
+// Approved dispensing requests that count toward PKDJB quota usage but
 // have no drug_quota_patients enrolment yet — empty by default so existing
 // assertions (which predate this union) are unaffected.
 const dispensedByDrug: Record<string, unknown[]> = {};
@@ -227,17 +227,17 @@ describe("PatientRegistry", () => {
     expect(dispensedRow.textContent).toContain("KK Larkin");
   });
 
-  it("shows the no-quota-drugs empty state when no drug carries a national quota this year", async () => {
+  it("shows the no-quota-drugs empty state when no drug carries a PKDJB quota this year", async () => {
     // Emptiness is now decided by the national usage RPC, not by this clinic's
     // drug_quotas rows — which is the whole point of the change.
     rpcData = [];
     renderPage();
     await waitFor(() =>
-      expect(screen.getByText(/Tiada ubat berkuota kebangsaan untuk tahun/)).toBeInTheDocument()
+      expect(screen.getByText(/Tiada ubat berkuota PKDJB untuk tahun/)).toBeInTheDocument()
     );
   });
 
-  it("names the selector's drugs from the national quota rows, never from drug_quotas", async () => {
+  it("names the selector's drugs from the PKDJB quota rows, never from drug_quotas", async () => {
     renderPage();
     await waitFor(() => expect(screen.getByText("Lee Siew Yoong")).toBeInTheDocument());
     const { supabase } = await import("@/integrations/supabase/client");

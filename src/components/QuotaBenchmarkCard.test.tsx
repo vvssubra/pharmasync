@@ -174,9 +174,9 @@ describe("QuotaBenchmarkCard — national scope labelling", () => {
         drugNamesById={new Map([["drug-novomix", "Insulin Novomix"], ["drug-peer", "Ubat Peer"]])}
       />
     );
-    expect(screen.getByText(/Jumlah Kuota Kebangsaan/)).toBeInTheDocument();
-    expect(screen.getByText(/Baki Kebangsaan/)).toBeInTheDocument();
-    expect(screen.getByText("Purata kebangsaan")).toBeInTheDocument();
+    expect(screen.getByText(/Jumlah Kuota PKDJB/)).toBeInTheDocument();
+    expect(screen.getByText(/Baki PKDJB/)).toBeInTheDocument();
+    expect(screen.getByText("Purata PKDJB")).toBeInTheDocument();
     expect(screen.queryByText("Purata klinik")).toBeNull();
   });
 });

@@ -300,7 +300,7 @@ export default function Dashboard() {
               {statusFilter && <span className="ml-2 font-normal text-sm text-muted-foreground">— filtered to {statusFilter}</span>}
             </CardTitle>
             <p className="mt-1 text-xs font-normal text-muted-foreground">
-              Controlled drugs show remaining national quota (shared across all clinics), not this clinic's stock.
+              Controlled drugs show remaining PKDJB quota (shared across all clinics), not this clinic's stock.
             </p>
           </div>
           {statusFilter && (
@@ -345,7 +345,7 @@ export default function Dashboard() {
                           position. Unlabelled it reads as local stock. */}
                       {d.isQuotaBased && (
                         <span className="block text-[10px] font-normal text-muted-foreground">
-                          national quota left
+                          PKDJB quota left
                         </span>
                       )}
                     </TableCell>

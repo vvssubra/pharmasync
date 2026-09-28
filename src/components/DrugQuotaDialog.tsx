@@ -30,7 +30,7 @@ interface Props {
    * national figure read-only instead of attempting that write.
    */
   isControlled: boolean;
-  /** National quota/usage for this drug this year, e.g. from useDrugQuotaUsage's byDrugId on the calling page. Only read when isControlled. */
+  /** PKDJB quota/usage for this drug this year, e.g. from useDrugQuotaUsage's byDrugId on the calling page. Only read when isControlled. */
   nationalQuota?: NationalQuota | null;
 }
 
@@ -132,19 +132,19 @@ export default function DrugQuotaDialog({ open, onOpenChange, drugId, drugName, 
           <>
             <div className="space-y-3 py-2">
               <div className="rounded-md border bg-muted/40 p-3 space-y-1">
-                <p className="text-sm font-medium">National Quota — {currentYear}</p>
+                <p className="text-sm font-medium">PKDJB Quota — {currentYear}</p>
                 {nationalQuota ? (
                   <p className="text-sm text-muted-foreground">
                     {nationalQuota.remaining} / {nationalQuota.quota_limit} remaining
                     {" "}(alert at {nationalQuota.alert_threshold_pct}% remaining)
                   </p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No national quota set for {currentYear} yet.</p>
+                  <p className="text-sm text-muted-foreground">No PKDJB quota set for {currentYear} yet.</p>
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                This drug requires specialist approval and is quota-pooled nationally across every clinic. Its
-                quota is set nationally by PKD Logistik on the Logistik HQ dashboard — not editable here.
+                This drug requires specialist approval and is under the PKDJB quota shared across every clinic. Its
+                quota is set by PKDJB on the Logistik HQ dashboard — not editable here.
               </p>
             </div>
             <DialogFooter>
@@ -155,7 +155,7 @@ export default function DrugQuotaDialog({ open, onOpenChange, drugId, drugName, 
           <>
             <div className="space-y-3 py-2">
               <p className="text-sm text-muted-foreground">
-                Annual quotas are not set from the HQ clinic. Controlled drugs are pooled nationally and set on the
+                Annual quotas are not set from the HQ clinic. Controlled drugs are pooled under PKDJB and set on the
                 Logistik HQ dashboard. Drugs that do not require specialist approval carry no quota at all — nothing
                 limits how many patients may receive them.
               </p>
@@ -177,7 +177,7 @@ export default function DrugQuotaDialog({ open, onOpenChange, drugId, drugName, 
                   because its other effect is real: the first save seeds this
                   drug's opening stock balance (baki_awal) below. */}
               <p className="text-sm text-muted-foreground">
-                This drug does not require specialist approval, so it is not part of the national pool and this
+                This drug does not require specialist approval, so it is not part of the PKDJB quota and this
                 figure does not block requests for it. It is this clinic's own {currentYear} planning allocation, and
                 the first time it is set it seeds this drug's opening stock balance.
               </p>

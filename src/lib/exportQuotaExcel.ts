@@ -2,7 +2,7 @@
 // the district's existing "SENARAI UBAT KAWALAN KHUSUS" tracking sheet (BIL /
 // ITEM / SKU / HARGA SEUNIT / JUMLAH HARGA / KUOTA / JUMLAH KUOTA PESAKIT /
 // JUMLAH PESAKIT AKTIF / %KUOTA YANG TELAH DIGUNAKAN). Source data is always
-// this app's own national quota pool (get_drug_quota_usage) — never raw
+// this app's own PKDJB quota (get_drug_quota_usage) — never raw
 // patient records.
 //
 // exceljs is dynamically imported: it's a large library only ever needed
@@ -31,7 +31,7 @@ export async function exportQuotaExcel(rows: QuotaExcelRow[], year: number) {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet("Quota Summary");
 
-  sheet.addRow([`SENARAI UBAT KAWALAN KHUSUS — National Quota Pool (${year})`]);
+  sheet.addRow([`SENARAI UBAT KAWALAN KHUSUS — PKDJB Quota (${year})`]);
   sheet.mergeCells(1, 1, 1, HEADER_ROW.length);
   sheet.getRow(1).font = { bold: true, size: 12 };
 

@@ -77,7 +77,7 @@ describe("LogistikDashboard", () => {
     expect(screen.getByText("Alerts")).toBeInTheDocument();
   });
 
-  it("renders the national quota table in excel-summary format: BIL, SKU, KUOTA text, %used and status badge", async () => {
+  it("renders the PKDJB quota table in excel-summary format: BIL, SKU, KUOTA text, %used and status badge", async () => {
     render(<QueryClientProvider client={makeQC()}><LogistikDashboard /></QueryClientProvider>);
     expect(await screen.findByText("Insulin Glargine")).toBeInTheDocument();
     expect(screen.getByText("RM 45.50")).toBeInTheDocument();
@@ -128,7 +128,7 @@ describe("LogistikDashboard", () => {
     render(<QueryClientProvider client={makeQC()}><LogistikDashboard /></QueryClientProvider>);
     await screen.findByText("Insulin Glargine");
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
-    expect(await screen.findByText(/National Quota — Insulin Glargine/i)).toBeInTheDocument();
+    expect(await screen.findByText(/PKDJB Quota — Insulin Glargine/i)).toBeInTheDocument();
   });
 
   it("filters the table to critical drugs when that card is clicked", async () => {
@@ -145,7 +145,7 @@ describe("LogistikDashboard", () => {
     expect(screen.queryByText("Master Patient Registry")).not.toBeInTheDocument();
   });
 
-  it("exports the national quota pool to Excel when Export to Excel is clicked", async () => {
+  it("exports the PKDJB quota to Excel when Export to Excel is clicked", async () => {
     render(<QueryClientProvider client={makeQC()}><LogistikDashboard /></QueryClientProvider>);
     await screen.findByText("Insulin Glargine");
     fireEvent.click(screen.getByRole("button", { name: /Export to Excel/i }));

@@ -353,7 +353,7 @@ export default function SpecialistDashboard() {
                         <TableHead>Drug</TableHead>
                         <TableHead>Quantity</TableHead>
                         <TableHead>Doctor</TableHead>
-                        <TableHead>Quota (National)</TableHead>
+                        <TableHead>Quota (PKDJB)</TableHead>
                         <TableHead>Action</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -413,7 +413,7 @@ export default function SpecialistDashboard() {
                         <TableHead>Drug</TableHead>
                         <TableHead>Quantity</TableHead>
                         <TableHead>Doctor</TableHead>
-                        <TableHead>Quota (National)</TableHead>
+                        <TableHead>Quota (PKDJB)</TableHead>
                         <TableHead>Action</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -605,7 +605,7 @@ export default function SpecialistDashboard() {
                 <>
                   <Alert variant="destructive">
                     <AlertDescription>
-                      National quota exhausted: {approveUsedCount}/{approveQuotaLimit} patients for {approveTarget?.drugs?.drug_name} this year, counted across every clinic. Approval will exceed the shared annual patient quota.
+                      PKDJB quota exhausted: {approveUsedCount}/{approveQuotaLimit} patients for {approveTarget?.drugs?.drug_name} this year, counted across every clinic. Approval will exceed the shared annual patient quota.
                     </AlertDescription>
                   </Alert>
                   {/* Borrowing predates the national pool, when each clinic held
@@ -618,7 +618,7 @@ export default function SpecialistDashboard() {
                       recorded and specialists use it as a note of who was
                       consulted. It no longer gates the Confirm button below:
                       requiring it blocked legitimate approvals outright, since
-                      no answer to it can free up national quota. */}
+                      no answer to it can free up PKDJB quota. */}
                   <div className="space-y-2">
                     <Label htmlFor="borrow-clinic">Clinic consulted (optional — for the record only)</Label>
                     <Select value={borrowClinicId} onValueChange={setBorrowClinicId}>

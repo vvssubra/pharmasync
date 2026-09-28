@@ -1,6 +1,6 @@
 // src/pages/LogistikDashboard.tsx
 //
-// logistic_pharmacist HQ dashboard: the national controlled-drug quota pool
+// logistic_pharmacist HQ dashboard: the PKDJB controlled-drug quota pool
 // (one row per drug, pooled across every clinic — see useHqQuotaUsage and
 // supabase/migrations/20260819000300_national_quota_pool.sql), with a
 // per-clinic breakdown of who consumed it and an edit action that opens
@@ -134,7 +134,7 @@ export default function LogistikDashboard() {
     },
   });
 
-  // National quota rows joined to the active-drug lookup above. A quota row
+  // PKDJB quota rows joined to the active-drug lookup above. A quota row
   // whose drug isn't in drugsById (inactive, or the drug row is gone) is
   // dropped rather than rendered with a blank name.
   const rows = useMemo(
@@ -145,7 +145,7 @@ export default function LogistikDashboard() {
     [national, drugsById],
   );
 
-  // "Total Drugs" = distinct drugs carrying a national quota row for the
+  // "Total Drugs" = distinct drugs carrying a PKDJB quota row for the
   // selected year (get_drug_quota_usage already returns one row per drug),
   // scoped to is_active drugs per the comment on drugsById above.
   const totalDrugsCount = rows.length;
@@ -237,7 +237,7 @@ export default function LogistikDashboard() {
             Logistik HQ Dashboard
           </h1>
           <p className="text-sm text-muted-foreground">
-            National controlled-drug quota pool, pooled and consumed across every clinic.
+            PKDJB controlled-drug quota, pooled and consumed across every clinic.
           </p>
         </div>
       </div>
@@ -288,7 +288,7 @@ export default function LogistikDashboard() {
         />
       </div>
 
-      {/* National quota table */}
+      {/* PKDJB quota table */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between border-b bg-muted/30">
           <div className="space-y-0.5">
@@ -296,7 +296,7 @@ export default function LogistikDashboard() {
               <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-primary">
                 <Package className="h-4 w-4" />
               </span>
-              National Quota Pool ({currentYear})
+              PKDJB Quota ({currentYear})
               {cardFilter && <span className="ml-2 font-normal text-sm text-muted-foreground">— filtered</span>}
             </CardTitle>
             <p className="pl-9 text-xs text-muted-foreground">
@@ -325,7 +325,7 @@ export default function LogistikDashboard() {
             <div className="p-4 space-y-2">{[1, 2, 3, 4, 5].map((i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
           ) : isError ? (
             <p className="text-sm text-destructive text-center py-8">
-              Failed to load the national quota pool. Try again shortly.
+              Failed to load the PKDJB quota. Try again shortly.
             </p>
           ) : (
             // Fixed window: a set height regardless of row count (not just a

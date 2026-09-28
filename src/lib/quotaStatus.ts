@@ -3,7 +3,7 @@
  * drug_quota_patients_status_chk constraint added in
  * 20260827000000_quota_patient_status.sql.
  *
- * TIDAK AKTIF is the one that releases the national quota slot — drug_quota_used()
+ * TIDAK AKTIF is the one that releases the PKDJB quota slot — drug_quota_used()
  * counts such an enrolment as 0 while still holding the patient's IC out of the
  * dispensing-request half. AKTIF and PENDING both consume the slot.
  */

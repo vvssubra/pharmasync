@@ -57,14 +57,14 @@ describe("ReplenishQuotaDialog — non-controlled drug (isControlled=false, exis
     expect(screen.getByText(/Replenish Quota — Amoxicillin/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Amount to Add/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /replenish/i })).toBeInTheDocument();
-    expect(screen.queryByText(/set nationally by pkd logistik/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/set by pkdjb/i)).not.toBeInTheDocument();
   });
 });
 
-describe("ReplenishQuotaDialog — controlled drug (isControlled=true, national quota is read-only)", () => {
+describe("ReplenishQuotaDialog — controlled drug (isControlled=true, PKDJB quota is read-only)", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("shows the national quota read-only with the PKD Logistik label instead of an editable field", () => {
+  it("shows the PKDJB quota read-only with the PKD Logistik label instead of an editable field", () => {
     render(
       <QueryClientProvider client={makeQC()}>
         <ReplenishQuotaDialog
@@ -79,7 +79,7 @@ describe("ReplenishQuotaDialog — controlled drug (isControlled=true, national 
       </QueryClientProvider>
     );
     expect(screen.getByText(/60 \/ 100 remaining/i)).toBeInTheDocument();
-    expect(screen.getByText(/set nationally by pkd logistik/i)).toBeInTheDocument();
+    expect(screen.getByText(/set by pkdjb/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/Amount to Add/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^replenish$/i })).not.toBeInTheDocument();
   });

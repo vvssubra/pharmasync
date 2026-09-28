@@ -69,7 +69,7 @@ interface DrugFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   drug?: Drug | null;
-  /** National quota/usage for this drug this year, e.g. from useDrugQuotaUsage's byDrugId on the calling page. Only read when the drug is controlled. */
+  /** PKDJB quota/usage for this drug this year, e.g. from useDrugQuotaUsage's byDrugId on the calling page. Only read when the drug is controlled. */
   nationalQuota?: NationalQuota | null;
 }
 
@@ -348,24 +348,23 @@ export function DrugFormDialog({ open, onOpenChange, drug, nationalQuota }: Drug
                 the national figure is the more useful of the two to show. */}
             {isControlled ? (
               <div className="space-y-1.5 rounded-md border bg-muted/40 p-3">
-                <p className="text-sm font-medium">National Quota — {currentYear}</p>
+                <p className="text-sm font-medium">PKDJB Quota — {currentYear}</p>
                 {nationalQuota ? (
                   <p className="text-sm text-muted-foreground">
                     {nationalQuota.remaining} / {nationalQuota.quota_limit} remaining
                   </p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No national quota set for {currentYear} yet.</p>
+                  <p className="text-sm text-muted-foreground">No PKDJB quota set for {currentYear} yet.</p>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  This drug requires specialist approval and is quota-pooled nationally. Set nationally by PKD
-                  Logistik on the Logistik HQ dashboard — not editable here.
+                  This drug requires specialist approval and is under the PKDJB quota. Set by PKDJB on the Logistik HQ dashboard — not editable here.
                 </p>
               </div>
             ) : isAtHqClinic ? (
               <div className="space-y-1.5 rounded-md border bg-muted/40 p-3">
                 <p className="text-sm font-medium">Quota not set from HQ</p>
                 <p className="text-xs text-muted-foreground">
-                  Annual quotas are not set from the HQ clinic. Controlled drugs are pooled nationally and set on
+                  Annual quotas are not set from the HQ clinic. Controlled drugs are pooled under PKDJB and set on
                   the Logistik HQ dashboard. Drugs that do not require specialist approval carry no quota at all —
                   nothing limits how many patients may receive them. The rest of this drug's details save normally.
                 </p>

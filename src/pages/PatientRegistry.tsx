@@ -161,7 +161,7 @@ export default function PatientRegistry() {
         group.length === 1 ? group[0] : { ...group[0], kuota: Math.max(...group.map(r => r.kuota)) }
       );
 
-      // "Baki Kebangsaan" (get_drug_quota_usage -> drug_quota_used) counts a
+      // "Baki PKDJB" (get_drug_quota_usage -> drug_quota_used) counts a
       // patient toward national usage the moment their dispensing request is
       // approved, not only once someone enrols them here in
       // drug_quota_patients. Most controlled drugs are never manually
@@ -231,7 +231,7 @@ export default function PatientRegistry() {
     [quotaPatients, clinicNamesById],
   );
 
-  // Releasing a national quota slot is an allocation decision, not a dispensing
+  // Releasing a PKDJB quota slot is an allocation decision, not a dispensing
   // one, so it is admin-only — enforced by the trigger in
   // 20260827000000_quota_patient_status.sql. Hiding the dropdown for everyone
   // else keeps a pharmacist from meeting that refusal as an error toast.
@@ -462,13 +462,13 @@ export default function PatientRegistry() {
       {!drugsLoading && !usageLoading && quotaDrugs.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground space-y-2">
-            <p>Tiada ubat berkuota kebangsaan untuk tahun {year}.</p>
+            <p>Tiada ubat berkuota PKDJB untuk tahun {year}.</p>
             {/* No link to /drugs any more: the national pool is set only by PKD
                 Logistik through the Logistik HQ dashboard, so pointing a clinic
                 admin at Senarai Ubat would send them to a field they cannot
                 edit for controlled drugs. */}
             <p className="text-xs">
-              Kuota kebangsaan ditetapkan oleh PKD Logistik.
+              Kuota PKDJB ditetapkan oleh PKD Logistik.
             </p>
           </CardContent>
         </Card>

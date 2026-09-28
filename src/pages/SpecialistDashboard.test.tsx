@@ -202,7 +202,7 @@ describe("SpecialistDashboard", () => {
   // (20260819000300_national_quota_pool.sql) there is nothing to borrow, so
   // requiring a borrow clinic before Confirm simply blocked approvals that the
   // specialist is entitled to make.
-  it("lets the specialist confirm an approval with the national quota exhausted and no clinic picked", async () => {
+  it("lets the specialist confirm an approval with the PKDJB quota exhausted and no clinic picked", async () => {
     const { supabase } = await import("@/integrations/supabase/client");
     const mockRequest = {
       id: "req-3",
@@ -241,7 +241,7 @@ describe("SpecialistDashboard", () => {
     await waitFor(() => expect(screen.getByText("Morphine")).toBeInTheDocument());
     await user.click(screen.getByRole("button", { name: "Approve" }));
 
-    await screen.findByText(/national quota exhausted/i);
+    await screen.findByText(/PKDJB quota exhausted/i);
     expect(screen.getByRole("button", { name: /confirm approval/i })).toBeEnabled();
   });
 

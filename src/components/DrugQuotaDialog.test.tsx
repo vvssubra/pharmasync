@@ -68,10 +68,10 @@ describe("DrugQuotaDialog — non-controlled drug (isControlled=false, existing 
   });
 });
 
-describe("DrugQuotaDialog — controlled drug (isControlled=true, national quota is read-only)", () => {
+describe("DrugQuotaDialog — controlled drug (isControlled=true, PKDJB quota is read-only)", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("shows the national quota read-only with the PKD Logistik label instead of an editable field", () => {
+  it("shows the PKDJB quota read-only with the PKD Logistik label instead of an editable field", () => {
     render(
       <QueryClientProvider client={makeQC()}>
         <DrugQuotaDialog
@@ -85,18 +85,18 @@ describe("DrugQuotaDialog — controlled drug (isControlled=true, national quota
       </QueryClientProvider>
     );
     expect(screen.getByText(/60 \/ 100 remaining/i)).toBeInTheDocument();
-    expect(screen.getByText(/set nationally by pkd logistik/i)).toBeInTheDocument();
+    expect(screen.getByText(/set by pkdjb/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/Annual Patient Quota/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /save quota/i })).not.toBeInTheDocument();
   });
 
-  it("does not render an editable field even without a national quota loaded yet", () => {
+  it("does not render an editable field even without a PKDJB quota loaded yet", () => {
     render(
       <QueryClientProvider client={makeQC()}>
         <DrugQuotaDialog open={true} onOpenChange={vi.fn()} drugId="drug-1" drugName="Morphine" isControlled={true} />
       </QueryClientProvider>
     );
-    expect(screen.getByText(/no national quota set/i)).toBeInTheDocument();
+    expect(screen.getByText(/no PKDJB quota set/i)).toBeInTheDocument();
     expect(screen.queryByLabelText(/Annual Patient Quota/i)).not.toBeInTheDocument();
   });
 });

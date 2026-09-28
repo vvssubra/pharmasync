@@ -28,7 +28,7 @@ interface Props {
    * set only via set_national_drug_quota from the Logistik HQ dashboard).
    */
   isControlled: boolean;
-  /** National quota/usage for this drug this year. Only read when isControlled. */
+  /** PKDJB quota/usage for this drug this year. Only read when isControlled. */
   nationalQuota?: NationalQuota | null;
 }
 
@@ -95,22 +95,22 @@ export default function ReplenishQuotaDialog({ open, onOpenChange, drugId, drugN
             <DialogHeader>
               <DialogTitle>Quota — {drugName}</DialogTitle>
               <DialogDescription>
-                This drug requires specialist approval and is quota-pooled nationally.
+                This drug requires specialist approval and is under the PKDJB quota.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-3 py-2">
               <div className="rounded-md border bg-muted/40 p-3 space-y-1">
-                <p className="text-sm font-medium">National Quota — {currentYear}</p>
+                <p className="text-sm font-medium">PKDJB Quota — {currentYear}</p>
                 {nationalQuota ? (
                   <p className="text-sm text-muted-foreground">
                     {nationalQuota.remaining} / {nationalQuota.quota_limit} remaining
                   </p>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No national quota set for {currentYear} yet.</p>
+                  <p className="text-sm text-muted-foreground">No PKDJB quota set for {currentYear} yet.</p>
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Set nationally by PKD Logistik on the Logistik HQ dashboard — not editable here.
+                Set by PKDJB on the Logistik HQ dashboard — not editable here.
               </p>
             </div>
             <DialogFooter>
@@ -127,7 +127,7 @@ export default function ReplenishQuotaDialog({ open, onOpenChange, drugId, drugN
             </DialogHeader>
             <div className="space-y-3 py-2">
               <p className="text-sm text-muted-foreground">
-                Controlled drugs are pooled nationally and set on the Logistik HQ dashboard. Drugs that do not
+                Controlled drugs are pooled under PKDJB and set on the Logistik HQ dashboard. Drugs that do not
                 require specialist approval carry no quota at all — to add physical stock for one, record a Terimaan.
               </p>
             </div>
@@ -152,7 +152,7 @@ export default function ReplenishQuotaDialog({ open, onOpenChange, drugId, drugN
                   description of this action is "add stock", which is the part
                   that has a real effect (the terimaan transaction below). */}
               <p className="text-xs text-muted-foreground">
-                This drug is not part of the national pool, so this figure does not limit requests for it.
+                This drug is not part of the PKDJB quota, so this figure does not limit requests for it.
               </p>
               <p className="text-xs text-muted-foreground">Current clinic allocation: {currentQuotaLimit}</p>
               <div className="space-y-1.5">

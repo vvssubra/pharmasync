@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-// PKDJB allocates this drug's national quota as a rate — a fixed amount per
+// PKDJB allocates this drug's PKDJB quota as a rate — a fixed amount per
 // FMS (Family Medicine Specialist) unit — rather than a single number an
 // admin has to reverse-engineer by hand. 29 is today's district FMS count,
 // offered as the starting suggestion; it is fully editable per drug, same as
@@ -103,21 +103,21 @@ export default function NationalQuotaDialog({
       // writes can change what it returns.
       queryClient.invalidateQueries({ queryKey: ["hq-quota-usage"] });
       queryClient.invalidateQueries({ queryKey: ["drug-quota-usage"] });
-      toast.success("National quota saved.");
+      toast.success("PKDJB quota saved.");
       onOpenChange(false);
     },
-    onError: (err: Error) => toast.error(err.message || "Failed to save national quota."),
+    onError: (err: Error) => toast.error(err.message || "Failed to save PKDJB quota."),
   });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>National Quota — {drugName}</DialogTitle>
+          <DialogTitle>PKDJB Quota — {drugName}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
           <p className="text-sm text-muted-foreground">
-            Set the {year} national quota for this controlled drug as FMS count × quota per FMS, pooled across every clinic nationally.
+            Set the {year} PKDJB quota for this controlled drug as FMS count × quota per FMS, pooled across every clinic nationally.
           </p>
           {showLegacyNote && (
             <p className="text-xs text-muted-foreground">
@@ -168,7 +168,7 @@ export default function NationalQuotaDialog({
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={() => save.mutate()} disabled={save.isPending || fmsCountInput === "" || quotaPerFmsInput === "" || alertPctInput === ""}>
-            {save.isPending ? "Saving..." : "Save National Quota"}
+            {save.isPending ? "Saving..." : "Save PKDJB Quota"}
           </Button>
         </DialogFooter>
       </DialogContent>

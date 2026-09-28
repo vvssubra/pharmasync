@@ -160,7 +160,7 @@ describe("DrugFormDialog — editing a non-controlled drug (existing behavior un
   it("still renders the editable 'Number of Quota' field", () => {
     renderDialog(true, { id: "drug-1", drug_name: "Amoxicillin", is_active: true, perlu_kelulusan_pakar: false });
     expect(screen.getByText("Number of Quota")).toBeInTheDocument();
-    expect(screen.queryByText(/set nationally by pkd logistik/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/set by pkdjb/i)).not.toBeInTheDocument();
   });
 
   // Positive control for the HQ case below: an ordinary clinic admin DOES write
@@ -220,14 +220,14 @@ describe("DrugFormDialog — caller stationed at the HQ clinic (no drug_quotas w
 describe("DrugFormDialog — editing a controlled drug (perlu_kelulusan_pakar=true)", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("shows the national quota read-only with the PKD Logistik label instead of an editable field", () => {
+  it("shows the PKDJB quota read-only with the PKD Logistik label instead of an editable field", () => {
     renderDialog(
       true,
       { id: "drug-1", drug_name: "Morphine", is_active: true, perlu_kelulusan_pakar: true },
       { quota_limit: 100, used: 40, remaining: 60, alert_threshold_pct: 20 },
     );
     expect(screen.getByText(/60 \/ 100 remaining/i)).toBeInTheDocument();
-    expect(screen.getByText(/set nationally by pkd logistik/i)).toBeInTheDocument();
+    expect(screen.getByText(/set by pkdjb/i)).toBeInTheDocument();
     expect(screen.queryByText("Number of Quota")).not.toBeInTheDocument();
   });
 });

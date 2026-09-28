@@ -719,7 +719,7 @@ export default function FmsDashboard() {
                                 <dd className="text-xs text-muted-foreground">Submitted by {r.mo_name}</dd>
                               </div>
                               <div>
-                                <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">National quota</dt>
+                                <dt className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">PKDJB quota</dt>
                                 {r.is_pesara ? (
                                   <dd className="mt-0.5 font-medium">Exempt</dd>
                                 ) : quotaRow ? (
@@ -952,8 +952,8 @@ export default function FmsDashboard() {
       {/* Controlled drug annual quota */}
       <FmsPanel
         icon={ShieldCheck}
-        title="Controlled Drug Annual Quota (National)"
-        description={`Shared national pool for ${currentYear}, not this clinic's own balance`}
+        title="Controlled Drug Annual Quota (PKDJB)"
+        description={`Shared PKDJB quota for ${currentYear}, not this clinic's own balance`}
         flush
       >
         {quotaTableLoading ? (
@@ -967,8 +967,8 @@ export default function FmsDashboard() {
               <TableHeader>
                 <TableRow className="bg-muted/50 hover:bg-muted/50">
                   <TableHead>Drug Name</TableHead>
-                  <TableHead className="text-right">National Annual Quota</TableHead>
-                  <TableHead className="text-right">Patients Served YTD (National)</TableHead>
+                  <TableHead className="text-right">PKDJB Annual Quota</TableHead>
+                  <TableHead className="text-right">Patients Served YTD (PKDJB)</TableHead>
                   <TableHead className="text-right">Remaining</TableHead>
                   <TableHead>Projected Exhaustion</TableHead>
                   <TableHead>Status</TableHead>

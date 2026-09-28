@@ -124,12 +124,12 @@ async function buildQuotaSection(supabase: SupabaseClient, question: string, cli
   // location, never the scope of these numbers. Said explicitly because the
   // model cannot infer it from the figures.
   const lines = [
-    `QUOTA ${year} · NATIONAL POOL, shared by all clinics (asked from ${clinicName}) · as of ${todayISO()} (day ${dayOfYear} of ${daysInYear})`,
-    "These limits and counts are NATIONAL: one annual allocation per controlled drug set by PKD Logistik, drawn down by every clinic together. Never describe them as this clinic's own quota, and never imply another clinic has a separate allowance.",
+    `QUOTA ${year} · PKDJB QUOTA, shared by all clinics (asked from ${clinicName}) · as of ${todayISO()} (day ${dayOfYear} of ${daysInYear})`,
+    "These limits and counts are PKDJB-wide: one annual allocation per controlled drug set by PKD Logistik, drawn down by every clinic together. Never describe them as this clinic's own quota, and never imply another clinic has a separate allowance.",
     "drug|limit|used|remaining|pct_used|per_month|projected_exhaustion|status",
     ...shown.map((r) => `${r.drug}|${r.limit}|${r.used}|${r.remaining}|${r.pctUsed}|${r.perMonth.toFixed(1)}|${r.projected}|${r.status}`),
   ];
-  if (omitted > 0) lines.push(`... ${omitted} other drugs are within their national quota.`);
+  if (omitted > 0) lines.push(`... ${omitted} other drugs are within their PKDJB quota.`);
   return lines.join("\n");
 }
 
@@ -236,7 +236,7 @@ async function buildStockSection(supabase: SupabaseClient, question: string): Pr
 
   const lines = [
     `STOCK · as of ${todayISO()} (showing ${shown.length} of ${computed.length} drugs: all non-normal + drugs named in the question)`,
-    "basis=quota means balance is REMAINING ANNUAL PATIENT QUOTA from the NATIONAL pool shared by every clinic (how many more patients may be enrolled this year across the whole country, not at this clinic alone) and its unit is patients — never call it vials, pens or tablets, and never call it this clinic's own. basis=stock means physical units in this clinic's store.",
+    "basis=quota means balance is REMAINING ANNUAL PATIENT QUOTA from the PKDJB quota shared by every clinic (how many more patients may be enrolled this year across the whole country, not at this clinic alone) and its unit is patients — never call it vials, pens or tablets, and never call it this clinic's own. basis=stock means physical units in this clinic's store.",
     "drug|unit|basis|balance|min|reorder|status|out_per_day_90d|days_cover",
     ...shown.map((r) => `${r.drug}|${r.unit}|${r.basis}|${r.balance}|${r.min}|${r.reorder}|${r.status}|${r.rate.toFixed(1)}|${r.days ?? "—"}`),
   ];
@@ -323,11 +323,11 @@ export async function buildDataFacts(
 // "quota" in every line below means the national controlled-drug pool — see
 // the QUOTA section header in buildQuotaSection().
 const ROLE_CAPABILITY: Record<string, string> = {
-  mo: "You can help with the status of this MO's own dispensing requests and national controlled-drug quota questions.",
+  mo: "You can help with the status of this MO's own dispensing requests and PKDJB controlled-drug quota questions.",
   pharmacist: "You can help with the fulfilment queue, drug stock levels, and request status.",
-  admin: "You can help with drug stock, national controlled-drug quotas, and request status across the clinic.",
-  fms: "You can help with national controlled-drug quota status, drug stock, and pending approvals.",
-  super_admin: "You can help with drug stock, national controlled-drug quotas, and request status across the clinic.",
+  admin: "You can help with drug stock, PKDJB controlled-drug quotas, and request status across the clinic.",
+  fms: "You can help with PKDJB controlled-drug quota status, drug stock, and pending approvals.",
+  super_admin: "You can help with drug stock, PKDJB controlled-drug quotas, and request status across the clinic.",
 };
 
 export function buildSystemPrompt(role: string, factsText: string): string {

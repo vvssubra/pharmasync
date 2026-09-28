@@ -50,7 +50,7 @@ vi.mock("@/integrations/supabase/client", () => ({
       update: vi.fn(() => ({ eq: vi.fn(() => Promise.resolve({ data: null, error: null })) })),
       upsert: vi.fn(() => Promise.resolve({ data: null, error: null })),
     })),
-    // get_drug_quota_usage -> national quota rows; get_master_patient_registry -> patient rows.
+    // get_drug_quota_usage -> PKDJB quota rows; get_master_patient_registry -> patient rows.
     rpc: vi.fn((fnName: string) => {
       if (fnName === "get_drug_quota_usage") return Promise.resolve({ data: [], error: null });
       if (fnName === "get_master_patient_registry") return Promise.resolve(masterPatientResponse);

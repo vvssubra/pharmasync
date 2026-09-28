@@ -12,7 +12,7 @@ interface Profile {
   // the national HQ clinic, 'Logistik PKDJB'
   // (supabase/migrations/20260819000010_hq_clinic.sql).
   //
-  // The HQ clinic holds the national controlled-drug quota pool, and the
+  // The HQ clinic holds the PKDJB controlled-drug quota pool, and the
   // drug_quotas write policies exclude it by design
   // (20260819000600_drug_quotas_clinic_admin_write.sql): EVERY direct
   // drug_quotas write from an HQ-stationed user is denied by RLS, controlled

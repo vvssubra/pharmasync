@@ -43,7 +43,7 @@ describe("NationalQuotaDialog", () => {
 
   it("renders dialog title with the drug name when open", () => {
     renderDialog();
-    expect(screen.getByText(/National Quota — Insulin Glargine/i)).toBeInTheDocument();
+    expect(screen.getByText(/PKDJB Quota — Insulin Glargine/i)).toBeInTheDocument();
   });
 
   it("pre-fills FMS count and quota-per-FMS from props", () => {
@@ -86,7 +86,7 @@ describe("NationalQuotaDialog", () => {
   it("saves fms_count and quota_per_fms via set_national_drug_quota, not a raw quota_limit", async () => {
     renderDialog({ currentAlertThresholdPct: 20 });
     fireEvent.change(screen.getByLabelText(/Quota per FMS/i), { target: { value: "10" } });
-    fireEvent.click(screen.getByRole("button", { name: /save national quota/i }));
+    fireEvent.click(screen.getByRole("button", { name: /save PKDJB quota/i }));
 
     await vi.waitFor(() => expect(rpcMock).toHaveBeenCalled());
     expect(rpcMock).toHaveBeenCalledWith("set_national_drug_quota", {
@@ -100,6 +100,6 @@ describe("NationalQuotaDialog", () => {
 
   it("disables save until quota-per-FMS is filled in", () => {
     renderDialog();
-    expect(screen.getByRole("button", { name: /save national quota/i })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /save PKDJB quota/i })).toBeDisabled();
   });
 });
