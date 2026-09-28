@@ -7,6 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
 import { useClinicDrugSettings, resolveDrugSettings } from "@/hooks/useClinicDrugSettings";
+import { useClinicScope } from "@/hooks/useClinicScope";
+import { ClinicScopeSelect } from "@/components/ClinicScopeSelect";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Check, ChevronsUpDown, CheckCircle, AlertCircle, Info } from "lucide-react";
@@ -70,7 +72,12 @@ export default function DoctorRequest() {
   // Annual quota usage per drug — server-computed (enrolments + dispensing
   // requests, deduped by IC) so it agrees with every other dashboard.
   const { byDrugId: quotaUsageByDrug } = useDrugQuotaUsage(currentYear);
-  const { byDrugId: settingsByDrugId } = useClinicDrugSettings();
+  // super_admin has no clinic of their own, and dispensing_requests.clinic_id is
+  // NOT NULL (stamp_clinic_id() keeps a super_admin-supplied value), so they
+  // pick the clinic they are submitting for. Everyone else is stamped
+  // server-side from their own profile.
+  const { isSuperAdmin, clinicId, clinics, setClinicId } = useClinicScope();
+  const { byDrugId: settingsByDrugId } = useClinicDrugSettings(isSuperAdmin ? clinicId : undefined);
 
   // Compute current stock for selected drug
   const form = useForm<FormValues>({
@@ -134,6 +141,7 @@ export default function DoctorRequest() {
         prescriber_name: values.prescriber_name,
         status,
         submitted_by: user?.id,
+        ...(isSuperAdmin ? { clinic_id: clinicId as string } : {}),
       });
       if (error) throw error;
       return { status, drug_name: drug?.drug_name || "", is_specialist: drug?.perlu_kelulusan_pakar || false };
@@ -148,6 +156,10 @@ export default function DoctorRequest() {
   const onSubmit = (values: FormValues) => {
     if (adminBlocked) {
       toast.error("Ubat ini telah disekat oleh admin. Permohonan tidak boleh dihantar.");
+      return;
+    }
+    if (isSuperAdmin && !clinicId) {
+      toast.error("Select a clinic first.");
       return;
     }
     if (quotaInfo?.exhausted) {
@@ -205,6 +217,10 @@ export default function DoctorRequest() {
             {/* noValidate: Zod owns validation so its messages render instead of
                 the browser's native constraint popups. */}
             <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
+              {isSuperAdmin && (
+                <ClinicScopeSelect clinics={clinics} value={clinicId} onChange={setClinicId} label="Submitting for" />
+              )}
+
               <FormField control={form.control} name="patient_name" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Patient Name *</FormLabel>
@@ -329,7 +345,7 @@ export default function DoctorRequest() {
                 </FormItem>
               )} />
 
-              <Button type="submit" className="w-full bg-primary text-primary-foreground" disabled={submitMutation.isPending || quotaBlocked}>
+              <Button type="submit" className="w-full bg-primary text-primary-foreground" disabled={submitMutation.isPending || quotaBlocked || (isSuperAdmin && !clinicId)}>
                 {submitMutation.isPending ? "Submitting..." : "Submit Request"}
               </Button>
             </form>

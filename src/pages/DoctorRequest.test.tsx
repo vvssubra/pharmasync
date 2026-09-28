@@ -45,7 +45,7 @@ function makeQueryClient() {
   });
 }
 
-function renderDoctorRequest() {
+function renderDoctorRequest(auth: Record<string, unknown> = {}) {
   (useAuth as ReturnType<typeof vi.fn>).mockReturnValue({
     user: { id: "doctor-1" },
     role: "doctor",
@@ -53,6 +53,7 @@ function renderDoctorRequest() {
     loading: false,
     session: null,
     signOut: vi.fn(),
+    ...auth,
   });
 
   return render(
@@ -178,5 +179,56 @@ describe("DoctorRequest Pesara checkbox", () => {
     // No qty input: each submission is one quota unit.
     expect(screen.queryByRole("spinbutton")).toBeNull();
     expect(insertMock.mock.calls[0][0]).toHaveProperty("quantity", 1);
+  });
+});
+
+describe("DoctorRequest as super_admin", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("lets super_admin pick a clinic and sends it as clinic_id", async () => {
+    const { supabase } = await import("@/integrations/supabase/client");
+    const insertMock = vi.fn((_payload: Record<string, unknown>) =>
+      Promise.resolve({ data: null, error: null })
+    );
+    const DRUG = { id: "drug-1", drug_name: "Amoxicillin 250mg", unit_pengukuran: "tablet", perlu_kelulusan_pakar: false };
+    const CLINIC = { id: "clinic-9", name: "KK Demo" };
+    (supabase.from as ReturnType<typeof vi.fn>).mockImplementation((table: string) => {
+      const rows = table === "drugs" ? [DRUG] : table === "clinics" ? [CLINIC] : [];
+      return {
+        insert: insertMock,
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            order: vi.fn(() => Promise.resolve({ data: rows, error: null })),
+            maybeSingle: vi.fn(() => Promise.resolve({ data: null, error: null })),
+          })),
+          order: vi.fn(() => Promise.resolve({ data: rows, error: null })),
+        })),
+      };
+    });
+
+    renderDoctorRequest({
+      user: { id: "admin-1" },
+      role: "super_admin",
+      profile: { full_name: "Super Admin", clinic_id: null },
+    });
+
+    // The picker is only for super_admin; it defaults to the first clinic.
+    expect(await screen.findByText("Submitting for")).toBeInTheDocument();
+    expect((await screen.findAllByText("KK Demo")).length).toBeGreaterThan(0);
+
+    fireEvent.change(screen.getByPlaceholderText("Patient full name"), { target: { value: "AHMAD BIN ALI" } });
+    fireEvent.change(screen.getByPlaceholderText("000000-00-0000"), { target: { value: "900101010001" } });
+    // Two comboboxes now: the clinic picker (aria-label "Clinic") and the drug one.
+    fireEvent.click(screen.getAllByRole("combobox").find((el) => el.getAttribute("aria-label") !== "Clinic")!);
+    fireEvent.click(await screen.findByText("Amoxicillin 250mg"));
+    fireEvent.click(screen.getByRole("button", { name: /submit request/i }));
+
+    await waitFor(() => expect(insertMock).toHaveBeenCalledTimes(1));
+    expect(insertMock.mock.calls[0][0]).toHaveProperty("clinic_id", "clinic-9");
+  });
+
+  it("does not show the clinic picker or send clinic_id for a doctor", () => {
+    renderDoctorRequest();
+    expect(screen.queryByText("Submitting for")).toBeNull();
   });
 });

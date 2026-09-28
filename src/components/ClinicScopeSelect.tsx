@@ -17,20 +17,25 @@ export function ClinicScopeSelect({
   clinics,
   value,
   onChange,
+  label = "Viewing",
 }: {
   clinics: ScopeClinic[];
   value: string | null;
   onChange: (id: string) => void;
+  /** Verb shown before the select; "Viewing" on report pages. */
+  label?: string;
 }) {
   return (
     <div className="flex items-center gap-2">
       <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
-      <span className="text-sm text-muted-foreground">Viewing</span>
+      <span className="text-sm text-muted-foreground">{label}</span>
       {/* "" not undefined while the clinic list is still loading: undefined
           makes Radix treat the Select as uncontrolled on the first render and
           then warn when a real value arrives. "" is a valid root value (only
           SelectItem forbids it) and shows the placeholder. */}
-      <Select value={value ?? ""} onValueChange={onChange}>
+      {/* Ignore "": Radix's hidden native <select> can emit an empty change while
+          its options re-render, and a saved "" would clear the derived clinic. */}
+      <Select value={value ?? ""} onValueChange={(id) => { if (id) onChange(id); }}>
         <SelectTrigger className="h-9 w-[220px]" aria-label="Clinic">
           <SelectValue placeholder="Select a clinic" />
         </SelectTrigger>
