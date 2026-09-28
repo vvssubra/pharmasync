@@ -64,7 +64,7 @@ export function ClinicRequest() {
       <Card className="w-full max-w-sm text-center">
         <CardHeader>
           <CardTitle className="text-xl">Pilih Klinik Anda</CardTitle>
-          <CardDescription>Digital Bin Card — PKD Johor Bahru</CardDescription>
+          <CardDescription>Clinical Drug Management System — PKD Johor Bahru</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">

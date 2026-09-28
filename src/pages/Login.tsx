@@ -199,10 +199,6 @@ export default function Login() {
               </p>
             </div>
           </div>
-          <div className="inline-flex items-center gap-2 self-start rounded-full border border-emerald-300/25 bg-emerald-950/80 px-3 py-1 font-mono text-xs text-emerald-300 shadow-sm sm:self-auto">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
-            Digital Bin Card System
-          </div>
         </div>
 
         {/* ── Central stage: hero + auth card ─────────────────── */}
@@ -592,7 +588,6 @@ export default function Login() {
             <span>•</span>
             <span className="text-slate-300">Cawangan Farmasi &amp; Bekalan</span>
           </div>
-          <span className="text-[11px] text-slate-500">Digital Bin Card System</span>
         </footer>
       </main>
     </div>

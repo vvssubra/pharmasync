@@ -60,7 +60,7 @@ export default function ResetPassword() {
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle className="text-xl">Set New Password</CardTitle>
-          <CardDescription>Digital Bin Card — PKD Johor Bahru</CardDescription>
+          <CardDescription>Clinical Drug Management System — PKD Johor Bahru</CardDescription>
         </CardHeader>
         <CardContent>
           {!ready ? (
