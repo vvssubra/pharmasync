@@ -165,11 +165,8 @@ describe("DoctorRequest Pesara checkbox", () => {
     fireEvent.change(screen.getByPlaceholderText("Patient full name"), { target: { value: "AHMAD BIN ALI" } });
     fireEvent.change(screen.getByPlaceholderText("000000-00-0000"), { target: { value: "900101010001" } });
 
-    // Pick the drug through the combobox, then set a quantity that satisfies
-    // the schema's .min(1) (the field defaults to 0).
     fireEvent.click(await screen.findByRole("combobox"));
     fireEvent.click(await screen.findByText("Amoxicillin 250mg"));
-    fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "5" } });
 
     fireEvent.click(screen.getByRole("button", { name: /submit request/i }));
 
@@ -178,5 +175,8 @@ describe("DoctorRequest Pesara checkbox", () => {
     // called — which it never was, because the form could not be completed.
     await waitFor(() => expect(insertMock).toHaveBeenCalledTimes(1));
     expect(insertMock.mock.calls[0][0]).toHaveProperty("is_pesara", false);
+    // No qty input: each submission is one quota unit.
+    expect(screen.queryByRole("spinbutton")).toBeNull();
+    expect(insertMock.mock.calls[0][0]).toHaveProperty("quantity", 1);
   });
 });

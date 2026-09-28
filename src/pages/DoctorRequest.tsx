@@ -9,7 +9,6 @@ import { useDrugQuotaUsage } from "@/hooks/useDrugQuotaUsage";
 import { useClinicDrugSettings, resolveDrugSettings } from "@/hooks/useClinicDrugSettings";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { computeStock } from "@/lib/stock";
 import { Check, ChevronsUpDown, CheckCircle, AlertCircle, Info } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -34,7 +33,6 @@ const formSchema = z.object({
   no_ic: z.string().min(14, "IC number is incomplete"),
   is_pesara: z.boolean().default(false),
   drug_id: z.string().min(1, "Please select a drug"),
-  quantity: z.coerce.number().int().min(1, "Quantity must be at least 1"),
   prescriber_name: z.string().min(1, "Doctor name is required"),
 });
 
@@ -82,13 +80,11 @@ export default function DoctorRequest() {
       no_ic: "",
       is_pesara: false,
       drug_id: "",
-      quantity: 0,
       prescriber_name: profile?.full_name || "",
     },
   });
 
   const watchDrugId = form.watch("drug_id");
-  const watchQty = form.watch("quantity");
   const watchIsPesara = form.watch("is_pesara");
   const selectedDrug = useMemo(() => drugs.find(d => d.id === watchDrugId), [drugs, watchDrugId]);
 
@@ -123,19 +119,6 @@ export default function DoctorRequest() {
     [drugs, settingsByDrugId],
   );
 
-  const { data: currentStock } = useQuery({
-    queryKey: ["drug-stock", watchDrugId],
-    enabled: !!watchDrugId,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("drug_id, jenis, kuantiti, tarikh, created_at")
-        .eq("drug_id", watchDrugId);
-      if (error) throw error;
-      return computeStock(watchDrugId, data || []);
-    },
-  });
-
   const submitMutation = useMutation({
     mutationFn: async (values: FormValues) => {
       const drug = drugs.find(d => d.id === values.drug_id);
@@ -145,7 +128,9 @@ export default function DoctorRequest() {
         patient_name: values.patient_name,
         no_ic: values.no_ic,
         is_pesara: values.is_pesara,
-        quantity: values.quantity,
+        // Column is NOT NULL and fulfilment reads it. Each submission is one
+        // quota unit; the request form no longer captures a quantity.
+        quantity: 1,
         prescriber_name: values.prescriber_name,
         status,
         submitted_by: user?.id,
@@ -155,7 +140,6 @@ export default function DoctorRequest() {
     },
     onSuccess: (result, values) => {
       setSubmitted({ ...values, ...result });
-      queryClient.invalidateQueries({ queryKey: ["drug-stock"] });
       queryClient.invalidateQueries({ queryKey: ["drug-quota-usage"] });
     },
     onError: () => toast.error("Failed to submit request"),
@@ -173,8 +157,6 @@ export default function DoctorRequest() {
     submitMutation.mutate(values);
   };
 
-  const stockExceeded = currentStock !== undefined && watchQty > currentStock;
-
   if (submitted) {
     return (
       <div className="flex min-h-[80vh] items-center justify-center px-4">
@@ -188,7 +170,6 @@ export default function DoctorRequest() {
               <div className="flex justify-between"><span className="text-muted-foreground">Patient</span><span className="font-medium">{submitted.patient_name}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">IC</span><span className="font-medium">{submitted.no_ic}</span></div>
               <div className="flex justify-between"><span className="text-muted-foreground">Drug</span><span className="font-medium">{submitted.drug_name}</span></div>
-              <div className="flex justify-between"><span className="text-muted-foreground">Quantity</span><span className="font-medium">{submitted.quantity}</span></div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Status</span>
                 {submitted.is_specialist ? (
@@ -199,10 +180,10 @@ export default function DoctorRequest() {
               </div>
             </div>
             <div className="flex flex-col gap-2">
-              <Button onClick={() => { setSubmitted(null); form.reset({ patient_name: "", no_ic: "", is_pesara: false, drug_id: "", quantity: 0, prescriber_name: profile?.full_name || "" }); }}>
+              <Button onClick={() => { setSubmitted(null); form.reset({ patient_name: "", no_ic: "", is_pesara: false, drug_id: "", prescriber_name: profile?.full_name || "" }); }}>
                 Submit New Request
               </Button>
-              <Button variant="link" onClick={() => { setSubmitted(null); form.reset({ ...form.getValues(), drug_id: "", quantity: 0 }); }}>
+              <Button variant="link" onClick={() => { setSubmitted(null); form.reset({ ...form.getValues(), drug_id: "" }); }}>
                 Change Drug Only
               </Button>
             </div>
@@ -221,10 +202,8 @@ export default function DoctorRequest() {
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            {/* noValidate: the quantity Input carries min={1} while the form
-                defaults to 0, so native constraint validation aborts submit
-                before handleSubmit runs and none of the Zod messages ever
-                render. Zod covers every constraint the markup declared. */}
+            {/* noValidate: Zod owns validation so its messages render instead of
+                the browser's native constraint popups. */}
             <form onSubmit={form.handleSubmit(onSubmit)} noValidate className="space-y-4">
               <FormField control={form.control} name="patient_name" render={({ field }) => (
                 <FormItem>
@@ -342,27 +321,6 @@ export default function DoctorRequest() {
                 </Alert>
               )}
 
-              <FormField control={form.control} name="quantity" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Quantity *</FormLabel>
-                  <FormControl>
-                    <Input type="number" min={1} {...field} />
-                  </FormControl>
-                  {selectedDrug && (
-                    <p className="text-xs text-muted-foreground">
-                      Unit: {selectedDrug.unit_pengukuran} · Current stock: {currentStock ?? "—"} {selectedDrug.unit_pengukuran}
-                    </p>
-                  )}
-                  {stockExceeded && (
-                    <p className="text-xs text-destructive flex items-center gap-1">
-                      <AlertCircle className="h-3 w-3" />
-                      Quantity exceeds current stock ({currentStock} {selectedDrug?.unit_pengukuran})
-                    </p>
-                  )}
-                  <FormMessage />
-                </FormItem>
-              )} />
-
               <FormField control={form.control} name="prescriber_name" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Doctor / Prescriber Name *</FormLabel>
@@ -371,7 +329,7 @@ export default function DoctorRequest() {
                 </FormItem>
               )} />
 
-              <Button type="submit" className="w-full bg-primary text-primary-foreground" disabled={submitMutation.isPending || stockExceeded || quotaBlocked}>
+              <Button type="submit" className="w-full bg-primary text-primary-foreground" disabled={submitMutation.isPending || quotaBlocked}>
                 {submitMutation.isPending ? "Submitting..." : "Submit Request"}
               </Button>
             </form>
