@@ -133,7 +133,7 @@ function build() {
   const L = layer(0, 6.7, 6);
   const cap = capsule(L.el);
   st(cap.c, { left: '960px', top: '540px' });
-  const words = ['EVERY', 'TABLET.', 'EVERY', 'PATIENT.', 'EVERY', 'SIGNATURE.', 'COUNTS.'];
+  const words = ['EVERY', 'REQUEST.', 'EVERY', 'PATIENT.', 'EVERY', 'SIGNATURE.', 'COUNTS.'];
   const wEls = words.map((w, i) => {
     const outline = w === 'EVERY';
     return h('div', { cls: 'abs disp', style: `left:0;right:0;top:${i === 6 ? 380 : 430}px;text-align:center;font-size:${i === 6 ? 300 : 210}px;` +
@@ -186,7 +186,7 @@ function build() {
   });
   const under = h('div', { cls: 'abs', style: 'left:0;top:648px;height:6px;background:#10B981;transform-origin:0 50%' }, cam);
   const sub = h('div', { cls: 'abs mono', style: 'left:0;right:0;top:700px;text-align:center;font-size:26px;color:rgba(242,239,230,.8);letter-spacing:.04em' }, cam, '');
-  const subTxt = 'Pharmacy inventory & clinical workflow for Malaysian public health clinics.';
+  const subTxt = 'Controlled-drug quota, antibiotic forms & AI dose guidance for public health clinics.';
   let syncBox = null;
   L.update = t => {
     if (!syncBox) { const a = letters[6].getBoundingClientRect(), b = letters[9].getBoundingClientRect(), s = stage.getBoundingClientRect(), k = s.width / W; syncBox = [(a.left - s.left) / k, (b.right - s.left) / k]; }
@@ -212,21 +212,21 @@ function build() {
   h('div', { cls: 'abs', style: 'inset:0;background:repeating-linear-gradient(0deg,rgba(20,32,27,.035) 0 1px,transparent 1px 44px)' }, box);
   const lbl = h('div', { cls: 'abs lbl', style: 'left:140px;top:236px;color:#B4412F' }, box, '[ 02 ]   THE PROBLEM');
   const lines = [
-    maskLine(box, 'Paper bin cards.', 'left:140px;top:290px;font:700 92px SG;letter-spacing:-.035em;color:#14201B'),
-    maskLine(box, 'Manual signatures.', 'left:140px;top:392px;font:700 92px SG;letter-spacing:-.035em;color:#14201B'),
-    maskLine(box, 'Stock that never', 'left:140px;top:494px;font:700 92px SG;letter-spacing:-.035em;color:#14201B'),
+    maskLine(box, 'WhatsApp approvals.', 'left:140px;top:290px;font:700 92px SG;letter-spacing:-.035em;color:#14201B'),
+    maskLine(box, 'Paper AMS forms.', 'left:140px;top:392px;font:700 92px SG;letter-spacing:-.035em;color:#14201B'),
+    maskLine(box, 'A quota that never', 'left:140px;top:494px;font:700 92px SG;letter-spacing:-.035em;color:#14201B'),
     maskLine(box, 'quite <span style="position:relative;display:inline-block">adds up.<i class="abs" style="left:-6px;right:-6px;top:52%;height:9px;background:#E0483C;transform-origin:0 50%;transform:scaleX(0)"></i></span>', 'left:140px;top:596px;font:700 92px SG;letter-spacing:-.035em;color:#14201B'),
   ];
   const strike = lines[3].i.querySelector('i');
   const textWrap = [lbl, ...lines.map(l => l.m)];
   // bin card
   const card = h('div', { cls: 'abs', style: 'left:1110px;top:150px;width:660px;height:790px;background:#FBF8F0;border-radius:6px;box-shadow:0 40px 90px rgba(40,30,10,.25),0 2px 0 rgba(0,0,0,.05);transform-origin:50% 50%' }, box);
-  h('div', { cls: 'abs mono', style: 'left:40px;top:34px;font-size:15px;color:#7A6E58;letter-spacing:.22em' }, card, 'KAD PETAK  ·  NO. 0417');
-  h('div', { cls: 'abs', style: 'left:40px;top:64px;font:700 36px SG;color:#14201B;letter-spacing:-.02em' }, card, 'Paracetamol 500 mg Tablet');
+  h('div', { cls: 'abs mono', style: 'left:40px;top:34px;font-size:15px;color:#7A6E58;letter-spacing:.22em' }, card, 'SENARAI KUOTA UKK  ·  2026');
+  h('div', { cls: 'abs', style: 'left:40px;top:64px;font:700 36px SG;color:#14201B;letter-spacing:-.02em' }, card, 'Helaian Excel, kaunter farmasi');
   h('div', { cls: 'abs', style: 'left:40px;right:40px;top:126px;height:2px;background:#14201B' }, card);
-  const colX = [40, 200, 330, 460];
-  ['TARIKH', 'TERIMA', 'KELUAR', 'BAKI'].forEach((c, i) => h('div', { cls: 'abs mono', style: `left:${colX[i]}px;top:142px;font-size:14px;color:#7A6E58;letter-spacing:.18em` }, card, c));
-  const rows = [['01/03', '', '', '120'], ['04/03', '', '24', '96'], ['07/03', '', '12', '84'], ['09/03', '200', '', '284'], ['12/03', '', '60', '224'], ['15/03', '', '38', '186'], ['18/03', '', '40', '146'], ['20/03', '', '', '']];
+  const colX = [40, 190, 400, 540];
+  ['TARIKH', 'PESAKIT', 'FMS', 'BAKI'].forEach((c, i) => h('div', { cls: 'abs mono', style: `left:${colX[i]}px;top:142px;font-size:14px;color:#7A6E58;letter-spacing:.18em` }, card, c));
+  const rows = [['03/03', 'A. Rahman', 'Dr T.', '311'], ['05/03', 'Lim K.H.', 'Dr T.', '310'], ['09/03', 'Pesara', '—', '310'], ['11/03', 'S. Devi', 'Dr A.', '309'], ['14/03', 'Wong M.', '?', '308'], ['18/03', 'Nur A.', 'Dr T.', '307'], ['20/03', 'Tan B.', '', '?'], ['22/03', '', '', '']];
   const rr = rng(7);
   const rowEls = rows.map((r, i) => {
     const y = 186 + i * 68;
@@ -237,7 +237,7 @@ function build() {
   });
   const svg = h('svg', { cls: 'abs', width: 660, height: 790, style: 'left:0;top:0;overflow:visible' }, card);
   const circ = h('path', { d: 'M520 610 C 610 596, 640 640, 590 668 C 540 690, 440 684, 438 640 C 436 604, 500 592, 560 604', fill: 'none', stroke: '#E0483C', 'stroke-width': 5, 'stroke-linecap': 'round', 'stroke-dasharray': 600, 'stroke-dashoffset': 600 }, svg);
-  const note = h('div', { cls: 'abs', style: 'left:430px;top:706px;font:600 30px IN;font-style:oblique 12deg;color:#E0483C;transform:rotate(-4deg)' }, card, 'fizikal: 164 ?');
+  const note = h('div', { cls: 'abs', style: 'left:430px;top:706px;font:600 30px IN;font-style:oblique 12deg;color:#E0483C;transform:rotate(-4deg)' }, card, 'baki sebenar: ?');
   // chaos cards
   const r2 = rng(42);
   const chaos = [];
@@ -269,31 +269,31 @@ function build() {
   };
 }
 
-/* ================= S4 · THE LEDGER (15.5 – 24.05) ================= */
+/* ================= S4 · THE QUOTA (15.5 – 24.05) ================= */
 {
   const L = layer(15.5, 24.05, 2);
   const cam = h('div', { cls: 'abs', style: 'inset:0' }, L.el);
   const line = h('div', { cls: 'abs', style: 'height:3px;background:#10B981;box-shadow:0 0 24px #10B981,0 0 4px #6EE7B7' }, cam);
-  const lbl = h('div', { cls: 'abs lbl', style: 'left:210px;top:92px' }, cam, '[ 03 ]   THE LEDGER');
-  const h1 = maskLine(cam, "Stock isn't typed in.", 'left:210px;top:132px;font:700 76px SG;letter-spacing:-.035em');
+  const lbl = h('div', { cls: 'abs lbl', style: 'left:210px;top:92px' }, cam, '[ 03 ]   THE QUOTA');
+  const h1 = maskLine(cam, "Quota isn't guessed.", 'left:210px;top:132px;font:700 76px SG;letter-spacing:-.035em');
   const h2 = maskLine(cam, "It's computed.", 'left:210px;top:216px;font:700 76px SG;letter-spacing:-.035em;color:#10B981');
   // equation
-  const eq = h('div', { cls: 'abs', style: 'left:210px;top:330px;display:flex;align-items:center;gap:22px' }, cam);
+  const eq = h('div', { cls: 'abs', style: 'left:210px;top:330px;display:flex;align-items:center;gap:18px' }, cam);
   const toks = [];
   const mkTok = (label, val, hi) => {
-    const b = h('div', { style: `position:relative;padding:12px 22px 14px;border-radius:14px;border:1px solid ${hi ? '#10B981' : 'rgba(242,239,230,.22)'};background:${hi ? '#10B981' : 'rgba(14,42,34,.6)'};color:${hi ? '#04120E' : '#F2EFE6'}` }, eq);
+    const b = h('div', { style: `position:relative;padding:12px 20px 14px;border-radius:14px;border:1px solid ${hi ? '#10B981' : 'rgba(242,239,230,.22)'};background:${hi ? '#10B981' : 'rgba(14,42,34,.6)'};color:${hi ? '#04120E' : '#F2EFE6'}` }, eq);
     h('div', { cls: 'mono', style: `font-size:14px;letter-spacing:.18em;opacity:${hi ? .75 : .6};margin-bottom:6px` }, b, label);
-    const v = h('div', { style: 'font:700 54px SG;letter-spacing:-.02em;font-variant-numeric:tabular-nums;min-width:3ch' }, b, '0');
+    const v = h('div', { style: 'font:700 54px SG;letter-spacing:-.02em;font-variant-numeric:tabular-nums;min-width:2.2ch' }, b, '0');
     toks.push({ el: b, v, val });
   };
   const mkOp = s => toks.push({ el: h('div', { style: 'font:500 54px SG;color:rgba(242,239,230,.5)' }, eq, s) });
-  mkTok('BAKI AWAL', 120); mkOp('+'); mkTok('TERIMAAN', 480); mkOp('−'); mkTok('KELUARAN', 516); mkOp('='); mkTok('BAKI', 84, true);
-  // data
-  const outs = [0, 14, 12, 15, 13, 16, 15, 18, 14, 17, 16, 19, 13, 16, 18, 15, 17, 14, 16, 16, 18, 22, 19, 21, 18, 24, 20, 19, 23, 17, 21];
-  const ins = {}; ins[5] = 200; ins[20] = 280;
-  const S = [120]; for (let d = 1; d <= 30; d++) S[d] = S[d - 1] + (ins[d] || 0) - outs[d];
-  const X = d => 210 + d * 50, Y = v => 820 - v * 1.1;
-  const status = v => v < 30 ? ['KRITIKAL', '#FF5E57'] : v < 60 ? ['RENDAH', '#F5B83D'] : v <= 300 ? ['NORMAL', '#10B981'] : ['LEBIHAN', '#5AA9FF'];
+  mkTok('KADAR / FMS', 40); mkOp('×'); mkTok('FMS DAERAH', 10); mkOp('='); mkTok('KUOTA', 400); mkOp('−'); mkTok('DIGUNA', 312); mkOp('='); mkTok('BAKI', 88, true);
+  // data: 30 steps of quota use; steps 5 and 20 are Pesara patients (exempt, no decrement)
+  const outs = [0, 9, 11, 10, 12, 0, 13, 10, 9, 12, 11, 10, 13, 9, 10, 12, 11, 12, 10, 12, 0, 13, 12, 12, 11, 12, 12, 11, 11, 12, 10];
+  const exempt = { 5: 1, 20: 1 };
+  const S = [400]; for (let d = 1; d <= 30; d++) S[d] = S[d - 1] - outs[d];
+  const X = d => 210 + d * 50, Y = v => 820 - v * 0.8;
+  const status = v => v <= 0 ? ['DISEKAT', '#FF5E57'] : v < 100 ? ['RENDAH', '#F5B83D'] : ['NORMAL', '#10B981'];
   const svg = h('svg', { cls: 'abs', width: W, height: H, style: 'left:0;top:0;overflow:visible' }, cam);
   const defs = h('defs', {}, svg);
   const gr = h('linearGradient', { id: 'ar', x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
@@ -304,38 +304,37 @@ function build() {
     h('text', { x: 1720, y: Y(v) + 5, fill: c, 'font-family': 'JB', 'font-size': 14, 'letter-spacing': 2 }, g, name);
     return g;
   };
-  const thrR = mkThr(60, '#F5B83D', 'REORDER 60'), thrM = mkThr(30, '#FF5E57', 'MIN 30');
+  const thrR = mkThr(100, '#F5B83D', 'AMARAN 100'), thrM = mkThr(400, 'rgba(110,231,183,.5)', 'KUOTA 400');
   const area = h('path', { fill: 'url(#ar)' }, svg);
   const path = h('path', { fill: 'none', stroke: '#6EE7B7', 'stroke-width': 4, 'stroke-linejoin': 'round' }, svg);
   const bars = [];
   for (let d = 1; d <= 30; d++) bars.push(h('rect', { x: X(d) - 9, width: 6, fill: 'rgba(255,94,87,.55)', rx: 2 }, svg));
   const head = h('circle', { r: 9, fill: '#F2EFE6', stroke: '#10B981', 'stroke-width': 4 }, svg);
   const headChip = h('div', { cls: 'abs chip', style: 'color:#04120E;white-space:nowrap' }, cam);
-  const rcpt = [5, 20].map(d => h('div', { cls: 'abs chip', style: `left:${X(d) - 90}px;top:${Y(S[d]) - 70}px;background:#04120E;border:1.5px solid #10B981;color:#6EE7B7;transform-origin:50% 100%` }, cam, `+${ins[d]} TERIMAAN`));
+  const rcpt = [5, 20].map(d => h('div', { cls: 'abs chip', style: `left:${X(d) - 110}px;top:${Y(S[d]) - 70}px;background:#04120E;border:1.5px solid #5AA9FF;color:#5AA9FF;transform-origin:50% 100%` }, cam, 'PESARA · DIKECUALIKAN'));
   // log
   const log = h('div', { cls: 'abs mono', style: 'left:1180px;top:108px;width:560px;height:190px;overflow:hidden;font-size:16px;line-height:30px;color:rgba(242,239,230,.72)' }, cam);
   const logInner = h('div', { cls: 'abs', style: 'left:0;right:0;bottom:0' }, log);
   const logLines = [];
   for (let d = 1; d <= 30; d++) {
     const dd = String(d).padStart(2, '0') + '/03';
-    if (ins[d]) logLines.push(h('div', { style: 'color:#6EE7B7;display:none' }, logInner, `${dd}  TERIMAAN  +${ins[d]}  PO-11${80 + d}`));
-    logLines.push(h('div', { style: 'display:none' }, logInner, `${dd}  KELUARAN  −${String(outs[d]).padStart(2, ' ')}   RX-22${String(d * 3 + 10).padStart(2, '0')}   ${String(S[d]).padStart(3, ' ')}`));
+    if (exempt[d]) logLines.push(h('div', { style: 'color:#5AA9FF;display:none' }, logInner, `${dd}  UKK  PESARA          DIKECUALIKAN  ${String(S[d]).padStart(3, ' ')}`));
+    else logLines.push(h('div', { style: 'display:none' }, logInner, `${dd}  UKK  MO-0${d % 4 + 1} → FMS-0${d % 3 + 1}   LULUS  −1     ${String(S[d]).padStart(3, ' ')}`));
   }
-  const logDay = []; for (let d = 1; d <= 30; d++) { if (ins[d]) logDay.push(d); logDay.push(d); }
+  const logDay = []; for (let d = 1; d <= 30; d++) logDay.push(d);
   const legend = h('div', { cls: 'abs', style: 'left:210px;top:880px;display:flex;gap:16px;align-items:center' }, cam);
-  h('div', { cls: 'mono', style: 'font-size:15px;color:rgba(242,239,230,.5);letter-spacing:.18em;margin-right:10px' }, legend, 'STATUS');
-  const chips = [['KRITIKAL', '#FF5E57'], ['RENDAH', '#F5B83D'], ['NORMAL', '#10B981'], ['LEBIHAN', '#5AA9FF']].map(([n, c]) => h('div', { cls: 'chip', style: `border:1.5px solid ${c};color:${c}` }, legend, n));
+  h('div', { cls: 'mono', style: 'font-size:15px;color:rgba(242,239,230,.5);letter-spacing:.18em;margin-right:10px' }, legend, 'BAKI');
+  const chips = [['DISEKAT · 0', '#FF5E57'], ['RENDAH', '#F5B83D'], ['NORMAL', '#10B981'], ['PESARA · DIKECUALIKAN', '#5AA9FF']].map(([n, c]) => h('div', { cls: 'chip', style: `border:1.5px solid ${c};color:${c}` }, legend, n));
   const iris = h('div', { cls: 'abs', style: 'border-radius:50%;background:#10B981;z-index:5' }, L.el);
   L.update = t => {
     const m = A(t, 16.0, .8, E.ioExpo);
     st(line, { left: lerp(0, 210, m) + 'px', width: lerp(1920, 1500, m) + 'px', top: lerp(540, 820, m) - 1.5 + 'px', opacity: A(t, 15.52, .08, E.lin) });
     lbl.style.opacity = A(t, 16.3, .3, E.lin);
     h1.set(A(t, 16.3, .7)); h2.set(A(t, 16.6, .7));
-    let k = 0;
     toks.forEach((tk, i) => {
-      const p = A(t, 17.0 + i * .22, .5);
-      st(tk.el, { opacity: p, transform: `translateY(${(1 - p) * 40}px) scale(${lerp(.85, 1, E.oBack(pr(t, 17 + i * .22, .45)))})` });
-      if (tk.v) tk.v.textContent = fmt(tk.val * A(t, 17.05 + i * .22, .8, E.oCubic));
+      const p = A(t, 17.0 + i * .18, .5);
+      st(tk.el, { opacity: p, transform: `translateY(${(1 - p) * 40}px) scale(${lerp(.85, 1, E.oBack(pr(t, 17 + i * .18, .45)))})` });
+      if (tk.v) tk.v.textContent = fmt(tk.val * A(t, 17.05 + i * .18, .8, E.oCubic));
     });
     const dp = pr(t, 18.6, 3.0), D = 30 * E.ioCubic(dp);
     const di = Math.floor(D), fr = D - di;
@@ -352,16 +351,16 @@ function build() {
     const [nm, col] = status(cur);
     head.setAttribute('cx', hx); head.setAttribute('cy', hy); head.style.opacity = t >= 18.6 ? 1 : 0;
     head.setAttribute('stroke', col);
-    headChip.textContent = `${cur} · ${nm}`;
+    headChip.textContent = `BAKI ${cur} · ${nm}`;
     st(headChip, { left: hx + 'px', top: hy - 56 + 'px', transform: 'translateX(-50%)', background: col, opacity: t >= 18.6 ? 1 : 0 });
     rcpt.forEach((el, i) => { const dd = [5, 20][i]; const p = D >= dd ? E.oBack(cl((D - dd) / 1.4)) : 0; st(el, { opacity: cl(p * 2), transform: `scale(${p})` }); });
-    let shown = 0; logLines.forEach((el, i) => { const on = D >= logDay[i]; el.style.display = on ? 'block' : 'none'; if (on) shown++; });
+    logLines.forEach((el, i) => { el.style.display = D >= logDay[i] ? 'block' : 'none'; });
     log.style.opacity = t >= 18.6 ? 1 : 0;
-    chips.forEach((c, i) => { const p = A(t, 21.8 + i * .12, .5); st(c, { opacity: p, transform: `translateY(${(1 - p) * 20}px)`, background: (i === 2 && t > 22.5) ? `rgba(16,185,129,${.18 + .12 * Math.sin(t * 6)})` : 'transparent' }); });
+    chips.forEach((c, i) => { const p = A(t, 21.8 + i * .12, .5); st(c, { opacity: p, transform: `translateY(${(1 - p) * 20}px)`, background: (i === 1 && t > 22.5) ? `rgba(245,184,61,${.18 + .12 * Math.sin(t * 6)})` : 'transparent' }); });
     legend.firstChild.style.opacity = A(t, 21.7, .4, E.lin);
     tr(cam, `scale(${lerp(1, 1.035, pr(t, 16, 8))})`);
     const ip = A(t, 23.55, .45, E.iExpo), R = ip * 2400;
-    st(iris, { left: 1710 - R + 'px', top: Y(84) - R + 'px', width: 2 * R + 'px', height: 2 * R + 'px', display: ip > 0 ? 'block' : 'none' });
+    st(iris, { left: 1710 - R + 'px', top: Y(88) - R + 'px', width: 2 * R + 'px', height: 2 * R + 'px', display: ip > 0 ? 'block' : 'none' });
   };
 }
 
@@ -381,7 +380,7 @@ function build() {
     const arr = h('path', { d: `M${(x1 + x2) / 2 - 6} ${NY - 9} L${(x1 + x2) / 2 + 5} ${NY} L${(x1 + x2) / 2 - 6} ${NY + 9}`, fill: 'none', stroke: '#6EE7B7', 'stroke-width': 3, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
     return { base, hot, arr, len: x2 - x1 };
   });
-  const names = [['Doctor', 'MO · SUBMITS'], ['Specialist', 'FMS · NAG 2024'], ['Pharmacist', 'DISPENSES'], ['Patient', 'REGISTERED']];
+  const names = [['Doctor', 'MO · DIGITAL AMS FORM'], ['Specialist', 'FMS · NAG 2024'], ['Pharmacist', 'SCREENS · DISPENSES'], ['Patient', 'REGISTERED']];
   const icons = ['doctor', 'shield', 'pill', 'person'];
   const nodes = NX.map((x, i) => {
     const n = h('div', { cls: 'abs', style: `left:${x - NR}px;top:${NY - NR}px;width:${2 * NR}px;height:${2 * NR}px;border-radius:50%;background:#0B211A;border:3px solid #10B981;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 0 rgba(16,185,129,.4)` }, cam);
@@ -391,7 +390,7 @@ function build() {
     const sb = h('div', { cls: 'abs mono', style: `left:${x - 200}px;width:400px;top:${NY + 152}px;text-align:center;font-size:15px;letter-spacing:.2em;color:rgba(242,239,230,.5)` }, cam, names[i][1]);
     return { n, ring, nm, sb };
   });
-  const note3 = h('div', { cls: 'abs mono', style: `left:${NX[2] - 200}px;width:400px;top:${NY + 190}px;text-align:center;font-size:15px;color:#6EE7B7;letter-spacing:.08em` }, cam, '−21 KELUARAN · LEDGER UPDATED');
+  const note3 = h('div', { cls: 'abs mono', style: `left:${NX[2] - 200}px;width:400px;top:${NY + 190}px;text-align:center;font-size:15px;color:#6EE7B7;letter-spacing:.08em` }, cam, 'AMS RECORD · CREATED AUTOMATICALLY');
   const note4 = h('div', { cls: 'abs mono', style: `left:${NX[3] - 200}px;width:400px;top:${NY + 190}px;text-align:center;font-size:15px;color:#6EE7B7;letter-spacing:.08em` }, cam, '+ PATIENT REGISTRY');
   const chk = icon(cam, 'check', 44, '#04120E', 3.4, `position:absolute;left:${NX[2] + 40}px;top:${NY - 100}px;background:#6EE7B7;border-radius:50%;padding:6px`);
   // request card
@@ -401,6 +400,7 @@ function build() {
   const chip = h('div', { cls: 'chip', style: 'font-size:13px;padding:6px 11px' }, cTop, 'PENDING');
   h('div', { style: 'font:700 30px SG;letter-spacing:-.02em' }, card, 'Amoxicillin 500 mg');
   h('div', { cls: 'mono', style: 'font-size:15px;color:rgba(242,239,230,.6);margin-top:6px;letter-spacing:.04em' }, card, '21 cap · 3×/day · 7 days');
+  h('div', { cls: 'mono', style: 'font-size:13px;color:#6EE7B7;margin-top:10px;letter-spacing:.1em' }, card, 'AMS FORM ✓ COMPLETE  ·  PHARYNGITIS · CENTOR 4');
   const stamp = h('div', { cls: 'abs', style: `left:${NX[1] - 200}px;top:350px;width:400px;padding:14px 0 16px;text-align:center;border:5px solid #10B981;border-radius:14px;color:#10B981;background:rgba(4,18,14,.88);transform-origin:50% 50%` }, cam);
   h('div', { style: 'font:700 64px SG;letter-spacing:.02em;line-height:1' }, stamp, 'APPROVED');
   h('div', { cls: 'mono', style: 'font-size:14px;letter-spacing:.2em;margin-top:8px' }, stamp, 'CLINICAL PATHWAY · NAG 2024');
@@ -480,12 +480,12 @@ function build() {
   const hd = maskLine(cam, 'Built for the dispensing counter.', 'right:120px;top:68px;font:700 48px SG;letter-spacing:-.03em');
   const pos = [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]];
   const meta = [
-    ['01 · PAEDIATRICS', 'Paeds Dose Calculator', 'Weight-based dosing for children'],
+    ['01 · AI DOSE', 'Dose Suggestion', 'NAG 2024 regimen from diagnosis, age & weight'],
     ['02 · SAFETY', 'G6PD Deficiency', 'Flags drugs to avoid, at a glance'],
-    ['03 · CONTROLLED', 'Annual Kuota', 'Per-patient limits, tracked all year'],
+    ['03 · CONTROLLED', 'Annual Kuota', 'District pool · Pesara exempt · blocks at zero'],
     ['04 · ALERTS', 'Push Notifications', 'The right person, the moment it matters'],
-    ['05 · AI', 'AI, Fully Audited', 'Every call logged with user, role & tokens'],
-    ['06 · REPORTS', 'Laporan', 'Audit-ready reports in one click'],
+    ['05 · AI', 'AI, Fully Audited', 'Every call logged with user, role & time'],
+    ['06 · AMS', 'Digital AMS Form', 'Mandatory fields · incomplete forms a month'],
   ];
   const tiles = pos.map(([c, r], i) => {
     const el = h('div', { cls: 'tile', style: `left:${120 + c * 570}px;top:${160 + r * 430}px` }, cam);
@@ -497,9 +497,11 @@ function build() {
   const t1 = tiles[0].el;
   const kg = h('div', { cls: 'abs mono', style: 'left:32px;top:78px;font-size:22px;color:rgba(242,239,230,.8)' }, t1);
   const mg = h('div', { cls: 'abs disp', style: 'left:30px;top:118px;font-size:96px;color:#10B981;font-variant-numeric:tabular-nums' }, t1);
-  const track = h('div', { cls: 'abs', style: 'left:32px;right:32px;top:238px;height:6px;border-radius:3px;background:rgba(242,239,230,.14)' }, t1);
+  const track = h('div', { cls: 'abs', style: 'left:32px;right:32px;top:256px;height:6px;border-radius:3px;background:rgba(242,239,230,.14)' }, t1);
   const fill = h('div', { cls: 'abs', style: 'left:0;top:0;bottom:0;border-radius:3px;background:#10B981' }, track);
   const knob = h('div', { cls: 'abs', style: 'top:-9px;width:24px;height:24px;margin-left:-12px;border-radius:50%;background:#F2EFE6;box-shadow:0 0 0 6px rgba(16,185,129,.3)' }, track);
+  const use = h('div', { cls: 'abs chip', style: 'right:32px;top:24px;background:#10B981;color:#04120E;font-size:13px' }, t1, 'USE ↵');
+  const bd = h('div', { cls: 'abs mono', style: 'left:34px;top:216px;font-size:16px;color:#6EE7B7;letter-spacing:.08em' }, t1, 'AMOXICILLIN · BD × 5 DAYS · NAG 2024');
   // 2 g6pd
   const t2 = tiles[1].el;
   const g6 = [['Paracetamol', 'SAFE', '#10B981'], ['Primaquine', 'AVOID', '#FF5E57'], ['Nitrofurantoin', 'AVOID', '#FF5E57']].map(([n, s, c], i) => {
@@ -517,7 +519,7 @@ function build() {
   h('div', { cls: 'abs mono', style: 'left:34px;top:190px;font-size:17px;color:rgba(242,239,230,.6)' }, t3, '/ 400 USED · 2026');
   // 4 push
   const t4 = tiles[3].el;
-  const toasts = [['#F5B83D', 'Stock RENDAH · Metformin 500 mg'], ['#10B981', 'Antibiotic form approved · FMS'], ['#5AA9FF', 'New request · RX-2304']].map(([c, s]) => {
+  const toasts = [['#F5B83D', 'Kuota RENDAH · baki 88'], ['#10B981', 'AMS form approved · FMS'], ['#5AA9FF', 'New UKK request · RX-2304']].map(([c, s]) => {
     const el = h('div', { cls: 'abs', style: 'left:32px;right:32px;height:52px;border-radius:14px;background:#12352B;border:1px solid rgba(110,231,183,.2);display:flex;align-items:center;gap:14px;padding:0 16px;box-sizing:border-box;box-shadow:0 10px 24px rgba(0,0,0,.3)' }, t4);
     h('div', { style: `width:12px;height:12px;border-radius:50%;background:${c};flex:none` }, el);
     h('div', { style: 'font:500 19px IN;white-space:nowrap' }, el, s);
@@ -525,13 +527,18 @@ function build() {
   });
   // 5 ai
   const t5 = tiles[4].el;
-  const aiL = ['› suggest_regimen    200  1,284 tok', '› summarise_ledger   200    642 tok', '› ai_audit_logs      ✓ user · role · ts'];
+  const aiL = ['› suggest_dose       200  NAG note, verbatim', '› pathway_check      200  NAG 2024 ✓', '› ai_audit_logs      ✓ user · role · ts'];
   const aiEls = aiL.map((s, i) => h('div', { cls: 'abs mono', style: `left:32px;top:${86 + i * 40}px;font-size:17px;white-space:pre;color:${i === 2 ? '#6EE7B7' : 'rgba(242,239,230,.85)'}` }, t5));
   // 6 laporan
   const t6 = tiles[5].el;
-  const bh = [.42, .66, .5, .82, .58, .74, .9];
-  const barsL = bh.map((v, i) => h('div', { cls: 'abs', style: `left:${40 + i * 50}px;bottom:130px;width:30px;height:${v * 150}px;border-radius:6px 6px 2px 2px;background:${i === 6 ? '#10B981' : 'rgba(110,231,183,.35)'};transform-origin:50% 100%` }, t6));
-  const pdf = h('div', { cls: 'abs chip', style: 'right:32px;top:24px;background:#F2EFE6;color:#04120E;font-size:13px' }, t6, 'EXPORT PDF ↓');
+  const amsRows = ['Diagnosis', 'Clinical checklist', 'Antibiotic regimen', 'FMS code'].map((n, i) => {
+    const row = h('div', { cls: 'abs', style: `left:32px;width:290px;top:${78 + i * 46}px;height:38px;border-radius:10px;background:rgba(242,239,230,.05);display:flex;align-items:center;justify-content:space-between;padding:0 12px;box-sizing:border-box` }, t6);
+    h('div', { style: 'font:600 18px IN' }, row, n);
+    const ck = icon(row, 'check', 18, '#04120E', 3.2, 'background:#6EE7B7;border-radius:50%;padding:3px;flex:none');
+    return { row, ck };
+  });
+  const amsN = h('div', { cls: 'abs disp', style: 'right:32px;top:76px;width:180px;text-align:right;font-size:96px;font-variant-numeric:tabular-nums' }, t6, '10');
+  const amsL = h('div', { cls: 'abs mono', style: 'right:32px;top:186px;width:200px;text-align:right;font-size:14px;letter-spacing:.14em;color:rgba(242,239,230,.6)' }, t6, 'INCOMPLETE / MONTH');
   const RCX = 120 + 2 * 570 + 270 + 120, RCY = 160 + 50 + 120; // ring centre in stage coords
   L.update = t => {
     lbl.style.opacity = A(t, 34.2, .3, E.lin); hd.set(A(t, 34.25, .7));
@@ -542,9 +549,11 @@ function build() {
     });
     // paeds
     const w = 18 * A(t, 34.9, 1.1, E.ioCubic);
-    kg.textContent = `${w.toFixed(1)} kg  ×  15 mg/kg`;
-    mg.textContent = `${Math.round(w * 15)} mg`;
+    kg.textContent = `AOM  ·  ${w.toFixed(1)} kg  ×  45 mg/kg`;
+    mg.textContent = `${Math.round(w * 45)} mg`;
     const kp = w / 30; fill.style.width = kp * 100 + '%'; knob.style.left = kp * 100 + '%';
+    use.style.opacity = A(t, 36.3, .3, E.lin); use.style.transform = `scale(${lerp(.6, 1, E.oBack(pr(t, 36.3, .4)))})`;
+    bd.style.opacity = A(t, 36.0, .3, E.lin);
     g6.forEach((g, i) => { const p = A(t, 35.0 + i * .22, .6); st(g.row, { opacity: p, transform: `translateX(${(1 - p) * 60}px)` }); if (i > 0 && t > 36) g.ch.style.background = `rgba(255,94,87,${.12 + .14 * (.5 + .5 * Math.sin((t - 36) * 7))})`; });
     const q = A(t, 35.1, 1.6, E.ioCubic);
     arc.setAttribute('stroke-dashoffset', 2 * Math.PI * 90 * (1 - .78 * q));
@@ -556,8 +565,10 @@ function build() {
       st(el, { top: 80 + slot * 62 + 'px', opacity: p * (1 - cl(slot - 1.6)), transform: `translateX(${(1 - p) * 520}px)` });
     });
     aiEls.forEach((el, i) => { const n = Math.floor(A(t, 35.3 + i * .7, .6, E.lin) * aiL[i].length); el.textContent = aiL[i].slice(0, n) + (n > 0 && n < aiL[i].length ? '▌' : ''); });
-    barsL.forEach((b, i) => tr(b, `scaleY(${E.oBack(pr(t, 35.2 + i * .08, .6))})`));
-    pdf.style.opacity = A(t, 36.2, .3, E.lin);
+    amsRows.forEach((r, i) => { const p = A(t, 35.2 + i * .22, .5); st(r.row, { opacity: p, transform: `translateX(${(1 - p) * -40}px)` }); r.ck.style.transform = `scale(${E.oBack(pr(t, 35.7 + i * .22, .4))})`; });
+    const an = Math.round(10 * (1 - E.ioCubic(pr(t, 36.6, 1.1))));
+    amsN.textContent = String(an); amsN.style.color = an > 0 ? '#F5B83D' : '#10B981';
+    tr(amsN, `scale(${1 + .12 * pulse(t, [37.7], 10)})`);
     // camera: pan to ring, then zoom through it
     const f = E.ioCubic(pr(t, 39.6, 1.3));
     const s = lerp(1, 11, E.iExpo(pr(t, 40.35, 1.6)));
@@ -591,12 +602,12 @@ function build() {
   const hubFill = h('circle', { cx: HX, cy: HY, r: 118, fill: '#0B211A' }, svg);
   const hub = h('circle', { fill: 'none', stroke: '#10B981', 'stroke-linecap': 'round' }, svg);
   const hubT = h('div', { cls: 'abs', style: `left:${HX - 150}px;top:${HY - 30}px;width:300px;text-align:center` }, L.el);
-  h('div', { cls: 'mono', style: 'font-size:18px;color:#10B981;letter-spacing:.2em;font-weight:700' }, hubT, 'ONE LEDGER');
-  h('div', { cls: 'mono', style: 'font-size:13px;color:rgba(242,239,230,.5);letter-spacing:.14em;margin-top:8px' }, hubT, 'SUPABASE · POSTGRES');
+  h('div', { cls: 'mono', style: 'font-size:18px;color:#10B981;letter-spacing:.2em;font-weight:700' }, hubT, 'ONE QUOTA');
+  h('div', { cls: 'mono', style: 'font-size:13px;color:rgba(242,239,230,.5);letter-spacing:.14em;margin-top:8px' }, hubT, 'DISTRICT POOL · PKDJB');
   const lbl = h('div', { cls: 'abs lbl', style: 'left:140px;top:236px' }, L.el, '[ 06 ]   SCALE');
   const big = h('div', { cls: 'abs disp', style: 'left:128px;top:270px;font-size:280px;color:#10B981;font-variant-numeric:tabular-nums;letter-spacing:-.05em' }, L.el, '0');
   const cap1 = maskLine(L.el, 'clinics. One platform.', 'left:140px;top:560px;font:700 56px SG;letter-spacing:-.03em');
-  const bullets = ['▸ one shared ledger', '▸ role-aware screens', '▸ every action audited'].map((s, i) => h('div', { cls: 'abs mono', style: `left:142px;top:${660 + i * 46}px;font-size:24px;color:rgba(242,239,230,.8)` }, L.el, s));
+  const bullets = ['▸ one shared district quota', '▸ approvals logged with FMS & time', '▸ every action audited'].map((s, i) => h('div', { cls: 'abs mono', style: `left:142px;top:${660 + i * 46}px;font-size:24px;color:rgba(242,239,230,.8)` }, L.el, s));
   const flood = h('div', { cls: 'abs', style: 'border-radius:50%;background:#10B981;z-index:4' }, L.el);
   L.update = t => {
     const e = A(t, 42.0, 1.0, E.oExpo);
@@ -706,7 +717,7 @@ const hTR = h('div', { cls: 'abs mono', style: 'right:84px;top:44px;font-size:14
 const hBL = h('div', { cls: 'abs mono', style: 'left:84px;bottom:44px;font-size:14px;letter-spacing:.24em' }, hud);
 const hBR = h('div', { cls: 'abs', style: 'right:84px;bottom:50px;width:220px;height:2px;background:rgba(255,255,255,.3)' }, hud);
 const hBRf = h('div', { cls: 'abs', style: 'left:0;top:0;bottom:0;background:#fff' }, hBR);
-const SECT = [[0, '00 / 07 — COLD OPEN'], [6, '01 / 07 — INTRO'], [10, '02 / 07 — THE PROBLEM'], [16, '03 / 07 — THE LEDGER'], [24, '04 / 07 — THE WORKFLOW'], [34, '05 / 07 — THE TOOLKIT'], [42, '06 / 07 — SCALE'], [50, '07 / 07 — IMPACT'], [56, 'FIN']];
+const SECT = [[0, '00 / 07 — COLD OPEN'], [6, '01 / 07 — INTRO'], [10, '02 / 07 — THE PROBLEM'], [16, '03 / 07 — THE QUOTA'], [24, '04 / 07 — THE WORKFLOW'], [34, '05 / 07 — THE TOOLKIT'], [42, '06 / 07 — SCALE'], [50, '07 / 07 — IMPACT'], [56, 'FIN']];
 const grainTiles = [0, 1, 2].map(k => { const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'); const d = x.createImageData(256, 256); const rr = rng(99 + k); for (let i = 0; i < d.data.length; i += 4) { const v = rr() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; } x.putImageData(d, 0, 0); return c.toDataURL(); });
 const grain = h('div', { cls: 'abs', style: 'inset:0;z-index:70;opacity:.055;pointer-events:none;mix-blend-mode:overlay' }, stage);
 h('div', { cls: 'abs', style: 'inset:0;z-index:65;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,rgba(0,0,0,0) 30%,rgba(0,0,0,.08) 55%,rgba(0,0,0,.22) 78%,rgba(0,0,0,.4) 100%)' }, stage);
