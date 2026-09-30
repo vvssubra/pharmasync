@@ -31,7 +31,7 @@ html,body{margin:0;height:100%;background:#000;overflow:hidden}
 <div id="stage"></div>
 <script>
 'use strict';
-const W = 1920, H = 1080, FPS = 30, DUR = 60;
+const W = 1920, H = 1080, FPS = 30, DUR = 66;
 const stage = document.getElementById('stage');
 
 /* ---------- math + easing ---------- */
@@ -673,33 +673,40 @@ function build() {
   };
 }
 
-/* ================= S9 · OUTRO (56.0 – 60) ================= */
+/* ================= S9 · OUTRO + CALL TO ACTION (56.0 – 66) ================= */
 {
-  const L = layer(56.0, 60.01, 2);
+  const L = layer(56.0, DUR + .01, 2);
   const lock = h('div', { cls: 'abs', style: 'left:0;top:0' }, L.el);
   const cap = capsule(lock);
   const word = h('div', { cls: 'abs disp', style: 'top:0;left:0;font-size:160px;white-space:nowrap' }, L.el, 'Pharma<span style="color:#10B981">Sync</span>');
-  const tag = h('div', { cls: 'abs', style: 'left:0;right:0;top:650px;display:flex;justify-content:center;gap:34px;font:700 54px SG;letter-spacing:-.02em' }, L.el);
+  const tag = h('div', { cls: 'abs', style: 'left:0;right:0;top:520px;display:flex;justify-content:center;gap:34px;font:700 54px SG;letter-spacing:-.02em' }, L.el);
   const tw = ['Precise.', 'Trustworthy.', 'Calm.'].map((w, i) => { const m = h('div', { cls: 'mask' }, tag); return h('div', { style: i === 2 ? 'color:#10B981' : '' }, m, w); });
-  const foot = h('div', { cls: 'abs mono', style: 'left:0;right:0;top:770px;text-align:center;font-size:18px;letter-spacing:.3em;color:rgba(242,239,230,.5)' }, L.el, 'KAWALAN UBAT  ·  KK KEMPAS  ·  2026');
+  const rule = h('div', { cls: 'abs', style: 'left:660px;right:660px;top:640px;height:2px;background:rgba(110,231,183,.28);transform-origin:50% 50%' }, L.el);
+  const pill = h('div', { cls: 'abs', style: 'left:0;right:0;top:682px;display:flex;justify-content:center' }, L.el);
+  const pillIn = h('div', { cls: 'chip', style: 'font-size:28px;padding:16px 36px;background:#10B981;color:#04120E;letter-spacing:.2em;transform-origin:50% 50%' }, pill, 'REGISTER A DEMO ACCOUNT');
+  const url = maskLine(L.el, 'pharmasyncpkdjb.my', 'left:0;right:0;top:765px;text-align:center;font:700 92px SG;letter-spacing:-.035em;color:#F2EFE6');
+  const steps = h('div', { cls: 'abs mono', style: 'left:0;right:0;top:900px;text-align:center;font-size:28px;letter-spacing:.14em;color:rgba(242,239,230,.72)' }, L.el, 'SIGN UP  →  CHOOSE YOUR CLINIC  →  WE APPROVE YOUR ACCESS');
+  const foot = h('div', { cls: 'abs mono', style: 'left:0;right:0;top:985px;text-align:center;font-size:20px;letter-spacing:.26em;color:rgba(242,239,230,.42)' }, L.el, 'KLINIK KESIHATAN KEMPAS  ·  PKDJB  ·  COMING TO ALL KK');
   let ww = 0;
   L.update = t => {
     if (!ww) ww = word.offsetWidth;
     const total = 150 + 44 + ww, x0 = (W - total) / 2;
     const e = A(t, 56.15, .6, E.oBack), mv = A(t, 56.75, .7, E.ioExpo);
-    const cx = lerp(960, x0 + 75, mv), cy = 470;
-    const fin = A(t, 59.15, .55, E.ioExpo);
-    const cw = lerp(150, 22, fin), ch = lerp(56, 22, fin);
-    cap.set(cw * e, ch * e);
-    st(cap.c, { left: cx + 'px', top: cy + 'px', transform: `rotate(${lerp(135, -35, e)}deg)`, opacity: 1 - A(t, 59.8, .2, E.lin) });
+    const cx = lerp(960, x0 + 75, mv), cy = 390;
+    cap.set(150 * e, 56 * e);
+    st(cap.c, { left: cx + 'px', top: cy + 'px', transform: `rotate(${lerp(135, -35, e)}deg)` });
     word.style.left = x0 + 194 + 'px'; word.style.top = (cy - 92) + 'px';
     word.style.clipPath = `inset(-20% ${(1 - A(t, 56.9, .75, E.oExpo)) * 100}% -30% 0)`;
     tr(word, `translateX(${(1 - A(t, 56.9, .75)) * -60}px)`);
     tw.forEach((el, i) => tr(el, `translateY(${(1 - A(t, 57.5 + i * .5, .6)) * 115}%)`));
-    foot.style.opacity = A(t, 58.7, .4, E.lin);
-    const fade = 1 - A(t, 59.1, .45, E.lin);
-    [word, tag, foot].forEach(el => el.style.opacity = Math.min(+(el.style.opacity || 1), fade));
-    if (t < 58.7) foot.style.opacity = 0;
+    tr(rule, `scaleX(${A(t, 59.0, .6)})`);
+    const pp = E.oBack(pr(t, 59.3, .5));
+    st(pillIn, { opacity: cl(pp * 2), transform: `scale(${lerp(.7, 1, pp)})` });
+    url.set(A(t, 59.7, .7));
+    st(steps, { opacity: A(t, 60.5, .5, E.lin), transform: `translateY(${(1 - A(t, 60.5, .6)) * 16}px)` });
+    foot.style.opacity = A(t, 61.2, .5, E.lin);
+    // gentle breathing on the pill once it has landed, so the end card is not a still image
+    tr(pillIn, `scale(${lerp(.7, 1, pp) * (1 + .025 * Math.sin(Math.max(0, t - 60) * 3.2))})`);
   };
 }
 
@@ -721,6 +728,7 @@ const SECT = [[0, '00 / 07 — COLD OPEN'], [6, '01 / 07 — INTRO'], [10, '02 /
 const grainTiles = [0, 1, 2].map(k => { const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'); const d = x.createImageData(256, 256); const rr = rng(99 + k); for (let i = 0; i < d.data.length; i += 4) { const v = rr() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; } x.putImageData(d, 0, 0); return c.toDataURL(); });
 const grain = h('div', { cls: 'abs', style: 'inset:0;z-index:70;opacity:.055;pointer-events:none;mix-blend-mode:overlay' }, stage);
 h('div', { cls: 'abs', style: 'inset:0;z-index:65;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,rgba(0,0,0,0) 30%,rgba(0,0,0,.08) 55%,rgba(0,0,0,.22) 78%,rgba(0,0,0,.4) 100%)' }, stage);
+if (new URLSearchParams(location.search).has('clean')) grain.style.display = 'none';
 const fadeK = h('div', { cls: 'abs', style: 'inset:0;z-index:80;background:#000;pointer-events:none' }, stage);
 
 window.__renderAt = t => {
@@ -748,7 +756,7 @@ window.__renderAt = t => {
   hud.style.opacity = A(t, 1.6, .5, E.lin) * (1 - A(t, 58.6, .5, E.lin));
   grain.style.backgroundImage = `url(${grainTiles[f % 3]})`;
   grain.style.backgroundPosition = `${(f * 73) % 256}px ${(f * 151) % 256}px`;
-  fadeK.style.opacity = t < .15 ? 1 - t / .15 : t > 59.85 ? 1 : 0;
+  fadeK.style.opacity = t < .15 ? 1 - t / .15 : t > DUR - .3 ? A(t, DUR - .3, .3, E.lin) : 0;
 };
 }
 

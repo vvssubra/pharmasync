@@ -1,5 +1,6 @@
 // Renders index.html frame-by-frame to MP4 (or stills with --stills t1,t2,...).
-// Usage: node render.mjs [--workers 4] [--stills 1.2,7.5]
+// Usage: node render.mjs [--workers 4] [--clean] [--stills 1.2,7.5]
+// --clean drops the film-grain overlay (smaller, sharper files for phones).
 import { createRequire } from 'module';
 import { spawn } from 'child_process';
 import path from 'path';
@@ -7,11 +8,11 @@ import fs from 'fs';
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_PATH || '/opt/node22/lib/node_modules/playwright');
 const FFMPEG = process.env.FFMPEG || 'ffmpeg';
-const FPS = 30, DUR = 60, N = FPS * DUR;
+const FPS = 30, DUR = 66, N = FPS * DUR;
 const args = process.argv.slice(2);
 const opt = k => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : null; };
 const dir = path.dirname(new URL(import.meta.url).pathname);
-const url = 'file://' + path.join(dir, 'index.html') + '?render=1';
+const url = 'file://' + path.join(dir, 'index.html') + '?render=1' + (args.includes('--clean') ? '&clean=1' : '');
 const outDir = opt('--out') || path.join(dir, 'build');
 fs.mkdirSync(outDir, { recursive: true });
 
