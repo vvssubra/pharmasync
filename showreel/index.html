@@ -1,0 +1,766 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PharmaSync Showreel</title>
+<style>
+@font-face{font-family:SG;src:url(fonts/SpaceGrotesk.woff2) format('woff2');font-weight:300 700}
+@font-face{font-family:IN;src:url(fonts/Inter.woff2) format('woff2');font-weight:100 900}
+@font-face{font-family:JB;src:url(fonts/JetBrainsMono.woff2) format('woff2');font-weight:100 800}
+:root{--ink:#04120E;--ink2:#0B211A;--ink3:#0E2A22;--em:#10B981;--mint:#6EE7B7;--deep:#064E3B;--cream:#F2EFE6;--paper:#ECE5D3;--amber:#F5B83D;--coral:#FF5E57;--blue:#5AA9FF;--muted:rgba(242,239,230,.55)}
+html,body{margin:0;height:100%;background:#000;overflow:hidden}
+#stage{position:absolute;left:0;top:0;width:1920px;height:1080px;background:var(--ink);overflow:hidden;transform-origin:0 0;font-family:IN;color:var(--cream);-webkit-font-smoothing:antialiased}
+.layer{position:absolute;left:0;top:0;width:1920px;height:1080px;display:none;overflow:hidden}
+.abs{position:absolute}
+.mono{font-family:JB;letter-spacing:.06em;font-weight:500}
+.disp{font-family:SG;font-weight:700;letter-spacing:-.035em;line-height:1}
+.mask{overflow:hidden;padding:.06em 0 .14em;margin:-.06em 0 -.14em}
+.mask>div{will-change:transform}
+.lbl{font-family:JB;font-size:18px;letter-spacing:.18em;color:var(--em);font-weight:600}
+.chip{display:inline-block;font-family:JB;font-weight:700;font-size:15px;letter-spacing:.12em;padding:7px 12px;border-radius:999px}
+.tile{position:absolute;width:540px;height:400px;border-radius:28px;background:linear-gradient(160deg,#0E2A22,#08191427);border:1px solid rgba(110,231,183,.16);overflow:hidden;transform-origin:50% 0;box-shadow:0 30px 80px rgba(0,0,0,.35)}
+.tile .tag{position:absolute;left:32px;top:28px;font-family:JB;font-size:14px;letter-spacing:.16em;color:var(--em);font-weight:600}
+.tile .ttl{position:absolute;left:32px;bottom:58px;font-family:SG;font-weight:700;font-size:34px;letter-spacing:-.02em}
+.tile .sub{position:absolute;left:32px;bottom:28px;font-size:17px;color:var(--muted)}
+.tile .shine{position:absolute;top:0;bottom:0;width:180px;background:linear-gradient(100deg,transparent,rgba(110,231,183,.12),transparent);transform:translateX(-300px)}
+#play{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;font:600 16px JB,monospace;letter-spacing:.2em;color:#F2EFE6;background:rgba(0,0,0,.35);cursor:pointer;z-index:10}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+'use strict';
+const W = 1920, H = 1080, FPS = 30, DUR = 60;
+const stage = document.getElementById('stage');
+
+/* ---------- math + easing ---------- */
+const cl = (x, a = 0, b = 1) => x < a ? a : x > b ? b : x;
+const pr = (t, a, d) => cl((t - a) / d);
+const lerp = (a, b, x) => a + (b - a) * x;
+const E = {
+  lin: x => x,
+  oExpo: x => x >= 1 ? 1 : 1 - Math.pow(2, -10 * x),
+  iExpo: x => x <= 0 ? 0 : Math.pow(2, 10 * x - 10),
+  ioExpo: x => x <= 0 ? 0 : x >= 1 ? 1 : x < .5 ? Math.pow(2, 20 * x - 10) / 2 : (2 - Math.pow(2, -20 * x + 10)) / 2,
+  oCubic: x => 1 - Math.pow(1 - x, 3),
+  iCubic: x => x * x * x,
+  ioCubic: x => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2,
+  oBack: x => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); },
+  oQuint: x => 1 - Math.pow(1 - x, 5),
+};
+const A = (t, a, d, e = E.oExpo) => e(pr(t, a, d));
+function rng(seed) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
+const shake = (t, t0, amp, dur = .45) => { const u = t - t0; if (u < 0 || u > dur) return [0, 0]; const k = amp * Math.pow(1 - u / dur, 2); return [k * Math.sin(u * 91), k * Math.cos(u * 77)]; };
+const pulse = (t, beats, k = 9) => { let v = 0; for (const b of beats) { const u = t - b; if (u >= 0 && u < 1.2) v = Math.max(v, Math.exp(-u * k)); } return v; };
+const fmt = n => Math.round(n).toLocaleString('en-US');
+
+/* ---------- dom helpers ---------- */
+const SVGT = new Set(['svg','path','circle','line','rect','g','ellipse','polyline','polygon','defs','linearGradient','radialGradient','stop','text','filter','feGaussianBlur']);
+const NS = 'http://www.w3.org/2000/svg';
+function h(tag, attrs = {}, parent, html) {
+  const el = SVGT.has(tag) ? document.createElementNS(NS, tag) : document.createElement(tag);
+  for (const k in attrs) {
+    if (k === 'style') el.style.cssText = attrs[k];
+    else if (k === 'cls') el.setAttribute('class', attrs[k]);
+    else el.setAttribute(k, attrs[k]);
+  }
+  if (html != null) el.innerHTML = html;
+  if (parent) parent.appendChild(el);
+  return el;
+}
+const st = (el, o) => { for (const k in o) el.style[k] = o[k]; };
+const tr = (el, s) => { el.style.transform = s; };
+// A masked line whose inner div rises into view.
+function maskLine(parent, html, css) {
+  const m = h('div', { cls: 'abs mask', style: css }, parent);
+  const i = h('div', {}, m, html);
+  return { m, i, set(p) { tr(i, `translateY(${(1 - p) * 115}%)`); } };
+}
+// Rolling digits. Returns {el, set(p)} where p in 0..1 rolls each digit into place.
+function odometer(parent, str, css, loops = 2) {
+  const box = h('div', { cls: 'abs', style: css + ';display:flex;line-height:1' }, parent);
+  const cols = [];
+  for (const ch of str) {
+    if (/\d/.test(ch)) {
+      const win = h('div', { style: 'overflow:hidden;height:1em;position:relative' }, box);
+      const strip = h('div', { style: 'display:flex;flex-direction:column' }, win);
+      for (let k = 0; k <= loops * 10 + 9; k++) h('div', { style: 'height:1em;text-align:center' }, strip, String(k % 10));
+      cols.push({ strip, target: loops * 10 + (+ch) });
+    } else h('div', { style: 'height:1em' }, box, ch === ' ' ? '&nbsp;' : ch);
+  }
+  return { el: box, set(p, stagger = .12) {
+    cols.forEach((c, i) => { const q = E.oExpo(cl((p - i * stagger) / (1 - stagger * (cols.length - 1)))); tr(c.strip, `translateY(${-q * c.target}em)`); });
+  } };
+}
+
+/* ---------- layers ---------- */
+const layers = [];
+function layer(start, end, z = 1, bg) {
+  const el = h('div', { cls: 'layer', style: `z-index:${z};${bg ? 'background:' + bg : ''}` }, stage);
+  const L = { el, start, end, update: () => {} };
+  layers.push(L);
+  return L;
+}
+
+/* icons (24x24, stroke) */
+const ICON = {
+  doctor: 'M9 3h6v3H9z M7 4.5H6a1.5 1.5 0 0 0-1.5 1.5v13.5A1.5 1.5 0 0 0 6 21h12a1.5 1.5 0 0 0 1.5-1.5V6A1.5 1.5 0 0 0 18 4.5h-1 M12 10v6 M9 13h6',
+  shield: 'M12 2.8l7.2 3v6.1c0 4.4-3 7.6-7.2 9.3-4.2-1.7-7.2-4.9-7.2-9.3V5.8z M8.8 12.2l2.2 2.2 4.3-4.4',
+  pill: 'M10.6 3.6a4.9 4.9 0 0 1 6.9 6.9l-7 7a4.9 4.9 0 0 1-6.9-6.9z M7.1 10.1l6.8 6.8',
+  person: 'M12 11.5a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M4.5 21c0-4.1 3.4-7.5 7.5-7.5s7.5 3.4 7.5 7.5',
+  check: 'M5 12.5l4.5 4.5L19 7.5',
+};
+function icon(parent, name, size, color, sw = 1.8, css = '') {
+  const s = h('svg', { viewBox: '0 0 24 24', width: size, height: size, style: css, fill: 'none', stroke: color, 'stroke-width': sw, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, parent);
+  h('path', { d: ICON[name] }, s);
+  return s;
+}
+function capsule(parent, w, hgt) {
+  const c = h('div', { cls: 'abs', style: 'left:0;top:0;width:0;height:0' }, parent);
+  const L = h('div', { cls: 'abs', style: `background:linear-gradient(180deg,#34D399,#0E9F6E);box-shadow:inset 0 -6px 12px rgba(0,0,0,.18)` }, c);
+  const R = h('div', { cls: 'abs', style: `background:linear-gradient(180deg,#FFFDF7,#E4DFD2);box-shadow:inset 0 -6px 12px rgba(0,0,0,.12)` }, c);
+  return { c, set(w, hh, split = 0) {
+    const r = hh / 2;
+    st(L, { left: (-w / 2 - split) + 'px', top: -hh / 2 + 'px', width: w / 2 + 'px', height: hh + 'px', borderRadius: `${r}px 0 0 ${r}px` });
+    st(R, { left: split + 'px', top: -hh / 2 + 'px', width: w / 2 + 'px', height: hh + 'px', borderRadius: `0 ${r}px ${r}px 0` });
+  } };
+}
+
+function build() {
+/* ================= S1 · COLD OPEN (0 – 6.6) ================= */
+{
+  const L = layer(0, 6.7, 6);
+  const cap = capsule(L.el);
+  st(cap.c, { left: '960px', top: '540px' });
+  const words = ['EVERY', 'TABLET.', 'EVERY', 'PATIENT.', 'EVERY', 'SIGNATURE.', 'COUNTS.'];
+  const wEls = words.map((w, i) => {
+    const outline = w === 'EVERY';
+    return h('div', { cls: 'abs disp', style: `left:0;right:0;top:${i === 6 ? 380 : 430}px;text-align:center;font-size:${i === 6 ? 300 : 210}px;` +
+      (outline ? 'color:transparent;-webkit-text-stroke:3px #F2EFE6' : `color:${i === 6 ? '#10B981' : '#F2EFE6'}`) + ';display:none' }, L.el, w);
+  });
+  const hint = h('div', { cls: 'abs mono', style: 'left:0;right:0;top:600px;text-align:center;font-size:16px;color:rgba(242,239,230,.5);letter-spacing:.3em' }, L.el, '');
+  const beatsHit = [2, 2.5, 3, 3.5, 4, 4.5, 5];
+  L.update = t => {
+    let w = 26, hh = 26, rot = 0, sc = 1, op = 1, split = 0;
+    const d = E.oBack(pr(t, .25, .5));
+    w = hh = 26 * d * (1 + .5 * pulse(t, [.5, 1], 12));
+    const s1 = A(t, 1.0, .75, E.ioExpo);
+    if (t >= 1) { w = lerp(26, 240, s1); hh = lerp(26, 90, s1); rot = lerp(0, -35, s1); }
+    for (const b of beatsHit) rot += 45 * E.oBack(pr(t, b, .32));
+    const back = A(t, 2, .35);
+    sc = lerp(1, 3, back); op = lerp(1, .16, back);
+    const front = A(t, 5.5, .48, E.ioExpo);
+    if (t >= 5.5) { const r0 = -35 + 7 * 45; rot = lerp(r0, 360, front); sc = lerp(3, 6.6, front); op = lerp(.16, 1, front); }
+    split = lerp(0, 1500, A(t, 6.0, .6, E.iCubic));
+    cap.set(w * sc, hh * sc, split);
+    st(cap.c, { transform: `rotate(${rot}deg)`, opacity: op });
+    // words
+    let active = -1;
+    for (let i = 0; i < 7; i++) if (t >= 2 + i * .5 && t < 2.5 + i * .5) active = i;
+    wEls.forEach((el, i) => {
+      if (i !== active) { el.style.display = 'none'; return; }
+      const p = A(t, 2 + i * .5, .28);
+      st(el, { display: 'block', transform: `scale(${lerp(1.35, 1, p)})`, filter: `blur(${(1 - p) * 14}px)`, opacity: cl(p * 2), letterSpacing: `${lerp(.12, -.035, p)}em` });
+    });
+    const typed = '// INITIALISING PHARMASYNC';
+    hint.textContent = t < 1.9 ? typed.slice(0, Math.floor(cl((t - .6) / .9) * typed.length)) + (Math.floor(t * 4) % 2 ? '_' : ' ') : '';
+    hint.style.opacity = t < 1.9 ? 1 : 0;
+  };
+}
+
+/* ================= S2 · TITLE (5.95 – 10.3) ================= */
+{
+  const L = layer(5.95, 10.3, 2);
+  const cam = h('div', { cls: 'abs', style: 'inset:0' }, L.el);
+  const vl = [], hl = [];
+  for (let x = 0; x <= W; x += 120) vl.push(h('div', { cls: 'abs', style: `left:${x}px;top:0;width:1px;height:1080px;background:rgba(110,231,183,.09)` }, cam));
+  for (let y = 60; y <= H; y += 120) hl.push(h('div', { cls: 'abs', style: `left:0;top:${y}px;width:1920px;height:1px;background:rgba(110,231,183,.09)` }, cam));
+  const ring = h('div', { cls: 'abs', style: 'left:960px;top:540px;border-radius:50%;border:solid #10B981' }, cam);
+  const label = h('div', { cls: 'abs lbl', style: 'left:0;right:0;top:352px;text-align:center' }, cam, '');
+  const title = h('div', { cls: 'abs disp', style: 'left:0;right:0;top:400px;display:flex;justify-content:center;font-size:210px' }, cam);
+  const letters = [];
+  'PharmaSync'.split('').forEach((ch, i) => {
+    const m = h('div', { cls: 'mask' }, title);
+    letters.push(h('div', { style: `color:${i >= 6 ? '#10B981' : '#F2EFE6'}` }, m, ch));
+  });
+  const under = h('div', { cls: 'abs', style: 'left:0;top:648px;height:6px;background:#10B981;transform-origin:0 50%' }, cam);
+  const sub = h('div', { cls: 'abs mono', style: 'left:0;right:0;top:700px;text-align:center;font-size:26px;color:rgba(242,239,230,.8);letter-spacing:.04em' }, cam, '');
+  const subTxt = 'Pharmacy inventory & clinical workflow for Malaysian public health clinics.';
+  let syncBox = null;
+  L.update = t => {
+    if (!syncBox) { const a = letters[6].getBoundingClientRect(), b = letters[9].getBoundingClientRect(), s = stage.getBoundingClientRect(), k = s.width / W; syncBox = [(a.left - s.left) / k, (b.right - s.left) / k]; }
+    const g = A(t, 6.05, 1.4, E.oCubic);
+    vl.forEach((el, i) => { const dist = Math.abs(i * 120 - 960) / 960; tr(el, `scaleY(${cl(g * 1.6 - dist * .6)})`); });
+    hl.forEach((el, i) => { const dist = Math.abs(60 + i * 120 - 540) / 540; tr(el, `scaleX(${cl(g * 1.6 - dist * .6)})`); });
+    const rp = A(t, 6.0, 1.1, E.oCubic), r = lerp(20, 1300, rp);
+    st(ring, { width: 2 * r + 'px', height: 2 * r + 'px', marginLeft: -r + 'px', marginTop: -r + 'px', borderWidth: lerp(40, 0, rp) + 'px', opacity: 1 - rp });
+    letters.forEach((el, i) => { const p = A(t, 6.12 + i * .045, .8); tr(el, `translateY(${(1 - p) * 110}%) rotate(${(1 - p) * 8}deg)`); });
+    const lt = '[ 01 ]   INTRODUCING';
+    label.textContent = lt.slice(0, Math.floor(A(t, 6.5, .5, E.lin) * lt.length));
+    if (syncBox) { st(under, { left: syncBox[0] + 'px', width: (syncBox[1] - syncBox[0]) + 'px' }); tr(under, `scaleX(${A(t, 7.0, .7)})`); }
+    const n = Math.floor(A(t, 7.2, 1.3, E.lin) * subTxt.length);
+    sub.textContent = subTxt.slice(0, n) + (t < 9 && Math.floor(t * 4) % 2 ? '▌' : ' ');
+    tr(cam, `scale(${lerp(1, 1.07, pr(t, 6, 4.3))})`);
+  };
+}
+
+/* ================= S3 · THE PROBLEM (10.0 – 15.7) ================= */
+{
+  const L = layer(10.0, 15.7, 3);
+  const box = h('div', { cls: 'abs', style: 'inset:0;background:#ECE5D3;transform-origin:50% 50%' }, L.el);
+  h('div', { cls: 'abs', style: 'inset:0;background:repeating-linear-gradient(0deg,rgba(20,32,27,.035) 0 1px,transparent 1px 44px)' }, box);
+  const lbl = h('div', { cls: 'abs lbl', style: 'left:140px;top:236px;color:#B4412F' }, box, '[ 02 ]   THE PROBLEM');
+  const lines = [
+    maskLine(box, 'Paper bin cards.', 'left:140px;top:290px;font:700 92px SG;letter-spacing:-.035em;color:#14201B'),
+    maskLine(box, 'Manual signatures.', 'left:140px;top:392px;font:700 92px SG;letter-spacing:-.035em;color:#14201B'),
+    maskLine(box, 'Stock that never', 'left:140px;top:494px;font:700 92px SG;letter-spacing:-.035em;color:#14201B'),
+    maskLine(box, 'quite <span style="position:relative;display:inline-block">adds up.<i class="abs" style="left:-6px;right:-6px;top:52%;height:9px;background:#E0483C;transform-origin:0 50%;transform:scaleX(0)"></i></span>', 'left:140px;top:596px;font:700 92px SG;letter-spacing:-.035em;color:#14201B'),
+  ];
+  const strike = lines[3].i.querySelector('i');
+  const textWrap = [lbl, ...lines.map(l => l.m)];
+  // bin card
+  const card = h('div', { cls: 'abs', style: 'left:1110px;top:150px;width:660px;height:790px;background:#FBF8F0;border-radius:6px;box-shadow:0 40px 90px rgba(40,30,10,.25),0 2px 0 rgba(0,0,0,.05);transform-origin:50% 50%' }, box);
+  h('div', { cls: 'abs mono', style: 'left:40px;top:34px;font-size:15px;color:#7A6E58;letter-spacing:.22em' }, card, 'KAD PETAK  ·  NO. 0417');
+  h('div', { cls: 'abs', style: 'left:40px;top:64px;font:700 36px SG;color:#14201B;letter-spacing:-.02em' }, card, 'Paracetamol 500 mg Tablet');
+  h('div', { cls: 'abs', style: 'left:40px;right:40px;top:126px;height:2px;background:#14201B' }, card);
+  const colX = [40, 200, 330, 460];
+  ['TARIKH', 'TERIMA', 'KELUAR', 'BAKI'].forEach((c, i) => h('div', { cls: 'abs mono', style: `left:${colX[i]}px;top:142px;font-size:14px;color:#7A6E58;letter-spacing:.18em` }, card, c));
+  const rows = [['01/03', '', '', '120'], ['04/03', '', '24', '96'], ['07/03', '', '12', '84'], ['09/03', '200', '', '284'], ['12/03', '', '60', '224'], ['15/03', '', '38', '186'], ['18/03', '', '40', '146'], ['20/03', '', '', '']];
+  const rr = rng(7);
+  const rowEls = rows.map((r, i) => {
+    const y = 186 + i * 68;
+    h('div', { cls: 'abs', style: `left:40px;right:40px;top:${y + 60}px;height:1px;background:rgba(20,32,27,.14)` }, card);
+    const row = h('div', { cls: 'abs', style: `left:0;right:0;top:${y}px;height:64px;transform:rotate(${(rr() - .5) * 1.6}deg)` }, card);
+    r.forEach((v, j) => h('div', { cls: 'abs', style: `left:${colX[j] + (rr() - .5) * 8}px;top:14px;font:500 30px IN;font-style:oblique 12deg;color:#2B3E8C;letter-spacing:-.01em` }, row, v));
+    return row;
+  });
+  const svg = h('svg', { cls: 'abs', width: 660, height: 790, style: 'left:0;top:0;overflow:visible' }, card);
+  const circ = h('path', { d: 'M520 610 C 610 596, 640 640, 590 668 C 540 690, 440 684, 438 640 C 436 604, 500 592, 560 604', fill: 'none', stroke: '#E0483C', 'stroke-width': 5, 'stroke-linecap': 'round', 'stroke-dasharray': 600, 'stroke-dashoffset': 600 }, svg);
+  const note = h('div', { cls: 'abs', style: 'left:430px;top:706px;font:600 30px IN;font-style:oblique 12deg;color:#E0483C;transform:rotate(-4deg)' }, card, 'fizikal: 164 ?');
+  // chaos cards
+  const r2 = rng(42);
+  const chaos = [];
+  for (let i = 0; i < 16; i++) {
+    const el = h('div', { cls: 'abs', style: `left:0;top:0;width:360px;height:440px;background:#FBF8F0 repeating-linear-gradient(0deg,transparent 0 58px,rgba(20,32,27,.12) 58px 60px);border-radius:6px;box-shadow:0 30px 70px rgba(40,30,10,.28)` }, box);
+    h('div', { cls: 'abs', style: `left:28px;top:26px;width:${140 + r2() * 120}px;height:14px;background:rgba(20,32,27,.7);border-radius:3px` }, el);
+    const side = Math.floor(r2() * 3);
+    const sx = side === 0 ? -500 : side === 1 ? 2100 : r2() * 1920, sy = side === 2 ? 1300 : r2() * 1080;
+    chaos.push({ el, sx, sy, ex: 380 + r2() * 1200, ey: 80 + r2() * 560, rot0: (r2() - .5) * 120, rot: (r2() - .5) * 44, t0: 13.15 + i * .085 });
+  }
+  L.update = t => {
+    lines.forEach((l, i) => l.set(A(t, 10.3 + i * .38, .7)));
+    tr(strike, `scaleX(${A(t, 12.4, .35, E.oCubic)})`);
+    st(lbl, { opacity: A(t, 10.2, .4, E.lin) });
+    tr(card, `translate(${lerp(260, 0, A(t, 10.1, .9))}px, ${lerp(80, 0, A(t, 10.1, .9))}px) rotate(${lerp(9, 2.5, A(t, 10.1, 1))}deg)`);
+    card.style.opacity = A(t, 10.1, .3, E.lin);
+    rowEls.forEach((row, i) => { row.style.clipPath = `inset(0 ${(1 - A(t, 10.6 + i * .2, .35, E.oCubic)) * 100}% 0 0)`; });
+    circ.setAttribute('stroke-dashoffset', 600 * (1 - A(t, 12.3, .5, E.ioCubic)));
+    st(note, { opacity: A(t, 12.75, .2, E.lin) });
+    chaos.forEach(c => {
+      const p = A(t, c.t0, .7);
+      st(c.el, { display: t < c.t0 ? 'none' : 'block', transform: `translate(${lerp(c.sx, c.ex, p)}px,${lerp(c.sy, c.ey, p)}px) rotate(${lerp(c.rot0, c.rot, p)}deg)` });
+    });
+    const out = A(t, 13.5, .7, E.iCubic);
+    textWrap.forEach((el, i) => st(el, { transform: `translateX(${-out * (700 + i * 60)}px)` }));
+    const [sx, sy] = shake(t, 14.1, 10);
+    const sq = A(t, 15.05, .5, E.iExpo);
+    tr(box, `translate(${sx}px,${sy}px) scale(${lerp(1, 1.03, sq)}, ${lerp(1, .003, sq)})`);
+  };
+}
+
+/* ================= S4 · THE LEDGER (15.5 – 24.05) ================= */
+{
+  const L = layer(15.5, 24.05, 2);
+  const cam = h('div', { cls: 'abs', style: 'inset:0' }, L.el);
+  const line = h('div', { cls: 'abs', style: 'height:3px;background:#10B981;box-shadow:0 0 24px #10B981,0 0 4px #6EE7B7' }, cam);
+  const lbl = h('div', { cls: 'abs lbl', style: 'left:210px;top:92px' }, cam, '[ 03 ]   THE LEDGER');
+  const h1 = maskLine(cam, "Stock isn't typed in.", 'left:210px;top:132px;font:700 76px SG;letter-spacing:-.035em');
+  const h2 = maskLine(cam, "It's computed.", 'left:210px;top:216px;font:700 76px SG;letter-spacing:-.035em;color:#10B981');
+  // equation
+  const eq = h('div', { cls: 'abs', style: 'left:210px;top:330px;display:flex;align-items:center;gap:22px' }, cam);
+  const toks = [];
+  const mkTok = (label, val, hi) => {
+    const b = h('div', { style: `position:relative;padding:12px 22px 14px;border-radius:14px;border:1px solid ${hi ? '#10B981' : 'rgba(242,239,230,.22)'};background:${hi ? '#10B981' : 'rgba(14,42,34,.6)'};color:${hi ? '#04120E' : '#F2EFE6'}` }, eq);
+    h('div', { cls: 'mono', style: `font-size:14px;letter-spacing:.18em;opacity:${hi ? .75 : .6};margin-bottom:6px` }, b, label);
+    const v = h('div', { style: 'font:700 54px SG;letter-spacing:-.02em;font-variant-numeric:tabular-nums;min-width:3ch' }, b, '0');
+    toks.push({ el: b, v, val });
+  };
+  const mkOp = s => toks.push({ el: h('div', { style: 'font:500 54px SG;color:rgba(242,239,230,.5)' }, eq, s) });
+  mkTok('BAKI AWAL', 120); mkOp('+'); mkTok('TERIMAAN', 480); mkOp('−'); mkTok('KELUARAN', 516); mkOp('='); mkTok('BAKI', 84, true);
+  // data
+  const outs = [0, 14, 12, 15, 13, 16, 15, 18, 14, 17, 16, 19, 13, 16, 18, 15, 17, 14, 16, 16, 18, 22, 19, 21, 18, 24, 20, 19, 23, 17, 21];
+  const ins = {}; ins[5] = 200; ins[20] = 280;
+  const S = [120]; for (let d = 1; d <= 30; d++) S[d] = S[d - 1] + (ins[d] || 0) - outs[d];
+  const X = d => 210 + d * 50, Y = v => 820 - v * 1.1;
+  const status = v => v < 30 ? ['KRITIKAL', '#FF5E57'] : v < 60 ? ['RENDAH', '#F5B83D'] : v <= 300 ? ['NORMAL', '#10B981'] : ['LEBIHAN', '#5AA9FF'];
+  const svg = h('svg', { cls: 'abs', width: W, height: H, style: 'left:0;top:0;overflow:visible' }, cam);
+  const defs = h('defs', {}, svg);
+  const gr = h('linearGradient', { id: 'ar', x1: 0, y1: 0, x2: 0, y2: 1 }, defs);
+  h('stop', { offset: 0, 'stop-color': '#10B981', 'stop-opacity': .32 }, gr); h('stop', { offset: 1, 'stop-color': '#10B981', 'stop-opacity': 0 }, gr);
+  const mkThr = (v, c, name) => {
+    const g = h('g', {}, svg);
+    h('line', { x1: 210, x2: 1710, y1: Y(v), y2: Y(v), stroke: c, 'stroke-width': 2, 'stroke-dasharray': '10 10' }, g);
+    h('text', { x: 1720, y: Y(v) + 5, fill: c, 'font-family': 'JB', 'font-size': 14, 'letter-spacing': 2 }, g, name);
+    return g;
+  };
+  const thrR = mkThr(60, '#F5B83D', 'REORDER 60'), thrM = mkThr(30, '#FF5E57', 'MIN 30');
+  const area = h('path', { fill: 'url(#ar)' }, svg);
+  const path = h('path', { fill: 'none', stroke: '#6EE7B7', 'stroke-width': 4, 'stroke-linejoin': 'round' }, svg);
+  const bars = [];
+  for (let d = 1; d <= 30; d++) bars.push(h('rect', { x: X(d) - 9, width: 6, fill: 'rgba(255,94,87,.55)', rx: 2 }, svg));
+  const head = h('circle', { r: 9, fill: '#F2EFE6', stroke: '#10B981', 'stroke-width': 4 }, svg);
+  const headChip = h('div', { cls: 'abs chip', style: 'color:#04120E;white-space:nowrap' }, cam);
+  const rcpt = [5, 20].map(d => h('div', { cls: 'abs chip', style: `left:${X(d) - 90}px;top:${Y(S[d]) - 70}px;background:#04120E;border:1.5px solid #10B981;color:#6EE7B7;transform-origin:50% 100%` }, cam, `+${ins[d]} TERIMAAN`));
+  // log
+  const log = h('div', { cls: 'abs mono', style: 'left:1180px;top:108px;width:560px;height:190px;overflow:hidden;font-size:16px;line-height:30px;color:rgba(242,239,230,.72)' }, cam);
+  const logInner = h('div', { cls: 'abs', style: 'left:0;right:0;bottom:0' }, log);
+  const logLines = [];
+  for (let d = 1; d <= 30; d++) {
+    const dd = String(d).padStart(2, '0') + '/03';
+    if (ins[d]) logLines.push(h('div', { style: 'color:#6EE7B7;display:none' }, logInner, `${dd}  TERIMAAN  +${ins[d]}  PO-11${80 + d}`));
+    logLines.push(h('div', { style: 'display:none' }, logInner, `${dd}  KELUARAN  −${String(outs[d]).padStart(2, ' ')}   RX-22${String(d * 3 + 10).padStart(2, '0')}   ${String(S[d]).padStart(3, ' ')}`));
+  }
+  const logDay = []; for (let d = 1; d <= 30; d++) { if (ins[d]) logDay.push(d); logDay.push(d); }
+  const legend = h('div', { cls: 'abs', style: 'left:210px;top:880px;display:flex;gap:16px;align-items:center' }, cam);
+  h('div', { cls: 'mono', style: 'font-size:15px;color:rgba(242,239,230,.5);letter-spacing:.18em;margin-right:10px' }, legend, 'STATUS');
+  const chips = [['KRITIKAL', '#FF5E57'], ['RENDAH', '#F5B83D'], ['NORMAL', '#10B981'], ['LEBIHAN', '#5AA9FF']].map(([n, c]) => h('div', { cls: 'chip', style: `border:1.5px solid ${c};color:${c}` }, legend, n));
+  const iris = h('div', { cls: 'abs', style: 'border-radius:50%;background:#10B981;z-index:5' }, L.el);
+  L.update = t => {
+    const m = A(t, 16.0, .8, E.ioExpo);
+    st(line, { left: lerp(0, 210, m) + 'px', width: lerp(1920, 1500, m) + 'px', top: lerp(540, 820, m) - 1.5 + 'px', opacity: A(t, 15.52, .08, E.lin) });
+    lbl.style.opacity = A(t, 16.3, .3, E.lin);
+    h1.set(A(t, 16.3, .7)); h2.set(A(t, 16.6, .7));
+    let k = 0;
+    toks.forEach((tk, i) => {
+      const p = A(t, 17.0 + i * .22, .5);
+      st(tk.el, { opacity: p, transform: `translateY(${(1 - p) * 40}px) scale(${lerp(.85, 1, E.oBack(pr(t, 17 + i * .22, .45)))})` });
+      if (tk.v) tk.v.textContent = fmt(tk.val * A(t, 17.05 + i * .22, .8, E.oCubic));
+    });
+    const dp = pr(t, 18.6, 3.0), D = 30 * E.ioCubic(dp);
+    const di = Math.floor(D), fr = D - di;
+    let d = `M${X(0)} ${Y(S[0])}`;
+    for (let i = 1; i <= di; i++) d += ` L${X(i)} ${Y(S[i - 1])} L${X(i)} ${Y(S[i])}`;
+    let hx = X(di), hy = Y(S[di]);
+    if (di < 30) { hx = X(di) + fr * 50; d += ` L${hx} ${hy}`; }
+    path.setAttribute('d', d);
+    area.setAttribute('d', d + ` L${hx} 820 L210 820 Z`);
+    path.style.opacity = area.style.opacity = t >= 18.6 ? 1 : 0;
+    bars.forEach((b, i) => { const dd = i + 1; const on = D >= dd ? E.oBack(cl((D - dd) / 1.2)) : 0; const hgt = outs[dd] * 2.6 * on; b.setAttribute('y', 826); b.setAttribute('height', Math.max(0, hgt)); });
+    thrR.style.opacity = A(t, 18.4, .4, E.lin); thrM.style.opacity = A(t, 18.5, .4, E.lin);
+    const cur = S[di];
+    const [nm, col] = status(cur);
+    head.setAttribute('cx', hx); head.setAttribute('cy', hy); head.style.opacity = t >= 18.6 ? 1 : 0;
+    head.setAttribute('stroke', col);
+    headChip.textContent = `${cur} · ${nm}`;
+    st(headChip, { left: hx + 'px', top: hy - 56 + 'px', transform: 'translateX(-50%)', background: col, opacity: t >= 18.6 ? 1 : 0 });
+    rcpt.forEach((el, i) => { const dd = [5, 20][i]; const p = D >= dd ? E.oBack(cl((D - dd) / 1.4)) : 0; st(el, { opacity: cl(p * 2), transform: `scale(${p})` }); });
+    let shown = 0; logLines.forEach((el, i) => { const on = D >= logDay[i]; el.style.display = on ? 'block' : 'none'; if (on) shown++; });
+    log.style.opacity = t >= 18.6 ? 1 : 0;
+    chips.forEach((c, i) => { const p = A(t, 21.8 + i * .12, .5); st(c, { opacity: p, transform: `translateY(${(1 - p) * 20}px)`, background: (i === 2 && t > 22.5) ? `rgba(16,185,129,${.18 + .12 * Math.sin(t * 6)})` : 'transparent' }); });
+    legend.firstChild.style.opacity = A(t, 21.7, .4, E.lin);
+    tr(cam, `scale(${lerp(1, 1.035, pr(t, 16, 8))})`);
+    const ip = A(t, 23.55, .45, E.iExpo), R = ip * 2400;
+    st(iris, { left: 1710 - R + 'px', top: Y(84) - R + 'px', width: 2 * R + 'px', height: 2 * R + 'px', display: ip > 0 ? 'block' : 'none' });
+  };
+}
+
+/* ================= S5 · WORKFLOW (24.0 – 34.2) ================= */
+{
+  const L = layer(24.0, 34.2, 3);
+  const cam = h('div', { cls: 'abs', style: 'inset:0;transform-origin:960px 560px' }, L.el);
+  const NX = [330, 790, 1250, 1710], NY = 650, NR = 78;
+  const lbl = h('div', { cls: 'abs lbl', style: 'left:0;right:0;top:92px;text-align:center' }, cam, '[ 04 ]   THE WORKFLOW');
+  const h1 = maskLine(cam, 'One request. Four hands.', 'left:0;right:0;top:132px;text-align:center;font:700 76px SG;letter-spacing:-.035em');
+  const h2 = maskLine(cam, 'Zero paper.', 'left:0;right:0;top:216px;text-align:center;font:700 76px SG;letter-spacing:-.035em;color:#10B981');
+  const svg = h('svg', { cls: 'abs', width: W, height: H, style: 'left:0;top:0' }, cam);
+  const conns = [0, 1, 2].map(i => {
+    const x1 = NX[i] + NR + 14, x2 = NX[i + 1] - NR - 14;
+    const base = h('line', { x1, x2, y1: NY, y2: NY, stroke: 'rgba(110,231,183,.28)', 'stroke-width': 2, 'stroke-dasharray': '2 10', 'stroke-linecap': 'round' }, svg);
+    const hot = h('line', { x1, x2, y1: NY, y2: NY, stroke: '#10B981', 'stroke-width': 3, 'stroke-dasharray': x2 - x1, 'stroke-dashoffset': x2 - x1 }, svg);
+    const arr = h('path', { d: `M${(x1 + x2) / 2 - 6} ${NY - 9} L${(x1 + x2) / 2 + 5} ${NY} L${(x1 + x2) / 2 - 6} ${NY + 9}`, fill: 'none', stroke: '#6EE7B7', 'stroke-width': 3, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' }, svg);
+    return { base, hot, arr, len: x2 - x1 };
+  });
+  const names = [['Doctor', 'MO · SUBMITS'], ['Specialist', 'FMS · NAG 2024'], ['Pharmacist', 'DISPENSES'], ['Patient', 'REGISTERED']];
+  const icons = ['doctor', 'shield', 'pill', 'person'];
+  const nodes = NX.map((x, i) => {
+    const n = h('div', { cls: 'abs', style: `left:${x - NR}px;top:${NY - NR}px;width:${2 * NR}px;height:${2 * NR}px;border-radius:50%;background:#0B211A;border:3px solid #10B981;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 0 rgba(16,185,129,.4)` }, cam);
+    icon(n, icons[i], 64, '#F2EFE6', 1.7);
+    const ring = h('div', { cls: 'abs', style: `left:${x - NR}px;top:${NY - NR}px;width:${2 * NR}px;height:${2 * NR}px;border-radius:50%;border:2px solid #6EE7B7;opacity:0` }, cam);
+    const nm = h('div', { cls: 'abs', style: `left:${x - 200}px;width:400px;top:${NY + 104}px;text-align:center;font:700 36px SG;letter-spacing:-.02em` }, cam, names[i][0]);
+    const sb = h('div', { cls: 'abs mono', style: `left:${x - 200}px;width:400px;top:${NY + 152}px;text-align:center;font-size:15px;letter-spacing:.2em;color:rgba(242,239,230,.5)` }, cam, names[i][1]);
+    return { n, ring, nm, sb };
+  });
+  const note3 = h('div', { cls: 'abs mono', style: `left:${NX[2] - 200}px;width:400px;top:${NY + 190}px;text-align:center;font-size:15px;color:#6EE7B7;letter-spacing:.08em` }, cam, '−21 KELUARAN · LEDGER UPDATED');
+  const note4 = h('div', { cls: 'abs mono', style: `left:${NX[3] - 200}px;width:400px;top:${NY + 190}px;text-align:center;font-size:15px;color:#6EE7B7;letter-spacing:.08em` }, cam, '+ PATIENT REGISTRY');
+  const chk = icon(cam, 'check', 44, '#04120E', 3.4, `position:absolute;left:${NX[2] + 40}px;top:${NY - 100}px;background:#6EE7B7;border-radius:50%;padding:6px`);
+  // request card
+  const card = h('div', { cls: 'abs', style: 'left:0;top:0;width:340px;padding:18px 22px 20px;box-sizing:border-box;border-radius:18px;background:#0E2A22;border:1.5px solid rgba(110,231,183,.45);box-shadow:0 24px 60px rgba(0,0,0,.45)' }, cam);
+  const cTop = h('div', { style: 'display:flex;justify-content:space-between;align-items:center;margin-bottom:10px' }, card);
+  h('div', { cls: 'mono', style: 'font-size:14px;color:rgba(242,239,230,.55);letter-spacing:.14em' }, cTop, 'RX-2291');
+  const chip = h('div', { cls: 'chip', style: 'font-size:13px;padding:6px 11px' }, cTop, 'PENDING');
+  h('div', { style: 'font:700 30px SG;letter-spacing:-.02em' }, card, 'Amoxicillin 500 mg');
+  h('div', { cls: 'mono', style: 'font-size:15px;color:rgba(242,239,230,.6);margin-top:6px;letter-spacing:.04em' }, card, '21 cap · 3×/day · 7 days');
+  const stamp = h('div', { cls: 'abs', style: `left:${NX[1] - 200}px;top:350px;width:400px;padding:14px 0 16px;text-align:center;border:5px solid #10B981;border-radius:14px;color:#10B981;background:rgba(4,18,14,.88);transform-origin:50% 50%` }, cam);
+  h('div', { style: 'font:700 64px SG;letter-spacing:.02em;line-height:1' }, stamp, 'APPROVED');
+  h('div', { cls: 'mono', style: 'font-size:14px;letter-spacing:.2em;margin-top:8px' }, stamp, 'CLINICAL PATHWAY · NAG 2024');
+  // pipeline caption
+  const pipe = h('div', { cls: 'abs mono', style: 'left:0;right:0;top:968px;text-align:center;font-size:22px;letter-spacing:.2em' }, cam);
+  const pw = ['PENDING', 'APPROVED', 'FULFILLED'].map((w, i) => { const s = h('span', { style: 'color:rgba(242,239,230,.35)' }, pipe, w); if (i < 2) h('span', { style: 'color:rgba(242,239,230,.25);margin:0 26px' }, pipe, '→'); return s; });
+  // stream particles
+  const pg = h('g', { style: 'filter:drop-shadow(0 0 6px #10B981)' }, svg);
+  const parts = []; for (let i = 0; i < 26; i++) parts.push(h('circle', { r: 5, fill: '#6EE7B7' }, pg));
+  const iris = h('div', { cls: 'abs', style: 'border-radius:50%;background:#10B981;z-index:4' }, L.el);
+  const flash = h('div', { cls: 'abs', style: 'inset:0;background:#F2EFE6;z-index:6;opacity:0' }, L.el);
+  const legs = [[26.5, NX[0], NX[1]], [28.3, NX[1], NX[2]], [29.9, NX[2], NX[3]]];
+  L.update = t => {
+    // iris shrink into doctor node
+    const ip = A(t, 24.0, .55, E.oExpo), R = lerp(2400, NR, ip);
+    st(iris, { left: NX[0] - R + 'px', top: NY - R + 'px', width: 2 * R + 'px', height: 2 * R + 'px', opacity: 1 - A(t, 24.45, .25, E.lin), display: t < 24.75 ? 'block' : 'none' });
+    lbl.style.opacity = A(t, 24.3, .3, E.lin);
+    h1.set(A(t, 24.35, .7)); h2.set(A(t, 24.75, .7));
+    nodes.forEach((o, i) => {
+      const p = E.oBack(pr(t, 24.25 + i * .14, .55));
+      tr(o.n, `scale(${p})`); o.n.style.opacity = cl(p * 3);
+      const q = A(t, 24.5 + i * .14, .6);
+      st(o.nm, { opacity: q, transform: `translateY(${(1 - q) * 24}px)` }); st(o.sb, { opacity: q * .9, transform: `translateY(${(1 - q) * 24}px)` });
+    });
+    conns.forEach((c, i) => {
+      c.base.style.opacity = A(t, 24.7 + i * .15, .4, E.lin);
+      c.base.setAttribute('stroke-dashoffset', -t * 30);
+      const leg = legs[i]; const hp = A(t, leg[0], .8, E.ioExpo);
+      c.hot.setAttribute('stroke-dashoffset', c.len * (1 - hp));
+      c.arr.style.opacity = A(t, 24.9 + i * .15, .3, E.lin);
+    });
+    // card motion
+    let cx = NX[0], cy = 450, cop = A(t, 25.7, .35, E.lin), cyo = (1 - A(t, 25.7, .6)) * 60, csc = 1;
+    for (const [t0, a, b] of legs) { if (t >= t0) { const u = A(t, t0, .8, E.ioExpo); cx = lerp(a, b, u); cy = 450 - Math.sin(Math.PI * u) * 40; } }
+    const sink = A(t, 30.85, .5, E.iCubic);
+    csc = lerp(1, .15, sink); cop *= 1 - sink; cy = lerp(cy, NY, sink);
+    const [sx, sy] = shake(t, 27.55, 14);
+    st(card, { transform: `translate(${cx - 170 + sx}px, ${cy - 90 + cyo + sy}px) scale(${csc})`, opacity: cop });
+    let state = 0; if (t >= 27.5) state = 1; if (t >= 29.25) state = 2;
+    const cols = ['#F5B83D', '#10B981', '#6EE7B7'];
+    chip.textContent = ['PENDING', 'APPROVED', 'FULFILLED'][state];
+    const pop = 1 + .35 * pulse(t, [27.5, 29.25], 10);
+    st(chip, { background: cols[state], color: '#04120E', transform: `scale(${pop})` });
+    pw.forEach((s, i) => s.style.color = i === state && t > 25.6 ? cols[i] : 'rgba(242,239,230,.3)');
+    pipe.style.opacity = A(t, 25.5, .4, E.lin);
+    // stamp
+    const sp = A(t, 27.4, .16, E.oCubic);
+    st(stamp, { opacity: sp * (1 - A(t, 28.2, .25, E.lin)), transform: `translate(${sx}px,${sy}px) rotate(-9deg) scale(${lerp(2.4, 1, sp)})` });
+    // node flashes
+    const arrive = [25.7, 27.35, 29.15, 30.75];
+    nodes.forEach((o, i) => { const u = pr(t, arrive[i], .7); st(o.ring, { opacity: u > 0 && u < 1 ? 1 - u : 0, transform: `scale(${1 + u * .8})` }); });
+    chk.style.transform = `scale(${E.oBack(pr(t, 29.25, .4))})`;
+    st(note3, { opacity: A(t, 29.4, .3, E.lin) }); st(note4, { opacity: A(t, 31.0, .3, E.lin) });
+    // stream
+    const so = A(t, 31.2, .6, E.lin);
+    const total = NX[3] - NX[0];
+    parts.forEach((c, i) => {
+      const u = ((t - 31.2) * .32 + i / parts.length) % 1;
+      let x = NX[0] + u * total;
+      let vis = so; for (const nx of NX) if (Math.abs(x - nx) < NR + 10) vis = 0;
+      c.setAttribute('cx', x); c.setAttribute('cy', NY); c.style.opacity = vis;
+      c.setAttribute('fill', x < NX[1] ? '#F5B83D' : x < NX[2] ? '#10B981' : '#6EE7B7');
+    });
+    // camera
+    const push = E.ioCubic(pr(t, 31.0, 3)), zb = A(t, 33.75, .4, E.iExpo);
+    tr(cam, `scale(${lerp(1, 1.08, push) * lerp(1, 2.6, zb)})`);
+    st(cam, { filter: zb > 0 ? `blur(${zb * 16}px)` : 'none', opacity: 1 - zb });
+    flash.style.opacity = .5 * pulse(t, [34.08], 14) * (t < 34.2 ? 1 : 0);
+  };
+}
+
+/* ================= S6 · TOOLKIT (34.0 – 42.0) ================= */
+{
+  const L = layer(34.0, 42.0, 2);
+  const cam = h('div', { cls: 'abs', style: 'left:0;top:0;width:1920px;height:1080px;transform-origin:0 0' }, L.el);
+  const lbl = h('div', { cls: 'abs lbl', style: 'left:120px;top:88px' }, cam, '[ 05 ]   THE TOOLKIT');
+  const hd = maskLine(cam, 'Built for the dispensing counter.', 'right:120px;top:68px;font:700 48px SG;letter-spacing:-.03em');
+  const pos = [[0, 0], [1, 0], [2, 0], [0, 1], [1, 1], [2, 1]];
+  const meta = [
+    ['01 · PAEDIATRICS', 'Paeds Dose Calculator', 'Weight-based dosing for children'],
+    ['02 · SAFETY', 'G6PD Deficiency', 'Flags drugs to avoid, at a glance'],
+    ['03 · CONTROLLED', 'Annual Kuota', 'Per-patient limits, tracked all year'],
+    ['04 · ALERTS', 'Push Notifications', 'The right person, the moment it matters'],
+    ['05 · AI', 'AI, Fully Audited', 'Every call logged with user, role & tokens'],
+    ['06 · REPORTS', 'Laporan', 'Audit-ready reports in one click'],
+  ];
+  const tiles = pos.map(([c, r], i) => {
+    const el = h('div', { cls: 'tile', style: `left:${120 + c * 570}px;top:${160 + r * 430}px` }, cam);
+    h('div', { cls: 'tag' }, el, meta[i][0]); h('div', { cls: 'ttl' }, el, meta[i][1]); h('div', { cls: 'sub' }, el, meta[i][2]);
+    const shine = h('div', { cls: 'shine' }, el);
+    return { el, shine, delay: (c + r) * .09, c, r };
+  });
+  // 1 paeds
+  const t1 = tiles[0].el;
+  const kg = h('div', { cls: 'abs mono', style: 'left:32px;top:78px;font-size:22px;color:rgba(242,239,230,.8)' }, t1);
+  const mg = h('div', { cls: 'abs disp', style: 'left:30px;top:118px;font-size:96px;color:#10B981;font-variant-numeric:tabular-nums' }, t1);
+  const track = h('div', { cls: 'abs', style: 'left:32px;right:32px;top:238px;height:6px;border-radius:3px;background:rgba(242,239,230,.14)' }, t1);
+  const fill = h('div', { cls: 'abs', style: 'left:0;top:0;bottom:0;border-radius:3px;background:#10B981' }, track);
+  const knob = h('div', { cls: 'abs', style: 'top:-9px;width:24px;height:24px;margin-left:-12px;border-radius:50%;background:#F2EFE6;box-shadow:0 0 0 6px rgba(16,185,129,.3)' }, track);
+  // 2 g6pd
+  const t2 = tiles[1].el;
+  const g6 = [['Paracetamol', 'SAFE', '#10B981'], ['Primaquine', 'AVOID', '#FF5E57'], ['Nitrofurantoin', 'AVOID', '#FF5E57']].map(([n, s, c], i) => {
+    const row = h('div', { cls: 'abs', style: `left:32px;right:32px;top:${80 + i * 58}px;height:46px;border-radius:12px;background:rgba(242,239,230,.05);display:flex;align-items:center;justify-content:space-between;padding:0 16px;box-sizing:border-box` }, t2);
+    h('div', { style: 'font:600 21px IN' }, row, n);
+    const ch = h('div', { cls: 'chip', style: `font-size:13px;padding:5px 10px;border:1.5px solid ${c};color:${c}` }, row, s);
+    return { row, ch, c };
+  });
+  // 3 kuota ring
+  const t3 = tiles[2].el;
+  const ringSvg = h('svg', { cls: 'abs', width: 240, height: 240, style: 'left:270px;top:50px;overflow:visible' }, t3);
+  h('circle', { cx: 120, cy: 120, r: 90, fill: 'none', stroke: 'rgba(242,239,230,.12)', 'stroke-width': 18 }, ringSvg);
+  const arc = h('circle', { cx: 120, cy: 120, r: 90, fill: 'none', stroke: '#10B981', 'stroke-width': 18, 'stroke-linecap': 'round', 'stroke-dasharray': 2 * Math.PI * 90, transform: 'rotate(-90 120 120)' }, ringSvg);
+  const kq = h('div', { cls: 'abs disp', style: 'left:32px;top:96px;font-size:84px;font-variant-numeric:tabular-nums' }, t3);
+  h('div', { cls: 'abs mono', style: 'left:34px;top:190px;font-size:17px;color:rgba(242,239,230,.6)' }, t3, '/ 400 USED · 2026');
+  // 4 push
+  const t4 = tiles[3].el;
+  const toasts = [['#F5B83D', 'Stock RENDAH · Metformin 500 mg'], ['#10B981', 'Antibiotic form approved · FMS'], ['#5AA9FF', 'New request · RX-2304']].map(([c, s]) => {
+    const el = h('div', { cls: 'abs', style: 'left:32px;right:32px;height:52px;border-radius:14px;background:#12352B;border:1px solid rgba(110,231,183,.2);display:flex;align-items:center;gap:14px;padding:0 16px;box-sizing:border-box;box-shadow:0 10px 24px rgba(0,0,0,.3)' }, t4);
+    h('div', { style: `width:12px;height:12px;border-radius:50%;background:${c};flex:none` }, el);
+    h('div', { style: 'font:500 19px IN;white-space:nowrap' }, el, s);
+    return el;
+  });
+  // 5 ai
+  const t5 = tiles[4].el;
+  const aiL = ['› suggest_regimen    200  1,284 tok', '› summarise_ledger   200    642 tok', '› ai_audit_logs      ✓ user · role · ts'];
+  const aiEls = aiL.map((s, i) => h('div', { cls: 'abs mono', style: `left:32px;top:${86 + i * 40}px;font-size:17px;white-space:pre;color:${i === 2 ? '#6EE7B7' : 'rgba(242,239,230,.85)'}` }, t5));
+  // 6 laporan
+  const t6 = tiles[5].el;
+  const bh = [.42, .66, .5, .82, .58, .74, .9];
+  const barsL = bh.map((v, i) => h('div', { cls: 'abs', style: `left:${40 + i * 50}px;bottom:130px;width:30px;height:${v * 150}px;border-radius:6px 6px 2px 2px;background:${i === 6 ? '#10B981' : 'rgba(110,231,183,.35)'};transform-origin:50% 100%` }, t6));
+  const pdf = h('div', { cls: 'abs chip', style: 'right:32px;top:24px;background:#F2EFE6;color:#04120E;font-size:13px' }, t6, 'EXPORT PDF ↓');
+  const RCX = 120 + 2 * 570 + 270 + 120, RCY = 160 + 50 + 120; // ring centre in stage coords
+  L.update = t => {
+    lbl.style.opacity = A(t, 34.2, .3, E.lin); hd.set(A(t, 34.25, .7));
+    tiles.forEach((o, i) => {
+      const p = A(t, 34.05 + o.delay, .85);
+      st(o.el, { opacity: cl(p * 1.6), transform: `perspective(1600px) translateY(${(1 - p) * 90}px) rotateX(${(1 - p) * -70}deg) scale(${lerp(.92, 1, p)})` });
+      tr(o.shine, `translateX(${lerp(-300, 760, A(t, 37.6 + o.delay, .9, E.ioCubic))}px) skewX(-12deg)`);
+    });
+    // paeds
+    const w = 18 * A(t, 34.9, 1.1, E.ioCubic);
+    kg.textContent = `${w.toFixed(1)} kg  ×  15 mg/kg`;
+    mg.textContent = `${Math.round(w * 15)} mg`;
+    const kp = w / 30; fill.style.width = kp * 100 + '%'; knob.style.left = kp * 100 + '%';
+    g6.forEach((g, i) => { const p = A(t, 35.0 + i * .22, .6); st(g.row, { opacity: p, transform: `translateX(${(1 - p) * 60}px)` }); if (i > 0 && t > 36) g.ch.style.background = `rgba(255,94,87,${.12 + .14 * (.5 + .5 * Math.sin((t - 36) * 7))})`; });
+    const q = A(t, 35.1, 1.6, E.ioCubic);
+    arc.setAttribute('stroke-dashoffset', 2 * Math.PI * 90 * (1 - .78 * q));
+    kq.textContent = String(Math.round(312 * q));
+    const tst = [35.2, 35.9, 36.6];
+    toasts.forEach((el, i) => {
+      const p = A(t, tst[i], .5);
+      let slot = 0; for (let j = i + 1; j < 3; j++) slot += A(t, tst[j], .45, E.oCubic);
+      st(el, { top: 80 + slot * 62 + 'px', opacity: p * (1 - cl(slot - 1.6)), transform: `translateX(${(1 - p) * 520}px)` });
+    });
+    aiEls.forEach((el, i) => { const n = Math.floor(A(t, 35.3 + i * .7, .6, E.lin) * aiL[i].length); el.textContent = aiL[i].slice(0, n) + (n > 0 && n < aiL[i].length ? '▌' : ''); });
+    barsL.forEach((b, i) => tr(b, `scaleY(${E.oBack(pr(t, 35.2 + i * .08, .6))})`));
+    pdf.style.opacity = A(t, 36.2, .3, E.lin);
+    // camera: pan to ring, then zoom through it
+    const f = E.ioCubic(pr(t, 39.6, 1.3));
+    const s = lerp(1, 11, E.iExpo(pr(t, 40.35, 1.6)));
+    const px = lerp(960, RCX, f), py = lerp(540, RCY, f);
+    tr(cam, `translate(960px,540px) scale(${s}) translate(${-px}px,${-py}px)`);
+    tiles.forEach((o, i) => { if (i !== 2) o.el.style.opacity = cl(o.el.style.opacity) * (1 - f * .85); });
+    [lbl, hd.m].forEach(el => el.style.opacity = Math.min(+el.style.opacity || 1, 1 - f));
+  };
+}
+
+/* ================= S7 · SCALE (41.95 – 50.25) ================= */
+{
+  const L = layer(41.95, 50.25, 3);
+  const HX = 1250, HY = 540;
+  const svg = h('svg', { cls: 'abs', width: W, height: H, style: 'left:0;top:0' }, L.el);
+  const r = rng(15);
+  const nodes = [];
+  for (let i = 0; i < 15; i++) {
+    const a = i * (Math.PI * 2 / 15) + (r() - .5) * .3 - Math.PI / 2;
+    const rad = 250 + r() * 190;
+    nodes.push({ a, rad });
+  }
+  const mesh = nodes.map(() => h('line', { stroke: 'rgba(110,231,183,.14)', 'stroke-width': 1.5 }, svg));
+  const spokes = nodes.map(() => h('line', { stroke: 'rgba(16,185,129,.55)', 'stroke-width': 2 }, svg));
+  const halos = nodes.map(() => h('circle', { r: 26, fill: 'rgba(16,185,129,.12)' }, svg));
+  const dots = nodes.map(() => h('circle', { fill: '#10B981', stroke: '#6EE7B7', 'stroke-width': 2 }, svg));
+  const labels = nodes.map((_, i) => h('text', { fill: 'rgba(242,239,230,.55)', 'font-family': 'JB', 'font-size': 13, 'letter-spacing': 2, 'text-anchor': 'middle' }, svg, `KK·${String(i + 1).padStart(2, '0')}`));
+  const pg = h('g', { style: 'filter:drop-shadow(0 0 5px #6EE7B7)' }, svg);
+  const packets = nodes.map(() => h('circle', { r: 4.5, fill: '#F2EFE6' }, pg));
+  const outer = h('circle', { cx: HX, cy: HY, r: 160, fill: 'none', stroke: 'rgba(110,231,183,.4)', 'stroke-width': 1.5, 'stroke-dasharray': '4 12' }, svg);
+  const hubFill = h('circle', { cx: HX, cy: HY, r: 118, fill: '#0B211A' }, svg);
+  const hub = h('circle', { fill: 'none', stroke: '#10B981', 'stroke-linecap': 'round' }, svg);
+  const hubT = h('div', { cls: 'abs', style: `left:${HX - 150}px;top:${HY - 30}px;width:300px;text-align:center` }, L.el);
+  h('div', { cls: 'mono', style: 'font-size:18px;color:#10B981;letter-spacing:.2em;font-weight:700' }, hubT, 'ONE LEDGER');
+  h('div', { cls: 'mono', style: 'font-size:13px;color:rgba(242,239,230,.5);letter-spacing:.14em;margin-top:8px' }, hubT, 'SUPABASE · POSTGRES');
+  const lbl = h('div', { cls: 'abs lbl', style: 'left:140px;top:236px' }, L.el, '[ 06 ]   SCALE');
+  const big = h('div', { cls: 'abs disp', style: 'left:128px;top:270px;font-size:280px;color:#10B981;font-variant-numeric:tabular-nums;letter-spacing:-.05em' }, L.el, '0');
+  const cap1 = maskLine(L.el, 'clinics. One platform.', 'left:140px;top:560px;font:700 56px SG;letter-spacing:-.03em');
+  const bullets = ['▸ one shared ledger', '▸ role-aware screens', '▸ every action audited'].map((s, i) => h('div', { cls: 'abs mono', style: `left:142px;top:${660 + i * 46}px;font-size:24px;color:rgba(242,239,230,.8)` }, L.el, s));
+  const flood = h('div', { cls: 'abs', style: 'border-radius:50%;background:#10B981;z-index:4' }, L.el);
+  L.update = t => {
+    const e = A(t, 42.0, 1.0, E.oExpo);
+    const cx = lerp(960, HX, e), cy = lerp(540, HY, e), R = lerp(990, 118, e), sw = lerp(198, 4, e), fr = lerp(.78, 1, A(t, 42.0, 1.2, E.ioCubic));
+    const C = 2 * Math.PI * R;
+    st(hub, {}); hub.setAttribute('cx', cx); hub.setAttribute('cy', cy); hub.setAttribute('r', R); hub.setAttribute('stroke-width', sw);
+    hub.setAttribute('stroke-dasharray', `${C * fr} ${C}`); hub.setAttribute('transform', `rotate(${-90 + (t - 42) * 20} ${cx} ${cy})`);
+    hubFill.style.opacity = A(t, 42.6, .4, E.lin); hubT.style.opacity = A(t, 42.8, .4, E.lin);
+    outer.style.opacity = A(t, 43, .5, E.lin); outer.setAttribute('transform', `rotate(${(t - 42) * -12} ${HX} ${HY})`);
+    const rot = (t - 42) * .035;
+    const retract = A(t, 49.3, .45, E.iCubic);
+    let count = 0;
+    const P = nodes.map((n, i) => { const a = n.a + rot; return [HX + Math.cos(a) * n.rad, HY + Math.sin(a) * n.rad]; });
+    nodes.forEach((n, i) => {
+      const [x, y] = P[i];
+      const t0 = 43.0 + i * .085;
+      const lp = A(t, t0, .5, E.oCubic) * (1 - retract);
+      const sx = HX + (x - HX) * 118 / n.rad, sy = HY + (y - HY) * 118 / n.rad;
+      const s = spokes[i]; s.setAttribute('x1', sx); s.setAttribute('y1', sy); s.setAttribute('x2', lerp(sx, x, lp)); s.setAttribute('y2', lerp(sy, y, lp));
+      const dp = E.oBack(pr(t, t0 + .35, .45)) * (1 - retract);
+      if (t >= t0 + .45) count++;
+      dots[i].setAttribute('cx', x); dots[i].setAttribute('cy', y); dots[i].setAttribute('r', Math.max(0, 11 * dp));
+      halos[i].setAttribute('cx', x); halos[i].setAttribute('cy', y); halos[i].setAttribute('r', Math.max(0, (22 + 6 * Math.sin(t * 3 + i)) * dp));
+      const lx = HX + (x - HX) * (n.rad + 36) / n.rad, ly = HY + (y - HY) * (n.rad + 36) / n.rad + 5;
+      labels[i].setAttribute('x', lx); labels[i].setAttribute('y', ly); labels[i].style.opacity = cl(dp) * A(t, t0 + .5, .3, E.lin);
+      const j = (i + 1) % 15, [x2, y2] = P[j];
+      const mp = A(t, 44.6 + i * .04, .5) * (1 - retract);
+      mesh[i].setAttribute('x1', x); mesh[i].setAttribute('y1', y); mesh[i].setAttribute('x2', lerp(x, x2, mp)); mesh[i].setAttribute('y2', lerp(y, y2, mp));
+      // packets
+      let u = ((t - 44.4) / 1.5 + i * .37) % 1; if (i % 2) u = 1 - u;
+      const pk = packets[i]; pk.setAttribute('cx', lerp(sx, x, u)); pk.setAttribute('cy', lerp(sy, y, u));
+      pk.style.opacity = A(t, 44.4, .5, E.lin) * Math.sin(Math.PI * u) * (1 - retract);
+    });
+    big.textContent = String(Math.min(15, count));
+    tr(big, `scale(${1 + .06 * pulse(t, nodes.map((_, i) => 43.45 + i * .085), 12)})`);
+    big.style.opacity = A(t, 42.7, .3, E.lin);
+    lbl.style.opacity = A(t, 42.6, .3, E.lin);
+    cap1.set(A(t, 44.3, .7));
+    bullets.forEach((b, i) => { const p = A(t, 45.4 + i * .4, .6); st(b, { opacity: p, transform: `translateX(${(1 - p) * -30}px)` }); });
+    const fp = A(t, 49.65, .45, E.iExpo), FR = lerp(118, 2400, fp);
+    st(flood, { display: fp > 0 ? 'block' : 'none', left: HX - FR + 'px', top: HY - FR + 'px', width: 2 * FR + 'px', height: 2 * FR + 'px' });
+  };
+}
+
+/* ================= S8 · IMPACT (50.0 – 56.05) ================= */
+{
+  const L = layer(50.0, 56.05, 2, '#10B981');
+  const rowA = h('div', { cls: 'abs disp', style: 'left:0;top:40px;white-space:nowrap;font-size:230px;color:transparent;-webkit-text-stroke:2px rgba(4,18,14,.16)' }, L.el, 'PAPERLESS · AUDIT-READY · PAPERLESS · AUDIT-READY · PAPERLESS ·');
+  const rowB = h('div', { cls: 'abs disp', style: 'left:0;top:820px;white-space:nowrap;font-size:230px;color:transparent;-webkit-text-stroke:2px rgba(4,18,14,.16)' }, L.el, 'PRECISE · TRUSTWORTHY · CALM · PRECISE · TRUSTWORTHY · CALM ·');
+  const lbl = h('div', { cls: 'abs lbl', style: 'left:0;right:0;top:300px;text-align:center;color:#04120E' }, L.el, '[ 07 ]   IMPACT');
+  const wrap = h('div', { cls: 'abs', style: 'left:0;right:0;top:350px;height:260px;display:flex;justify-content:center' }, L.el);
+  const inner = h('div', { style: 'position:relative;width:1100px;height:260px' }, wrap);
+  const odo = odometer(inner, 'RM 3,277', 'left:0;right:0;top:0;justify-content:center;font:700 250px SG;letter-spacing:-.04em;color:#04120E');
+  const l2 = maskLine(L.el, 'saved every year on paper &amp; toner.', 'left:0;right:0;top:622px;text-align:center;font:700 56px SG;letter-spacing:-.03em;color:#04120E');
+  const l3 = h('div', { cls: 'abs mono', style: 'left:0;right:0;top:716px;text-align:center;font-size:22px;color:#064E3B;letter-spacing:.14em;font-weight:600' }, L.el, 'KK KEMPAS  ·  RM 2,064 NET AFTER RUNNING COSTS');
+  L.update = t => {
+    tr(rowA, `translateX(${-(t - 50) * 140 - 200}px)`); tr(rowB, `translateX(${(t - 50) * 140 - 1400}px)`);
+    lbl.style.opacity = A(t, 50.2, .3, E.lin);
+    odo.set(A(t, 50.35, 1.7, E.lin), .1);
+    tr(odo.el, `scale(${1 + .05 * pulse(t, [52.0], 8)})`);
+    l2.set(A(t, 52.0, .7));
+    st(l3, { opacity: A(t, 52.6, .4, E.lin), transform: `translateY(${(1 - A(t, 52.6, .6)) * 20}px)` });
+  };
+}
+
+/* ================= S9 · OUTRO (56.0 – 60) ================= */
+{
+  const L = layer(56.0, 60.01, 2);
+  const lock = h('div', { cls: 'abs', style: 'left:0;top:0' }, L.el);
+  const cap = capsule(lock);
+  const word = h('div', { cls: 'abs disp', style: 'top:0;left:0;font-size:160px;white-space:nowrap' }, L.el, 'Pharma<span style="color:#10B981">Sync</span>');
+  const tag = h('div', { cls: 'abs', style: 'left:0;right:0;top:650px;display:flex;justify-content:center;gap:34px;font:700 54px SG;letter-spacing:-.02em' }, L.el);
+  const tw = ['Precise.', 'Trustworthy.', 'Calm.'].map((w, i) => { const m = h('div', { cls: 'mask' }, tag); return h('div', { style: i === 2 ? 'color:#10B981' : '' }, m, w); });
+  const foot = h('div', { cls: 'abs mono', style: 'left:0;right:0;top:770px;text-align:center;font-size:18px;letter-spacing:.3em;color:rgba(242,239,230,.5)' }, L.el, 'KAWALAN UBAT  ·  KK KEMPAS  ·  2026');
+  let ww = 0;
+  L.update = t => {
+    if (!ww) ww = word.offsetWidth;
+    const total = 150 + 44 + ww, x0 = (W - total) / 2;
+    const e = A(t, 56.15, .6, E.oBack), mv = A(t, 56.75, .7, E.ioExpo);
+    const cx = lerp(960, x0 + 75, mv), cy = 470;
+    const fin = A(t, 59.15, .55, E.ioExpo);
+    const cw = lerp(150, 22, fin), ch = lerp(56, 22, fin);
+    cap.set(cw * e, ch * e);
+    st(cap.c, { left: cx + 'px', top: cy + 'px', transform: `rotate(${lerp(135, -35, e)}deg)`, opacity: 1 - A(t, 59.8, .2, E.lin) });
+    word.style.left = x0 + 194 + 'px'; word.style.top = (cy - 92) + 'px';
+    word.style.clipPath = `inset(-20% ${(1 - A(t, 56.9, .75, E.oExpo)) * 100}% -30% 0)`;
+    tr(word, `translateX(${(1 - A(t, 56.9, .75)) * -60}px)`);
+    tw.forEach((el, i) => tr(el, `translateY(${(1 - A(t, 57.5 + i * .5, .6)) * 115}%)`));
+    foot.style.opacity = A(t, 58.7, .4, E.lin);
+    const fade = 1 - A(t, 59.1, .45, E.lin);
+    [word, tag, foot].forEach(el => el.style.opacity = Math.min(+(el.style.opacity || 1), fade));
+    if (t < 58.7) foot.style.opacity = 0;
+  };
+}
+
+/* ================= TRANSITIONS: bar wipes ================= */
+const wipes = [{ T: 10.0, colors: ['#064E3B', '#10B981', '#ECE5D3'] }, { T: 56.0, colors: ['#064E3B', '#0B211A', '#04120E'] }];
+const wipeLayer = h('div', { cls: 'abs', style: 'inset:0;z-index:40;pointer-events:none' }, stage);
+wipes.forEach(w => { w.bars = w.colors.map(c => h('div', { cls: 'abs', style: `inset:0;background:${c};display:none` }, wipeLayer)); });
+
+/* ================= HUD / FINISH ================= */
+const hud = h('div', { cls: 'abs', style: 'inset:0;z-index:60;pointer-events:none;mix-blend-mode:difference;color:#fff' }, stage);
+const marks = [[40, 40, '1px 0 0 1px'], [W - 70, 40, '1px 1px 0 0'], [40, H - 70, '0 0 1px 1px'], [W - 70, H - 70, '0 1px 1px 0']].map(([x, y, b]) =>
+  h('div', { cls: 'abs', style: `left:${x}px;top:${y}px;width:30px;height:30px;border:solid #fff;border-width:${b.split(' ').map(v => v === '1px' ? '2px' : '0').join(' ')}` }, hud));
+const hTL = h('div', { cls: 'abs mono', style: 'left:84px;top:44px;font-size:14px;letter-spacing:.24em' }, hud, 'PHARMASYNC — SHOWREEL ’26');
+const hTR = h('div', { cls: 'abs mono', style: 'right:84px;top:44px;font-size:14px;letter-spacing:.2em;font-variant-numeric:tabular-nums' }, hud);
+const hBL = h('div', { cls: 'abs mono', style: 'left:84px;bottom:44px;font-size:14px;letter-spacing:.24em' }, hud);
+const hBR = h('div', { cls: 'abs', style: 'right:84px;bottom:50px;width:220px;height:2px;background:rgba(255,255,255,.3)' }, hud);
+const hBRf = h('div', { cls: 'abs', style: 'left:0;top:0;bottom:0;background:#fff' }, hBR);
+const SECT = [[0, '00 / 07 — COLD OPEN'], [6, '01 / 07 — INTRO'], [10, '02 / 07 — THE PROBLEM'], [16, '03 / 07 — THE LEDGER'], [24, '04 / 07 — THE WORKFLOW'], [34, '05 / 07 — THE TOOLKIT'], [42, '06 / 07 — SCALE'], [50, '07 / 07 — IMPACT'], [56, 'FIN']];
+const grainTiles = [0, 1, 2].map(k => { const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'); const d = x.createImageData(256, 256); const rr = rng(99 + k); for (let i = 0; i < d.data.length; i += 4) { const v = rr() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; } x.putImageData(d, 0, 0); return c.toDataURL(); });
+const grain = h('div', { cls: 'abs', style: 'inset:0;z-index:70;opacity:.055;pointer-events:none;mix-blend-mode:overlay' }, stage);
+h('div', { cls: 'abs', style: 'inset:0;z-index:65;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,rgba(0,0,0,0) 30%,rgba(0,0,0,.08) 55%,rgba(0,0,0,.22) 78%,rgba(0,0,0,.4) 100%)' }, stage);
+const fadeK = h('div', { cls: 'abs', style: 'inset:0;z-index:80;background:#000;pointer-events:none' }, stage);
+
+window.__renderAt = t => {
+  for (const L of layers) {
+    const on = t >= L.start && t < L.end;
+    L.el.style.display = on ? 'block' : 'none';
+    if (on) L.update(t);
+  }
+  for (const w of wipes) {
+    const n = w.bars.length;
+    w.bars.forEach((b, i) => {
+      const c = A(t, w.T - .42 + i * .07, .3, E.ioCubic);
+      const u = A(t, w.T + .02 + (n - 1 - i) * .07, .32, E.ioCubic);
+      const on = c > 0 && u < 1;
+      b.style.display = on ? 'block' : 'none';
+      if (on) tr(b, `translateX(${(-1 + c + u) * 100}%)`);
+    });
+  }
+  const f = Math.floor(t * FPS + 1e-6);
+  const s = Math.floor(t), ff = f % FPS;
+  hTR.textContent = `TC 00:00:${String(s).padStart(2, '0')}:${String(ff).padStart(2, '0')}`;
+  let sec = SECT[0][1]; for (const [a, n] of SECT) if (t >= a) sec = n;
+  hBL.textContent = sec;
+  hBRf.style.width = (t / DUR * 100) + '%';
+  hud.style.opacity = A(t, 1.6, .5, E.lin) * (1 - A(t, 58.6, .5, E.lin));
+  grain.style.backgroundImage = `url(${grainTiles[f % 3]})`;
+  grain.style.backgroundPosition = `${(f * 73) % 256}px ${(f * 151) % 256}px`;
+  fadeK.style.opacity = t < .15 ? 1 - t / .15 : t > 59.85 ? 1 : 0;
+};
+}
+
+/* ---------- boot ---------- */
+const params = new URLSearchParams(location.search);
+window.__ready = document.fonts.ready.then(() => { build(); window.__renderAt(0); return true; });
+if (!params.has('render')) {
+  const fit = () => { const k = Math.min(innerWidth / W, innerHeight / H); stage.style.transform = `scale(${k})`; stage.style.left = (innerWidth - W * k) / 2 + 'px'; stage.style.top = (innerHeight - H * k) / 2 + 'px'; };
+  addEventListener('resize', fit); fit();
+  const audio = new Audio('music.m4a');
+  let t0 = performance.now(), withAudio = false;
+  const btn = h('div', { id: 'play' }, document.body, '▶  CLICK TO PLAY WITH SOUND');
+  btn.onclick = () => { btn.remove(); audio.currentTime = 0; audio.play().then(() => { withAudio = true; }).catch(() => {}); t0 = performance.now(); };
+  window.__ready.then(() => {
+    const loop = () => {
+      let t = withAudio ? audio.currentTime : ((performance.now() - t0) / 1000) % DUR;
+      if (withAudio && audio.ended) { audio.currentTime = 0; audio.play(); }
+      window.__renderAt(Math.min(t, DUR - .001));
+      requestAnimationFrame(loop);
+    };
+    loop();
+  });
+}
+</script>
+</body>
+</html>
