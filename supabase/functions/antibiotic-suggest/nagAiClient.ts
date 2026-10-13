@@ -59,14 +59,22 @@ export interface NagAiOutcome {
   model: string;
 }
 
+// Server-side refusal fallback exists for the Opus/Sonnet/Fable lines only;
+// Haiku rejects the parameter, so it is sent only where it is supported.
+function supportsDefaultFallback(model: string): boolean {
+  return /^claude-(opus|sonnet|fable)-/.test(model);
+}
+
 export async function lookupNagRegimen(c: NagAiCase): Promise<NagAiOutcome> {
+  const model = Deno.env.get("NAG_AI_MODEL") ?? "claude-opus-5-5";
   const response = await getClient().beta.messages.create({
-    model: Deno.env.get("NAG_AI_MODEL") ?? "claude-opus-5-5",
+    model,
     max_tokens: 16000,
     // On a safety-classifier decline, re-run on Anthropic's recommended
     // fallback model inside the same call instead of failing the click.
-    betas: ["server-side-fallback-2026-07-01"],
-    fallbacks: "default",
+    ...(supportsDefaultFallback(model)
+      ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const }
+      : {}),
     output_config: {
       effort: effort(),
       format: { type: "json_schema", schema: NAG_AI_SCHEMA },
