@@ -98,6 +98,7 @@ Deno.serve(async (req) => {
   };
   let tokensUsed: number | undefined;
   let aiError: string | undefined;
+  let auditNote: string | undefined;
 
   // ── 6. AI guideline lookup (only when the rules have no pathway) ─────────
   // The deterministic pathways stay authoritative where they exist (they do
@@ -126,6 +127,7 @@ Deno.serve(async (req) => {
         });
         tokensUsed = outcome.tokensUsed;
         const a = outcome.answer;
+        auditNote = `${a.auditNote} model=${outcome.model}`;
         result = a.regimens.length > 0
           ? { regimens: a.regimens, rationale: a.rationale, warning: a.warning, source: "nag_ai" }
           : { ...result, rationale: a.rationale };
@@ -139,7 +141,7 @@ Deno.serve(async (req) => {
 
   // ── 7. Audit log ──────────────────────────────────────────────────────────
   try {
-    await writeAuditLog({ userId: userId!, role, functionName: FUNCTION_NAME, statusCode: 200, tokensUsed, durationMs: Date.now() - startedAt, errorMessage: aiError });
+    await writeAuditLog({ userId: userId!, role, functionName: FUNCTION_NAME, statusCode: 200, tokensUsed, durationMs: Date.now() - startedAt, errorMessage: aiError ?? auditNote });
   } catch { /* non-fatal */ }
 
   return new Response(JSON.stringify(result), { status: 200, headers: { ...cors, "Content-Type": "application/json" } });

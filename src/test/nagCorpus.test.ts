@@ -186,6 +186,28 @@ describe("parseRawAnswer / buildCaseMessage", () => {
   });
 });
 
+describe("severity not stated — two candidate sections", () => {
+  it("keeps regimens from both PID sections, each labelled with its own section, and notes it for the audit log", () => {
+    const v = verifyAiAnswer({
+      refer: false,
+      regimens: [
+        { tier: "Preferred", drug: "Ceftriaxone", section_id: "a-obstetrics-gynaecology/1/1-1", quotes: ["Ceftriaxone 500mg IM single dose (BW >150kg: 1g IM STAT)", "Metronidazole 400mg PO q12h for 14 days", "Doxycycline 100mg PO q12h for 14 days"] },
+        { tier: "Preferred", drug: "Ceftriaxone", section_id: "a-obstetrics-gynaecology/1/1-2", quotes: ["Ceftriaxone 2g IV q24h", "Doxycycline 100mg PO q12h", "Metronidazole 400mg PO or 500mg IV q12h"] },
+      ],
+      notes: [],
+    }, NAG_CORPUS_SECTIONS, "Adult");
+    expect(v.regimens).toHaveLength(2);
+    expect(v.regimens[0].sourcePath).toMatch(/1\.1 Outpatient/);
+    expect(v.regimens[1].sourcePath).toMatch(/1\.2 Inpatient/);
+    expect(v.auditNote).toMatch(/^nag_ai ok: regimens=2 rejected=0/);
+  });
+
+  it("records why an answer came back empty, without patient data", () => {
+    const v = verifyAiAnswer({ refer: true, regimens: [], notes: [] }, NAG_CORPUS_SECTIONS, "Adult");
+    expect(v.auditNote).toBe("nag_ai empty: model_refer=true proposed=0 rejected=0");
+  });
+});
+
 describe("real corpus spot-check", () => {
   it("contains verbatim dose lines a model would need to quote", () => {
     const pid = NAG_CORPUS_SECTIONS.find((s) => s.path.includes("Pelvic Inflammatory Disease") && s.path.includes("Outpatient"));

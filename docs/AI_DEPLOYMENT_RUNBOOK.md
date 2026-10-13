@@ -160,6 +160,29 @@ missing from this command for two days after it shipped, so rejection
 notifications silently never fired. Check the repo directory against this list
 whenever a function is added.
 
+### ⚠️ Coolify "Restart" re-pulls every image — `minio/mc` is gone from Docker Hub
+
+Applying env-var changes needs Coolify's **Restart current version**, which
+re-pulls every image in the stack. On 2026-10-13 that failed with
+`pull access denied for minio/mc, repository does not exist`, the whole
+Supabase stack went to **Exited**, and the clinic app was down until fixed.
+(`quay.io/minio/mc` also refused anonymous pulls.)
+
+Fix applied (Coolify → service → **Edit Compose File**, so it survives the
+next restart): the `minio-createbucket` service now uses the MinIO image the
+stack already runs, which ships the `mc` binary:
+
+```yaml
+  minio-createbucket:
+    image: 'ghcr.io/coollabsio/minio:RELEASE.2025-10-15T17-29-55Z'
+```
+
+If a restart ever fails on an image pull again, the stack can be brought back
+from local images without pulling:
+`cd /data/coolify/services/l8dsa2iokodt3yafiwcmfkvi && docker compose -p l8dsa2iokodt3yafiwcmfkvi up -d --pull never`.
+Healthy end state: every container `Up`, `minio-createbucket` `Exited (0)`
+(it is a one-shot job).
+
 **Re-run this after every merge to `main` that touches `supabase/functions/`** —
 nothing does it automatically. The frontend *does* auto-build on push (Coolify
 webhook), which makes the asymmetry easy to miss: a role or logic change that
