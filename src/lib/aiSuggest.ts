@@ -9,22 +9,32 @@
 // reported with enough detail to act on.
 import type { ComputedRegimen } from "./nagPathways";
 
+export interface SuggestedRegimen extends ComputedRegimen {
+  /** Set on "nag_ai" regimens: breadcrumb of the NAG section the server
+   *  verified every quoted dose line against. */
+  sourcePath?: string;
+}
+
 export interface AiSuggestion {
   /** Every regimen option NAG_PATHWAYS documents for the matched pathway —
    *  empty when no pathway matched (see `source: "refer"` below). */
-  regimens: ComputedRegimen[];
+  regimens: SuggestedRegimen[];
   rationale: string;
   warning: string | null;
   /** "refer" means no regimen was produced — no pathway matched, or the only
    *  match was written for a different patient group. `regimens` is empty,
-   *  and `rationale` carries the refer-to-specialist message instead. */
-  source: "rules" | "refer";
+   *  and `rationale` carries the refer-to-specialist message instead.
+   *  "nag_ai" means no built-in pathway matched, and Claude located the case
+   *  in the full NAG 2024 corpus; each regimen's text is a dose line the
+   *  server checked word-for-word against `sourcePath`. */
+  source: "rules" | "refer" | "nag_ai";
 }
 
 function isRegimen(value: unknown): value is ComputedRegimen {
   if (!value || typeof value !== "object") return false;
   const r = value as Record<string, unknown>;
-  return typeof r.drug === "string" && typeof r.text === "string" && typeof r.tier === "string";
+  return typeof r.drug === "string" && typeof r.text === "string" && typeof r.tier === "string"
+    && (r.sourcePath === undefined || typeof r.sourcePath === "string");
 }
 
 /** Null when the body is not a current antibiotic-suggest response. */
@@ -34,7 +44,7 @@ export function parseAiSuggestion(body: unknown): AiSuggestion | null {
   if (!Array.isArray(regimens) || !regimens.every(isRegimen)) return null;
   if (typeof rationale !== "string") return null;
   if (warning !== null && typeof warning !== "string") return null;
-  if (source !== "rules" && source !== "refer") return null;
+  if (source !== "rules" && source !== "refer" && source !== "nag_ai") return null;
   return { regimens, rationale, warning: warning as string | null, source };
 }
 

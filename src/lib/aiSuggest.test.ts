@@ -10,6 +10,14 @@ describe("parseAiSuggestion", () => {
     expect(parsed?.source).toBe("rules");
   });
 
+  it("accepts an AI-located NAG result carrying the verified section breadcrumb", () => {
+    const aiRegimen = { ...regimen, sourcePath: "NAG Section A (Adult) — Respiratory › 1.3 Inpatient" };
+    const parsed = parseAiSuggestion({ regimens: [aiRegimen], rationale: "Quoted from NAG 2024.", warning: null, source: "nag_ai" });
+    expect(parsed?.source).toBe("nag_ai");
+    expect(parsed?.regimens[0].sourcePath).toBe(aiRegimen.sourcePath);
+    expect(parseAiSuggestion({ regimens: [{ ...regimen, sourcePath: 42 }], rationale: "r", warning: null, source: "nag_ai" })).toBeNull();
+  });
+
   it("accepts a refer result with no regimens", () => {
     const parsed = parseAiSuggestion({ regimens: [], rationale: "No match.", warning: null, source: "refer" });
     expect(parsed?.regimens).toEqual([]);
