@@ -48,6 +48,39 @@ export function parseAiSuggestion(body: unknown): AiSuggestion | null {
   return { regimens, rationale, warning: warning as string | null, source };
 }
 
+// Connectors in Malaysian names — never stripped on their own, they are
+// ordinary words that can appear in clinical text.
+const NAME_CONNECTORS = new Set(["bin", "binti", "bt", "bte", "a/l", "a/p", "al", "ap", "anak", "anak lelaki", "anak perempuan"]);
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Removes this patient's name and IC from free text (diagnosis, allergy
+ * detail) before it is sent for an AI suggestion — a doctor sometimes types
+ * them there. The suggestion request itself never carries the name or IC
+ * fields; the edge function additionally redacts anything IC-shaped.
+ */
+export function stripPatientIdentifiers(text: string, patientName: string, patientIC: string): string {
+  let out = text;
+  const icDigits = patientIC.replace(/\D/g, "");
+  if (icDigits.length >= 6) {
+    // Match the IC however it was typed: digits with optional dashes/spaces between any of them.
+    const flexible = icDigits.split("").map(escapeRegExp).join("[\\s-]?");
+    out = out.replace(new RegExp(flexible, "g"), "[IC removed]");
+  }
+  const name = patientName.trim();
+  if (name.length >= 2) {
+    out = out.replace(new RegExp(`\\b${escapeRegExp(name).replace(/\s+/g, "\\s+")}\\b`, "gi"), "[name removed]");
+    for (const token of name.split(/\s+/)) {
+      if (token.length < 3 || NAME_CONNECTORS.has(token.toLowerCase())) continue;
+      out = out.replace(new RegExp(`\\b${escapeRegExp(token)}\\b`, "gi"), "[name removed]");
+    }
+  }
+  return out;
+}
+
 export const STALE_SERVER_MESSAGE =
   "AI suggestion failed: the server returned an outdated response. Ask your admin to redeploy the antibiotic-suggest edge function.";
 

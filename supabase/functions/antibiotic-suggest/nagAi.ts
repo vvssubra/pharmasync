@@ -94,15 +94,38 @@ export function buildCorpusPrompt(sections: NagSection[]): string {
   return `<nag_corpus>\n${renderCorpus(sections)}\n</nag_corpus>`;
 }
 
+// Malaysian IC (MyKad) numbers: 12 digits, written YYMMDD-PB-###G with or
+// without dashes/spaces. Any 12-digit run is treated as one — over-redacting a
+// stray number in a diagnosis costs nothing; leaking an IC is not acceptable.
+const IC_PATTERN = /\b\d{6}[\s-]?\d{2}[\s-]?\d{4}\b/g;
+
+/** Server-side backstop: the client already strips the patient's own name/IC
+ *  from free text, but anything IC-shaped is removed again here before the
+ *  case leaves the VPS. */
+export function redactIdentifiers(text: string): string {
+  return text.replace(IC_PATTERN, "[IC removed]");
+}
+
+function redactDeep(value: unknown): unknown {
+  if (typeof value === "string") return redactIdentifiers(value);
+  if (Array.isArray(value)) return value.map(redactDeep);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, redactDeep(v)]));
+  }
+  return value;
+}
+
+/** The only patient data sent to Anthropic: clinical fields, no name or IC
+ *  (the request schema has neither, and free text is redacted). */
 export function buildCaseMessage(c: NagAiCase): string {
   return JSON.stringify({
-    diagnosis: c.diagnosis,
+    diagnosis: redactIdentifiers(c.diagnosis),
     checklist_indication: c.checklistIndication,
-    checklist_findings: c.checklist ?? null,
+    checklist_findings: redactDeep(c.checklist ?? null),
     patient_age_years: c.patientAge,
     patient_group: c.patientGroup,
     weight_kg: c.weightKg ?? null,
-    drug_allergy: c.allergyStatus ?? "none stated",
+    drug_allergy: c.allergyStatus ? redactIdentifiers(c.allergyStatus) : "none stated",
   });
 }
 

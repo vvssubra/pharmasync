@@ -164,6 +164,20 @@ describe("parseRawAnswer / buildCaseMessage", () => {
     expect(parseRawAnswer(goodAnswer)).toEqual(goodAnswer);
   });
 
+  it("redacts anything IC-shaped from every free-text field before it leaves the VPS", () => {
+    const msg = buildCaseMessage({
+      diagnosis: "PID in 900101-14-5678",
+      checklistIndication: null,
+      checklist: { note: "ic 900101145678" },
+      patientAge: 30,
+      patientGroup: "Adult",
+      allergyStatus: "penicillin (900101 14 5678)",
+    });
+    expect(msg).not.toMatch(/900101/);
+    expect(msg).toContain("[IC removed]");
+    expect(JSON.parse(msg).diagnosis).toBe("PID in [IC removed]");
+  });
+
   it("sends no identifying fields — only clinical case data", () => {
     const msg = JSON.parse(buildCaseMessage({ diagnosis: "PID", checklistIndication: null, patientAge: 30, patientGroup: "Adult" }));
     expect(Object.keys(msg).sort()).toEqual(

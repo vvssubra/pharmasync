@@ -12,7 +12,7 @@ import PathwayCheckBanner from "@/components/PathwayCheckBanner";
 import { AI_ENABLED, AI_SUGGEST_ROLES, PATHWAY_CHECK_ENABLED, KNOWLEDGE_ENABLED } from "@/lib/featureFlags";
 import { deriveDoseQuery, derivePathwayIndication, type ChecklistState } from "@/lib/doseQuery";
 import { resolveLocalDose } from "@/lib/abxDose";
-import { parseAiSuggestion, describeAiSuggestFailure, STALE_SERVER_MESSAGE, type AiSuggestion } from "@/lib/aiSuggest";
+import { parseAiSuggestion, describeAiSuggestFailure, stripPatientIdentifiers, STALE_SERVER_MESSAGE, type AiSuggestion } from "@/lib/aiSuggest";
 import AbxDoseCard from "@/components/AbxDoseCard";
 import { exampleDoseFor } from "@/lib/knowledgeClient";
 import { DiagnosisCombobox } from "@/components/DiagnosisCombobox";
@@ -258,14 +258,16 @@ checklist: checklist as unknown as Record<string, unknown>,
         {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+          // Never send the patient's name or IC: the body has no such fields,
+          // and stripPatientIdentifiers() removes them from the free text too.
           body: JSON.stringify({
-            diagnosis,
+            diagnosis: stripPatientIdentifiers(diagnosis, patientName, patientIC),
             // ChecklistState is a fixed-field interface (see src/lib/doseQuery.ts, mirrored
 // into the edge bundle), so it has no index signature. Widening it here rather
 // than adding one keeps the shared type strict for everyone else.
 checklist: checklist as unknown as Record<string, unknown>,
             patient_age: age ?? undefined,
-            allergy_status: drugAllergy ? drugAllergyDetail || "Yes (unspecified)" : undefined,
+            allergy_status: drugAllergy ? stripPatientIdentifiers(drugAllergyDetail, patientName, patientIC) || "Yes (unspecified)" : undefined,
             patient_weight_kg: weightKg ?? undefined,
           }),
         }
