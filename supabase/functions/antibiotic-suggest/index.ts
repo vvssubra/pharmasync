@@ -9,6 +9,9 @@ import {
   writeAuditLog,
 } from "../_shared/security.ts";
 import { resolveCase } from "./resolve.ts";
+import { lookupNagRegimen, nagAiEnabled } from "./nagAiClient.ts";
+import { derivePathwayIndication, type ChecklistState } from "../_shared/doseQuery.ts";
+import { patientGroupFromAge } from "../_shared/nagPathways.ts";
 
 const RequestSchema = z.object({
   diagnosis:         z.string().min(1).max(500),
@@ -74,7 +77,7 @@ Deno.serve(async (req) => {
 
   // ── 5. Resolve the regimen deterministically ────────────────────────────
   // computeAbxDose() already renders the regimen in the clinic's own
-  // prescribing shorthand — there is no LLM call in this function.
+  // prescribing shorthand — no LLM is involved when a pathway matches.
   const resolved = resolveCase({
     diagnosis: sanitizeInput(diagnosis),
     checklist,
@@ -87,16 +90,56 @@ Deno.serve(async (req) => {
   // mismatch), not matching. Labelling that "NAG 2024 pathway match" in the
   // UI contradicts the very text being shown, so it gets its own source.
   const source = resolved.pathway ? ("rules" as const) : ("refer" as const);
-  const result = {
+  let result: Record<string, unknown> = {
     regimens: resolved.regimens,
     rationale: resolved.rationale,
     warning: resolved.warning,
     source,
   };
+  let tokensUsed: number | undefined;
+  let aiError: string | undefined;
 
-  // ── 6. Audit log ──────────────────────────────────────────────────────────
+  // ── 6. AI guideline lookup (only when the rules have no pathway) ─────────
+  // The deterministic pathways stay authoritative where they exist (they do
+  // real weight-based math). For everything else, Claude locates the NAG
+  // section and copies its dose lines; verifyAiAnswer() drops any line that
+  // is not verbatim in the cited section, so the doctor only ever sees
+  // guideline text.
+  if (source === "refer" && nagAiEnabled()) {
+    const group = patientGroupFromAge(patient_age);
+    if (group === "Any") {
+      result = { ...result, rationale: "Enter the patient's age to look this case up in the full NAG 2024 guideline — adult and paediatric dosing differ." };
+    } else {
+      let checklistIndication: string | null = null;
+      try {
+        checklistIndication = checklist ? derivePathwayIndication(checklist as unknown as ChecklistState) : null;
+      } catch { checklistIndication = null; }
+      try {
+        const outcome = await lookupNagRegimen({
+          diagnosis: sanitizeInput(diagnosis),
+          checklistIndication,
+          checklist,
+          patientAge: patient_age!,
+          patientGroup: group,
+          weightKg: patient_weight_kg,
+          allergyStatus: allergy_status ? sanitizeInput(allergy_status) : undefined,
+        });
+        tokensUsed = outcome.tokensUsed;
+        const a = outcome.answer;
+        result = a.regimens.length > 0
+          ? { regimens: a.regimens, rationale: a.rationale, warning: a.warning, source: "nag_ai" }
+          : { ...result, rationale: a.rationale };
+      } catch (err) {
+        // Never fail the click: fall back to the deterministic refer answer.
+        aiError = err instanceof Error ? err.message : String(err);
+        result = { ...result, warning: "The AI guideline lookup is unavailable right now — prescribe from the NAG guideline directly." };
+      }
+    }
+  }
+
+  // ── 7. Audit log ──────────────────────────────────────────────────────────
   try {
-    await writeAuditLog({ userId: userId!, role, functionName: FUNCTION_NAME, statusCode: 200, durationMs: Date.now() - startedAt });
+    await writeAuditLog({ userId: userId!, role, functionName: FUNCTION_NAME, statusCode: 200, tokensUsed, durationMs: Date.now() - startedAt, errorMessage: aiError });
   } catch { /* non-fatal */ }
 
   return new Response(JSON.stringify(result), { status: 200, headers: { ...cors, "Content-Type": "application/json" } });

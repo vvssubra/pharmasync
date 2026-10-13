@@ -5,14 +5,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { ArrowLeft, ShieldCheck, CheckCircle, Sparkles, AlertTriangle } from "lucide-react";
+import { ArrowLeft, ShieldCheck, CheckCircle, Sparkles, AlertTriangle, BookOpen } from "lucide-react";
 import { usePathwayCheck } from "@/hooks/usePathwayCheck";
 import { useDoseSuggestion } from "@/hooks/useDoseSuggestion";
 import PathwayCheckBanner from "@/components/PathwayCheckBanner";
 import { AI_ENABLED, AI_SUGGEST_ROLES, PATHWAY_CHECK_ENABLED, KNOWLEDGE_ENABLED } from "@/lib/featureFlags";
 import { deriveDoseQuery, derivePathwayIndication, type ChecklistState } from "@/lib/doseQuery";
 import { resolveLocalDose } from "@/lib/abxDose";
-import { parseAiSuggestion, describeAiSuggestFailure, STALE_SERVER_MESSAGE, type AiSuggestion } from "@/lib/aiSuggest";
+import { parseAiSuggestion, describeAiSuggestFailure, stripPatientIdentifiers, STALE_SERVER_MESSAGE, type AiSuggestion } from "@/lib/aiSuggest";
 import AbxDoseCard from "@/components/AbxDoseCard";
 import { exampleDoseFor } from "@/lib/knowledgeClient";
 import { DiagnosisCombobox } from "@/components/DiagnosisCombobox";
@@ -258,14 +258,16 @@ checklist: checklist as unknown as Record<string, unknown>,
         {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+          // Never send the patient's name or IC: the body has no such fields,
+          // and stripPatientIdentifiers() removes them from the free text too.
           body: JSON.stringify({
-            diagnosis,
+            diagnosis: stripPatientIdentifiers(diagnosis, patientName, patientIC),
             // ChecklistState is a fixed-field interface (see src/lib/doseQuery.ts, mirrored
 // into the edge bundle), so it has no index signature. Widening it here rather
 // than adding one keeps the shared type strict for everyone else.
 checklist: checklist as unknown as Record<string, unknown>,
             patient_age: age ?? undefined,
-            allergy_status: drugAllergy ? drugAllergyDetail || "Yes (unspecified)" : undefined,
+            allergy_status: drugAllergy ? stripPatientIdentifiers(drugAllergyDetail, patientName, patientIC) || "Yes (unspecified)" : undefined,
             patient_weight_kg: weightKg ?? undefined,
           }),
         }
@@ -536,6 +538,12 @@ checklist: checklist as unknown as Record<string, unknown>,
                 )}
                 {AI_ENABLED && aiSuggestion && (
                   <div className={`rounded-md border p-3 space-y-2 text-sm ${aiSuggestion.source === "refer" ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
+                    {aiSuggestion.source === "nag_ai" && (
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-800">
+                        <Sparkles className="h-3.5 w-3.5" />
+                        AI-located in the full NAG 2024 guideline · every dose checked word-for-word
+                      </div>
+                    )}
                     <p className={aiSuggestion.source === "refer" ? "text-xs text-amber-800" : "text-xs text-emerald-700"}>{aiSuggestion.rationale}</p>
                     {aiSuggestion.warning && (
                       <div className="flex items-start gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
@@ -559,6 +567,12 @@ checklist: checklist as unknown as Record<string, unknown>,
                           </div>
                           {opt.basis && <p className="text-xs text-emerald-700">{opt.basis}</p>}
                           {opt.capped && <p className="text-xs text-emerald-700">Dose capped at label maximum.</p>}
+                          {opt.sourcePath && (
+                            <p className="flex items-start gap-1 text-[11px] text-emerald-700/90">
+                              <BookOpen className="h-3 w-3 mt-0.5 shrink-0" />
+                              <span>{opt.sourcePath}</span>
+                            </p>
+                          )}
                         </div>
                         <Button
                           type="button"
@@ -574,7 +588,9 @@ checklist: checklist as unknown as Record<string, unknown>,
                     <p className="text-xs text-muted-foreground">
                       {aiSuggestion.source === "refer"
                         ? "No NAG 2024 regimen available for this case — prescribe from the guideline directly."
-                        : "NAG 2024 pathway match — verify before prescribing."}
+                        : aiSuggestion.source === "nag_ai"
+                          ? "Quoted verbatim from NAG 2024; the AI chose the section — confirm it fits this patient, and calculate weight-based doses yourself."
+                          : "NAG 2024 pathway match — verify before prescribing."}
                     </p>
                   </div>
                 )}

@@ -71,8 +71,39 @@ Verify they actually landed:
 docker exec supabase-edge-functions-l8dsa2iokodt3yafiwcmfkvi env | grep -E 'OLLAMA|APP_ORIGIN'
 ```
 
-`ANTHROPIC_API_KEY`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` are no
-longer used and should be absent.
+`UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` are no longer used and
+should be absent. `ANTHROPIC_API_KEY` is used again, but only by the optional
+NAG guideline lookup below.
+
+### Optional: AI guideline lookup in antibiotic-suggest (Claude API)
+
+When the built-in NAG pathways have no match for a case, `antibiotic-suggest`
+can ask Claude to locate the case in the full NAG corpus
+(`docs/nag-section-*.md`, compiled into
+`supabase/functions/_shared/nagCorpus.generated.ts`) and quote its dose lines.
+The server drops any line that is not word-for-word in the cited section, or
+that comes from a section for the other patient group, so the doctor only sees
+guideline text.
+
+```
+NAG_AI_ENABLED=true          # off unless exactly "true"
+ANTHROPIC_API_KEY=sk-ant-... # required when enabled
+NAG_AI_MODEL=claude-opus-5-5 # optional
+NAG_AI_EFFORT=medium         # optional: low | medium | high
+NAG_AI_TIMEOUT_MS=45000      # optional
+```
+
+- **Data leaving the VPS:** the diagnosis text, checklist findings, age,
+  weight and allergy status go to Anthropic's API. Patient name and IC are
+  never sent. Get sign-off on this (PDPA / facility policy) before enabling.
+- **Network:** the edge-functions container must reach `api.anthropic.com:443`.
+- **Updating the guideline:** edit `docs/nag-section-*.md`, then run
+  `node scripts/build-nag-corpus.ts`; `src/test/nagCorpus.test.ts` fails until
+  you do. Copy the updated `supabase/functions/` folder to the VPS volume
+  (§3) — the edge runtime does not pull from GitHub.
+- **Failure mode:** if the API errors or times out, the button falls back to
+  the existing "no NAG match" answer with a warning. Every call is written to
+  `ai_audit_logs` with `tokens_used`.
 
 ---
 
