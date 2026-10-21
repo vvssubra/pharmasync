@@ -50,6 +50,10 @@ jobs:
       - name: Edge function tests
         run: deno test --node-modules-dir=none --allow-read --allow-env --allow-net supabase/functions/_shared/
 
+      # knowledge-service uses fs/promises glob (Node 22+); the app stays on .nvmrc.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
       - name: Knowledge service tests
         working-directory: knowledge-service
         run: npm ci && npm test
