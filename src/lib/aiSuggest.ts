@@ -86,14 +86,16 @@ export const STALE_SERVER_MESSAGE =
 
 /** One actionable line per failure class, instead of a single generic
  *  "unavailable" that hid 401/403/400/503 behind the same words. */
-export function describeAiSuggestFailure(status: number, serverError?: string): string {
+export function describeAiSuggestFailure(status: number, serverError?: string, fields?: string[]): string {
   switch (status) {
     case 401:
       return "AI suggestion failed: your session has expired. Please sign in again.";
     case 403:
       return `AI suggestion refused: ${serverError || "your role is not permitted to use it"}.`;
     case 400:
-      return `AI suggestion rejected the form input${serverError ? ` (${serverError})` : ""}. Check the diagnosis, allergy and weight fields.`;
+      return `AI suggestion rejected the form input${serverError ? ` (${serverError})` : ""}. ${
+        fields?.length ? `Check: ${fields.join(", ")}.` : "Check the diagnosis, allergy and weight fields."
+      }`;
     case 429:
       return "AI suggestion limit reached. Please try again later.";
     case 503:

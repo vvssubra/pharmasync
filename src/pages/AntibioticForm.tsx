@@ -46,10 +46,13 @@ function getAgeFromIC(ic: string): number | null {
   const dd = parseInt(d.slice(4, 6));
   const century = yy > 30 ? 1900 : 2000;
   const dob = new Date(century + yy, mm, dd);
+  // Mistyped/foreign IC: impossible date (rolled over) — no age rather than a wrong one.
+  if (dob.getMonth() !== mm || dob.getDate() !== dd) return null;
   const now = new Date();
   let age = now.getFullYear() - dob.getFullYear();
   if (now < new Date(now.getFullYear(), dob.getMonth(), dob.getDate())) age--;
-  return age;
+  // Future DOB gives a negative age, which the edge zod (0..150) rejects as "Invalid input".
+  return age >= 0 && age <= 150 ? age : null;
 }
 
 const defaultChecklist: ChecklistState = {
@@ -275,8 +278,10 @@ checklist: checklist as unknown as Record<string, unknown>,
       if (!resp.ok) {
         // The function returns { error } on every non-2xx; surface it rather
         // than collapsing 401/403/400/503 into one "unavailable" toast.
-        const body = await resp.json().catch(() => ({})) as { error?: string };
-        toast.error(describeAiSuggestFailure(resp.status, body.error));
+        const body = await resp.json().catch(() => ({})) as { error?: string; details?: { path?: unknown[] }[] };
+        // 400 carries zod issues; name the offending fields instead of guessing.
+        const fields = [...new Set((body.details ?? []).map(i => String(i.path?.[0] ?? "")).filter(Boolean))];
+        toast.error(describeAiSuggestFailure(resp.status, body.error, fields));
         return;
       }
       // A stale antibiotic-suggest deploy still answers 200 with the old

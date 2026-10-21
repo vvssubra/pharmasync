@@ -65,6 +65,7 @@ describe("describeAiSuggestFailure", () => {
     expect(describeAiSuggestFailure(403, "Unauthorized: role not permitted")).toContain("Unauthorized: role not permitted");
     expect(describeAiSuggestFailure(403)).toMatch(/role is not permitted/);
     expect(describeAiSuggestFailure(400, "Invalid input")).toContain("Invalid input");
+    expect(describeAiSuggestFailure(400, "Invalid input", ["patient_age"])).toContain("Check: patient_age.");
     expect(describeAiSuggestFailure(429)).toMatch(/limit reached/);
     expect(describeAiSuggestFailure(503)).toMatch(/temporarily unavailable/);
     expect(describeAiSuggestFailure(500, "boom")).toContain("HTTP 500");
