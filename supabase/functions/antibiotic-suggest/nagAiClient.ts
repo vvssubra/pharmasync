@@ -65,11 +65,15 @@ function supportsDefaultFallback(model: string): boolean {
   return /^claude-(opus|sonnet|fable)-/.test(model);
 }
 
-export async function lookupNagRegimen(c: NagAiCase): Promise<NagAiOutcome> {
-  const model = Deno.env.get("NAG_AI_MODEL") ?? "claude-opus-5-5";
-  const response = await getClient().beta.messages.create({
+function modelName(): string {
+  return Deno.env.get("NAG_AI_MODEL") ?? "claude-opus-5-5";
+}
+
+// Everything before the case message: identical bytes in lookup and prewarm,
+// so a prewarm writes the cache entry a real lookup reads.
+function sharedParams(model: string) {
+  return {
     model,
-    max_tokens: 16000,
     // On a safety-classifier decline, re-run on Anthropic's recommended
     // fallback model inside the same call instead of failing the click.
     ...(supportsDefaultFallback(model)
@@ -77,12 +81,42 @@ export async function lookupNagRegimen(c: NagAiCase): Promise<NagAiOutcome> {
       : {}),
     output_config: {
       effort: effort(),
-      format: { type: "json_schema", schema: NAG_AI_SCHEMA },
+      format: { type: "json_schema" as const, schema: NAG_AI_SCHEMA },
     },
     system: [
-      { type: "text", text: NAG_AI_INSTRUCTIONS },
-      { type: "text", text: CORPUS_PROMPT, cache_control: { type: "ephemeral" } },
+      { type: "text" as const, text: NAG_AI_INSTRUCTIONS },
+      // 1h TTL: clinic traffic has gaps far longer than the 5-minute default.
+      { type: "text" as const, text: CORPUS_PROMPT, cache_control: { type: "ephemeral" as const, ttl: "1h" as const } },
     ],
+  };
+}
+
+// shortcut: per-isolate memory, so each new edge worker warms once; fine at clinic traffic.
+let lastWarmAt = 0;
+const WARM_EVERY_MS = 55 * 60 * 1000;
+
+/** Writes the corpus into the prompt cache so the doctor's first click is not a cold read. */
+export async function prewarmNagCache(): Promise<void> {
+  if (Date.now() - lastWarmAt < WARM_EVERY_MS) return;
+  lastWarmAt = Date.now();
+  // max_tokens 0 is rejected alongside output_config.format, and the format
+  // must match real traffic to share the cache entry — so 1 token it is.
+  try {
+    await getClient().beta.messages.create({
+      ...sharedParams(modelName()),
+      max_tokens: 1,
+      messages: [{ role: "user", content: "warmup" }],
+    });
+  } catch (err) {
+    lastWarmAt = 0; // let the next form open retry
+    throw err;
+  }
+}
+
+export async function lookupNagRegimen(c: NagAiCase): Promise<NagAiOutcome> {
+  const response = await getClient().beta.messages.create({
+    ...sharedParams(modelName()),
+    max_tokens: 16000,
     messages: [{ role: "user", content: buildCaseMessage(c) }],
   });
 

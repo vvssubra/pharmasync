@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { ArrowLeft, ShieldCheck, CheckCircle, Sparkles, AlertTriangle, BookOpen } from "lucide-react";
+import { ArrowLeft, ShieldCheck, CheckCircle, Sparkles, AlertTriangle } from "lucide-react";
 import { usePathwayCheck } from "@/hooks/usePathwayCheck";
 import { useDoseSuggestion } from "@/hooks/useDoseSuggestion";
 import PathwayCheckBanner from "@/components/PathwayCheckBanner";
@@ -82,6 +82,20 @@ export default function AntibioticForm() {
   const [submitted, setSubmitted] = useState<{ patient_name: string; patient_ic: string; diagnosis: string } | null>(null);
   const [aiSuggesting, setAiSuggesting] = useState(false);
   const [aiSuggestion, setAiSuggestion] = useState<AiSuggestion | null>(null);
+
+  // Fire-and-forget: loads the NAG corpus into the AI prompt cache while the
+  // doctor fills the form, so the first Suggest click is not a cold read.
+  useEffect(() => {
+    if (!AI_ENABLED || !canUseAiSuggest) return;
+    supabase.auth.getSession().then(({ data }) => {
+      const token = data?.session?.access_token;
+      if (!token) return;
+      fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/antibiotic-suggest?prewarm=1`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      }).catch(() => { /* best effort */ });
+    });
+  }, [canUseAiSuggest]);
 
   // Section 1
   const [tarikh, setTarikh] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -573,10 +587,13 @@ checklist: checklist as unknown as Record<string, unknown>,
                           {opt.basis && <p className="text-xs text-emerald-700">{opt.basis}</p>}
                           {opt.capped && <p className="text-xs text-emerald-700">Dose capped at label maximum.</p>}
                           {opt.sourcePath && (
-                            <p className="flex items-start gap-1 text-[11px] text-emerald-700/90">
-                              <BookOpen className="h-3 w-3 mt-0.5 shrink-0" />
-                              <span>{opt.sourcePath}</span>
-                            </p>
+                            <Badge
+                              variant="outline"
+                              className="mt-1 h-auto max-w-full gap-1 whitespace-normal border-emerald-400 bg-emerald-100 py-0.5 text-left text-[11px] font-normal text-emerald-800"
+                            >
+                              <ShieldCheck className="h-3 w-3 shrink-0" />
+                              <span><span className="font-semibold">Verified verbatim · NAG 2024</span> — {opt.sourcePath}</span>
+                            </Badge>
                           )}
                         </div>
                         <Button

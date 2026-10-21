@@ -9,7 +9,7 @@ import {
   writeAuditLog,
 } from "../_shared/security.ts";
 import { resolveCase } from "./resolve.ts";
-import { lookupNagRegimen, nagAiEnabled } from "./nagAiClient.ts";
+import { lookupNagRegimen, nagAiEnabled, prewarmNagCache } from "./nagAiClient.ts";
 import { derivePathwayIndication, type ChecklistState } from "../_shared/doseQuery.ts";
 import { patientGroupFromAge } from "../_shared/nagPathways.ts";
 
@@ -45,6 +45,16 @@ Deno.serve(async (req) => {
   const role = await getUserRole(userId!);
   if (!role || !ALLOWED_ROLES.includes(role)) {
     return new Response(JSON.stringify({ error: "Unauthorized: your role is not permitted to use antibiotic suggestions" }), { status: 403, headers: { ...cors, "Content-Type": "application/json" } });
+  }
+
+  // ── 2b. Cache prewarm (form opened) ───────────────────────────────────────
+  // Before the rate limit so opening the form never spends a doctor's quota;
+  // prewarmNagCache() throttles itself to one write per hour per worker.
+  if (new URL(req.url).searchParams.has("prewarm")) {
+    if (nagAiEnabled()) {
+      try { await prewarmNagCache(); } catch { /* best effort: the real lookup still works cold */ }
+    }
+    return new Response(null, { status: 204, headers: cors });
   }
 
   // ── 3. Rate limit ─────────────────────────────────────────────────────────
