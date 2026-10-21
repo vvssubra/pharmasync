@@ -34,3 +34,19 @@ describe("checkPathway duration", () => {
     expect(checkPathway({ checklist: uti, patient_age: 40, antibiotic: "Amoxicillin/Clavulanate 625mg TDS", duration_days: 3 }).verdict).not.toBe("not_supported");
   });
 });
+
+describe("checkPathway allergy alternative", () => {
+  const cap = { ...base, pneumonia: { acute_cough: true, tachycardia: true, tachypnoea: true, fever: true, hypoxemia: true, consolidation: true } };
+
+  it("never offers a child an adult-only alternative", () => {
+    const r = checkPathway({ checklist: cap, patient_age: 6, antibiotic: "Amoxicillin 1600mg/day BD x 5 days", allergy_status: "Yes (unspecified)" });
+    expect(r.verdict).toBe("review");
+    expect(r.explanation).not.toMatch(/Doxycycline/);
+    expect(r.explanation).toMatch(/Erythromycin Ethylsuccinate \(weight-based dose\)/);
+  });
+
+  it("keeps the adult alternative with its dose for an adult", () => {
+    const r = checkPathway({ checklist: cap, patient_age: 40, antibiotic: "Amoxicillin 500mg TDS x 5 days", allergy_status: "penicillin rash" });
+    expect(r.explanation).toMatch(/Consider Doxycycline \(100mg PO BD/);
+  });
+});

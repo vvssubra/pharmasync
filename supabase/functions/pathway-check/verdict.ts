@@ -104,10 +104,15 @@ export function checkPathway(input: PathwayCheckInput): PathwayVerdict {
   const hasAllergy = isStatedAllergy(input.allergy_status);
   const matchedRegimen = pathway.regimens.find((r) => r.drug.toLowerCase() === matchedDrug.toLowerCase());
   if (hasAllergy && matchedRegimen?.penicillinClass) {
-    const alt = pathway.regimens.find((r) => !r.penicillinClass);
+    // Only suggest a drug that has a dose for this patient's group: a
+    // 6-year-old was told "Consider Doxycycline (100mg PO BD)".
+    const group = patientGroupFromAge(input.patient_age);
+    const alt = pathway.regimens.find((r) =>
+      !r.penicillinClass && (group === "Adult" ? !!r.adultText : group === "Paediatric" ? !!r.weightBased : true));
+    const altDose = alt?.adultText && group === "Adult" ? ` (${alt.adultText})` : alt && group !== "Adult" ? " (weight-based dose)" : "";
     return {
       verdict: "review",
-      explanation: `Allergy noted — ${matchedDrug} contains penicillin.${alt ? ` Consider ${alt.drug}${alt.adultText ? ` (${alt.adultText})` : ""} instead.` : ""}`,
+      explanation: `Allergy noted — ${matchedDrug} contains penicillin.${alt ? ` Consider ${alt.drug}${altDose} instead.` : ""}`,
     };
   }
 
