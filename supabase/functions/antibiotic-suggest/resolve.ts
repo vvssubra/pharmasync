@@ -90,6 +90,16 @@ export function resolveCase(input: ResolveInput): ResolvedCase {
   const patientGroup = patientGroupFromAge(input.patient_age);
   const regimens = computeRegimenOptions(pathway, patientGroup, input.patient_weight_kg ?? null);
 
+  // Non-adult with no weight (or no IC-derived age): nothing safe to show.
+  if (regimens.length === 0) {
+    return {
+      pathway: null,
+      regimens: [],
+      rationale: `NAG ${pathway.indication} matched, but this patient's dose must be weight-based. Enter the patient's weight (and IC for age) and try again.`,
+      warning: null,
+    };
+  }
+
   return {
     pathway,
     regimens,

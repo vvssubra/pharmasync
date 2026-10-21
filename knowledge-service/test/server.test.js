@@ -82,7 +82,7 @@ test("POST /suggest-dose rejects a missing query", async () => {
 });
 
 test("POST /suggest-dose rejects a request missing the shared-secret header when one is configured", async (t) => {
-  if (!config.knowledgeKey) t.skip("no KNOWLEDGE_KEY configured in this environment");
+  if (!config.knowledgeKey) return t.skip("no KNOWLEDGE_KEY configured in this environment");
   const app = createApp({ vaultIndex: fakeVaultIndex([]), ollama: fakeOllama(true) });
   await withServer(app, async (base) => {
     const resp = await fetch(`${base}/suggest-dose`, {

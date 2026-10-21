@@ -3,7 +3,7 @@
 // Run with: deno test supabase/functions/_shared/parity.test.ts
 //
 // Asserts the marker-delimited text mirrored from src/lib/*.ts into this
-// directory (stock.ts, quotaHelpers.ts, doseQuery.ts) is byte-identical to
+// directory (quotaHelpers.ts, abxDose.ts, nagPathways.ts) is byte-identical to
 // its source, since the edge bundle cannot import outside supabase/functions/.
 
 import { assertEquals } from "https://deno.land/std@0.208.0/assert/mod.ts";
@@ -18,25 +18,11 @@ interface MirrorPair {
 
 const PAIRS: MirrorPair[] = [
   {
-    name: "stock",
-    srcPath: "../../../src/lib/stock.ts",
-    sharedPath: "./stock.ts",
-    startMarker: "// <<<shared-stock",
-    endMarker: "// shared-stock>>>",
-  },
-  {
     name: "quotaHelpers",
     srcPath: "../../../src/lib/quotaHelpers.ts",
     sharedPath: "./quotaHelpers.ts",
     startMarker: "// <<<shared-quotahelpers",
     endMarker: "// shared-quotahelpers>>>",
-  },
-  {
-    name: "doseQuery",
-    srcPath: "../../../src/lib/doseQuery.ts",
-    sharedPath: "./doseQuery.ts",
-    startMarker: "// <<<shared-dosequery",
-    endMarker: "// shared-dosequery>>>",
   },
   {
     name: "abxDose",

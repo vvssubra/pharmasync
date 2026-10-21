@@ -5,7 +5,7 @@
 // chance of hallucinating an out-of-range verdict.
 
 import { derivePathwayIndication, type ChecklistState } from "../_shared/doseQuery.ts";
-import { matchPathwayDetailed, patientGroupFromAge, isStatedAllergy, identifyDrug, type PathwayMatch } from "../_shared/nagPathways.ts";
+import { matchPathwayDetailed, patientGroupFromAge, isStatedAllergy, identifyDrug, type PathwayMatch, type RegimenOption } from "../_shared/nagPathways.ts";
 
 export type Verdict = "supported" | "review" | "not_supported" | "refer_specialist";
 
@@ -41,6 +41,19 @@ function resolvePathway(input: PathwayCheckInput): PathwayMatch {
   }
   const patientGroup = patientGroupFromAge(input.patient_age);
   return matchPathwayDetailed(checklistIndication, patientGroup);
+}
+
+/** The drug's own duration, not the pathway's: the pathway range is the union
+ *  of all its drugs (ABRS [3,7] exists only for Azithromycin's 3 days), so
+ *  Nitrofurantoin x3 or Amoxicillin x3 used to pass. Union of the adult text
+ *  ("x 5-7 days") and the weight-based range; null when neither states one. */
+export function regimenDurationRange(r: RegimenOption): [number, number] | null {
+  const ranges: [number, number][] = [];
+  const m = r.adultText?.match(/x\s*(\d+)(?:\s*-\s*(\d+))?\s*days?/i);
+  if (m) ranges.push([Number(m[1]), Number(m[2] ?? m[1])]);
+  if (r.weightBased && "durationDaysRange" in r.weightBased) ranges.push(r.weightBased.durationDaysRange);
+  if (ranges.length === 0) return null;
+  return [Math.min(...ranges.map((x) => x[0])), Math.max(...ranges.map((x) => x[1]))];
 }
 
 export function checkPathway(input: PathwayCheckInput): PathwayVerdict {
@@ -99,11 +112,11 @@ export function checkPathway(input: PathwayCheckInput): PathwayVerdict {
   }
 
   if (input.duration_days != null) {
-    const [min, max] = pathway.durationDaysRange;
+    const [min, max] = (matchedRegimen && regimenDurationRange(matchedRegimen)) ?? pathway.durationDaysRange;
     if (input.duration_days < min || input.duration_days > max) {
       return {
         verdict: "review",
-        explanation: `Duration ${input.duration_days} day(s) is outside the NAG ${pathway.indication} range (${min}-${max} days).`,
+        explanation: `Duration ${input.duration_days} day(s) is outside the NAG ${pathway.indication} range for ${matchedDrug} (${min}-${max} days).`,
       };
     }
   }

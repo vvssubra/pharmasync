@@ -132,8 +132,8 @@ describe("AntibioticForm weight-driven local dose card", () => {
     // Weight-computed options
     expect(await screen.findByText("Amoxicillin 1120-1260mg/day BD x 5-10 days")).toBeInTheDocument();
     expect(screen.getByText("Erythromycin Ethylsuccinate 560-700mg/day BD x 5-10 days")).toBeInTheDocument();
-    // No children's table for this drug in AOM — adult reference text only
-    expect(screen.getByText("Amoxicillin-Clavulanate 625mg PO TDS x 5-7 days")).toBeInTheDocument();
+    // Adult-only text (no children's table in AOM) is never offered at 14 kg
+    expect(screen.queryByText("Amoxicillin-Clavulanate 625mg PO TDS x 5-7 days")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole("button", { name: "Use" })[0]);
     expect(screen.getByPlaceholderText(/Amoxicillin 500mg TDS/i)).toHaveValue(
@@ -141,12 +141,23 @@ describe("AntibioticForm weight-driven local dose card", () => {
     );
   });
 
-  it("lists every UTI option as adult reference text — NAG has no paediatric UTI table", async () => {
+  it("offers no adult-only UTI text for a 20 kg patient — NAG has no paediatric UTI table", async () => {
     renderForm();
     await waitFor(() => expect(rpc).toHaveBeenCalledWith("get_fms_list"));
 
     fireEvent.click(within(screen.getByText(/Nit \+ve/).closest("label")!).getByRole("checkbox"));
     fireEvent.change(screen.getByPlaceholderText("kg"), { target: { value: "20" } });
+
+    expect(await screen.findByText(/No local paediatric dose for this indication/)).toBeInTheDocument();
+    expect(screen.queryByText(/50-100mg PO QID/)).not.toBeInTheDocument();
+  });
+
+  it("lists every UTI option as adult reference text at adult weight with no IC", async () => {
+    renderForm();
+    await waitFor(() => expect(rpc).toHaveBeenCalledWith("get_fms_list"));
+
+    fireEvent.click(within(screen.getByText(/Nit \+ve/).closest("label")!).getByRole("checkbox"));
+    fireEvent.change(screen.getByPlaceholderText("kg"), { target: { value: "60" } });
 
     expect(await screen.findByText(/50-100mg PO QID/)).toBeInTheDocument();
     expect(screen.getByText(/500mg PO BD-QID/)).toBeInTheDocument();

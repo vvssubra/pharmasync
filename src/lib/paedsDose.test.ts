@@ -110,6 +110,11 @@ describe("shown working", () => {
     if (outcome.kind === "dose") expect(outcome.basis).toBeUndefined();
   });
 
+  it("caps paracetamol at 1 g and ibuprofen at 400 mg per dose for heavy children", () => {
+    expect(amount(dose("paracetamol", 13, 0, 80))).toBe("1000 mg");
+    expect(amount(dose("ibuprofen", 13, 0, 80))).toBe("400 mg");
+  });
+
   it("states the mg/kg basis for paracetamol", () => {
     const outcome = dose("paracetamol", 2, 0, 14);
     if (outcome.kind === "dose") expect(outcome.basis).toBe("15 mg/kg × 14 kg");

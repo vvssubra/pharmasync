@@ -38,18 +38,3 @@ export function PageSkeleton() {
     </div>
   );
 }
-
-/** Compact inline skeleton for a single table/card section */
-export function SectionSkeleton({ rows = 4 }: { rows?: number }) {
-  return (
-    <div className="space-y-2" aria-busy="true" aria-label="Loading...">
-      {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="flex items-center gap-3">
-          <Skeleton className="h-4 flex-1" />
-          <Skeleton className="h-4 w-24" />
-          <Skeleton className="h-6 w-16 rounded-full" />
-        </div>
-      ))}
-    </div>
-  );
-}

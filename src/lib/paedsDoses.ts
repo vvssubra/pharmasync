@@ -32,7 +32,7 @@ export const PAEDS_DRUGS: Drug[] = [
       { label: "250mg/5ml" },
     ],
     mims: [
-      { kind: "perKg", minMonths: 3, mgPerKgMin: 15, freq: "Q4H–Q6H" },
+      { kind: "perKg", minMonths: 3, mgPerKgMin: 15, maxMg: 1000, freq: "Q4H–Q6H", note: "max 1 g per dose" },
     ],
   },
   {
@@ -41,7 +41,7 @@ export const PAEDS_DRUGS: Drug[] = [
     name: "Ibuprofen",
     category: "fever",
     preparations: [{ label: "100mg/5ml" }],
-    mims: [{ kind: "perKg", minMonths: 6, mgPerKgMin: 5, mgPerKgMax: 10, freq: "TDS or QID" }],
+    mims: [{ kind: "perKg", minMonths: 6, mgPerKgMin: 5, mgPerKgMax: 10, maxMg: 400, freq: "TDS or QID", note: "max 400 mg per dose" }],
   },
 
   // ── ANTIHISTAMINE ────────────────────────────────────────────────────────

@@ -1,5 +1,11 @@
-// Mirrored verbatim from src/lib/doseQuery.ts (parity-tested) because the
-// edge bundle cannot import outside supabase/functions/.
+// Derives a semantic query + patient group for the local knowledge-service
+// dose lookup from the antibiotic form's clinical-pathway checklist.
+// Thresholds mirror the clinical rules already encoded in the form itself
+// (see src/pages/AntibioticForm.tsx) so the dose suggestion only fires once
+// the pathway is actually indicated, not on every keystroke.
+//
+// Canonical copy; src/lib re-exports it (the edge bundle cannot import
+// outside supabase/functions/).
 
 // <<<shared-dosequery
 export interface ChecklistState {

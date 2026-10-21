@@ -73,7 +73,7 @@ describe("checkPathway", () => {
   });
 
   it("the compound drug is supported on the pathway it actually belongs to", () => {
-    const r = checkPathway({ checklist: rhinosinusitisChecklist, antibiotic: "Amoxicillin-Clavulanate 625mg PO TDS x 7 days", duration_days: 7 });
+    const r = checkPathway({ checklist: rhinosinusitisChecklist, antibiotic: "Amoxicillin-Clavulanate 625mg PO TDS x 5 days", duration_days: 5 });
     expect(r.verdict).toBe("supported");
   });
 });

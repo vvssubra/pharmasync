@@ -239,7 +239,7 @@ export default function AntibioticForm() {
 // into the edge bundle), so it has no index signature. Widening it here rather
 // than adding one keeps the shared type strict for everyone else.
 checklist: checklist as unknown as Record<string, unknown>,
-    allergy_status: drugAllergy ? drugAllergyDetail : undefined,
+    allergy_status: drugAllergy ? drugAllergyDetail || "Yes (unspecified)" : undefined,
     patient_age: age ?? undefined,
   }, { enabled: PATHWAY_CHECK_ENABLED && canUseAiSuggest });
   const centorTotal = checklist.pharyngitis.temp + checklist.pharyngitis.no_cough + checklist.pharyngitis.adenopathy + checklist.pharyngitis.exudate + checklist.pharyngitis.age_score;

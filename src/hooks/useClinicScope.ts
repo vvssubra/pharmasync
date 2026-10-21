@@ -27,8 +27,7 @@ export type ScopeClinic = { id: string; name: string };
  * clinic_name on every row.
  *
  * A real district roll-up would need computeStockByClinicDrug added INSIDE
- * the `<<<shared-stock` markers in src/lib/stock.ts and mirrored byte-for-byte
- * into supabase/functions/_shared/stock.ts (parity.test.ts enforces this), plus
+ * supabase/functions/_shared/stock.ts (src/lib/stock.ts re-exports it), plus
  * clinic_id on StockTxn. Deliberately not done here.
  *
  * `ready` is the gate every caller must put on its queries: it is false until

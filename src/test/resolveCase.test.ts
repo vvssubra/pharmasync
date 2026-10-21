@@ -54,9 +54,8 @@ describe("resolveCase patient-group safety", () => {
     // 20kg x 40-50 mg/kg/day = 800-1000 mg/day
     const erythro = r.regimens.find((o) => o.drug === "Erythromycin Ethylsuccinate");
     expect(erythro?.text).toContain("800-1000mg/day");
-    // No children's table for Amoxicillin-Clavulanate in this pathway — adult reference text only
-    const augmentin = r.regimens.find((o) => o.drug === "Amoxicillin-Clavulanate");
-    expect(augmentin?.computed).toBe(false);
+    // Amoxicillin-Clavulanate has only adult text in this pathway — never shown to a child
+    expect(r.regimens.find((o) => o.drug === "Amoxicillin-Clavulanate")).toBeUndefined();
   });
 
   it("flags penicillin-class options when an allergy is stated, without hiding any of them", () => {

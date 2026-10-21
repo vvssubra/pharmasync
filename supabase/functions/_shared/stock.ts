@@ -1,7 +1,7 @@
 // <<<shared-stock
 // Pure stock-ledger math shared between the frontend and the AI edge functions.
-// Mirrored verbatim into supabase/functions/_shared/stock.ts (parity-tested)
-// because the edge bundle cannot import outside supabase/functions/.
+// Canonical copy; src/lib re-exports it (the edge bundle cannot import
+// outside supabase/functions/).
 
 export interface StockTxn {
   drug_id: string;

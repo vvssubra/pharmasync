@@ -41,3 +41,15 @@ jobs:
           VITE_SUPABASE_URL: "http://localhost:54321"
           VITE_SUPABASE_PUBLISHABLE_KEY: "test-placeholder-key"
         run: npm run verify
+
+      # The edge-function tests (src/lib <-> _shared mirror parity, input
+      # sanitising) are Deno tests that vitest never picks up.
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.1.4
+      - name: Edge function tests
+        run: deno test --node-modules-dir=none --allow-read --allow-env --allow-net supabase/functions/_shared/
+
+      - name: Knowledge service tests
+        working-directory: knowledge-service
+        run: npm ci && npm test

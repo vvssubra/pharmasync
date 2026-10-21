@@ -62,7 +62,7 @@ export async function getUserRole(userId: string): Promise<string | null> {
     .select("role")
     .eq("user_id", userId)
     .maybeSingle();
-  return data?.role ?? null;
+  return (data?.role as string | undefined) ?? null; // untyped client: role comes back as {}
 }
 
 // ── Rate limiting (Postgres fixed window, via ai_rate_limit_hit RPC) ───────

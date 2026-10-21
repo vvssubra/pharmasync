@@ -59,14 +59,12 @@ export interface ComputedRegimen {
 
 /** Resolves every regimen option a pathway documents into patient-ready
  *  text — weight-computed wherever a weight is given and the patient isn't
- *  confirmed Adult, adult reference text otherwise. Age-unknown ("Any")
- *  stays on the weight-computed path deliberately — a doctor often fills
- *  weight before an IC is on file, and the pathway match itself already
- *  confirmed clinical applicability; only a *confirmed* adult is excluded,
- *  so paediatric mg/kg math is never applied to a known-adult weight. A
- *  drug the source only tabulates for the other patient group (no adultText
- *  and no usable weightBased) is skipped rather than shown with nothing to
- *  say. */
+ *  confirmed Adult. Adult reference text only where the patient is plausibly
+ *  an adult: a confirmed Adult, or age unknown ("Any") with no weight or a
+ *  weight of 40 kg or more (the usual point children are dosed as adults).
+ *  A known child, or an IC-less 15 kg patient, was otherwise shown
+ *  "Doxycycline 100mg BD" (avoided under 8). A drug with nothing to say for
+ *  this patient is skipped. */
 export function computeRegimenOptions(
   pathway: NagPathway,
   patientGroup: PatientGroup,
@@ -80,7 +78,7 @@ export function computeRegimenOptions(
     }
     if (dose) {
       options.push({ drug: r.drug, tier: r.tier, penicillinClass: !!r.penicillinClass, text: dose.text, basis: dose.basis, capped: dose.capped, computed: true });
-    } else if (r.adultText) {
+    } else if (r.adultText && (patientGroup === "Adult" || (patientGroup === "Any" && (weightKg == null || weightKg >= 40)))) {
       options.push({ drug: r.drug, tier: r.tier, penicillinClass: !!r.penicillinClass, text: `${r.drug} ${r.adultText}`, computed: false });
     }
   }
@@ -299,9 +297,19 @@ const ALL_KNOWN_DRUGS: string[] = Array.from(
  * `allowedDrugs` entry against the text on its own.
  */
 export function identifyDrug(text: string): string | null {
-  const norm = text.toLowerCase();
+  let norm = text.toLowerCase().replace(/\s*(?:\/|\+|\band\b|\bwith\b)\s*/g, "-");
+  for (const [pattern, name] of DRUG_SPELLINGS) norm = norm.replace(pattern, name);
   return ALL_KNOWN_DRUGS.find((d) => norm.includes(d.toLowerCase())) ?? null;
 }
+
+// How doctors actually type these: "Amoxicillin/Clavulanate" read as plain
+// Amoxicillin, and BAN "Cefalexin" matched nothing.
+const DRUG_SPELLINGS: [RegExp, string][] = [
+  [/\bco-?amoxiclav\b|\baugmentin\b|amoxicillin[\s-]*clav\w*/g, "amoxicillin-clavulanate"],
+  [/\bsultamicillin\b|\bunasyn\b|ampicillin[\s-]*sulbactam/g, "ampicillin-sulbactam"],
+  [/\bcefalexin\b/g, "cephalexin"],
+  [/\berythromycin\b(?![\s-]*ethylsuccinate)/g, "erythromycin ethylsuccinate"],
+];
 
 function matchesAlias(text: string, pathway: NagPathway): boolean {
   const norm = text.trim().toLowerCase();

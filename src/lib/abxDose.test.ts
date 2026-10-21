@@ -78,8 +78,7 @@ describe("resolveLocalDose", () => {
       options: [
         // 80-90mg/kg/day x 14kg = 1120-1260mg/day — weight-computed
         { drug: "Amoxicillin", tier: "Preferred", penicillinClass: true, text: "Amoxicillin 1120-1260mg/day BD x 5-10 days", computed: true },
-        // No children's table for Amoxicillin-Clavulanate in this pathway — adult reference text only
-        { drug: "Amoxicillin-Clavulanate", tier: "Alternative", penicillinClass: true, text: "Amoxicillin-Clavulanate 625mg PO TDS x 5-7 days", computed: false },
+        // Amoxicillin-Clavulanate has only adult text in this pathway — never shown to a child
         // 40-50mg/kg/day x 14kg = 560-700mg/day — weight-computed
         { drug: "Erythromycin Ethylsuccinate", tier: "Alternative", text: "Erythromycin Ethylsuccinate 560-700mg/day BD x 5-10 days", computed: true },
       ],
@@ -92,11 +91,19 @@ describe("resolveLocalDose", () => {
       hasAllergy: true,
       options: [
         { drug: "Amoxicillin", penicillinClass: true },
-        { drug: "Amoxicillin-Clavulanate", penicillinClass: true },
         { drug: "Erythromycin Ethylsuccinate" },
       ],
     });
-    expect((result as { options: unknown[] }).options).toHaveLength(3);
+    expect((result as { options: unknown[] }).options).toHaveLength(2);
+  });
+
+  it("never shows a child an adult-only regimen (CAP: no Doxycycline under 8)", () => {
+    const cap = { ...aomChecklist, pneumonia: { acute_cough: true, tachycardia: true, tachypnoea: true, fever: true, hypoxemia: true, consolidation: true } };
+    const result = resolveLocalDose({ checklist: cap, age: 6, weightKg: 20, hasAllergy: false });
+    expect("options" in result).toBe(true);
+    const options = (result as { options: { drug: string; computed: boolean }[] }).options;
+    expect(options.map(o => o.drug)).not.toContain("Doxycycline");
+    expect(options.every(o => o.computed)).toBe(true);
   });
 
   it("reports noPathway when nothing matches the checklist", () => {
