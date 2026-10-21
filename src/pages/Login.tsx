@@ -122,19 +122,18 @@ export default function Login() {
     setForgotLoading(false);
   };
 
-  const fieldClass =
-    "h-9 rounded-lg border-slate-200 bg-slate-50/70 pl-10 text-sm text-slate-900 placeholder:text-slate-400 " +
-    "focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-teal-700/40 focus-visible:border-teal-700";
+  // h-11 = 44px touch target; placeholder slate-500 keeps 4.5:1 on slate-50.
   const inputClass =
-    "h-9 rounded-lg border-slate-200 bg-slate-50/70 text-sm text-slate-900 placeholder:text-slate-400 " +
+    "h-11 rounded-lg border-slate-200 bg-slate-50 text-sm text-slate-900 placeholder:text-slate-500 " +
     "focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-teal-700/40 focus-visible:border-teal-700";
-  const labelClass = "font-mono text-xs font-semibold tracking-wide text-slate-700";
+  const fieldClass = `${inputClass} pl-10`;
+  const labelClass = "text-sm font-medium text-slate-700";
   const primaryBtn =
-    "group h-9 w-full rounded-lg bg-teal-700 text-sm font-semibold text-white shadow-md shadow-teal-900/10 " +
+    "group h-11 w-full rounded-lg bg-teal-700 text-sm font-semibold text-white shadow-md shadow-teal-900/10 " +
     "hover:bg-teal-800 hover:shadow-lg hover:shadow-teal-900/20 " +
     "transition-[background-color,box-shadow,transform] duration-150 active:scale-[0.98] motion-reduce:active:scale-100";
   const secondaryBtn =
-    "h-9 w-full rounded-lg border-slate-200 bg-white text-sm font-medium text-slate-700 shadow-sm " +
+    "h-11 w-full rounded-lg border-slate-200 bg-white text-sm font-medium text-slate-700 shadow-sm " +
     "hover:border-slate-300 hover:bg-slate-50 " +
     "transition-[background-color,border-color,transform] duration-150 active:scale-[0.98] motion-reduce:active:scale-100";
 
@@ -158,19 +157,6 @@ export default function Login() {
         style={{
           background:
             "radial-gradient(ellipse 70% 60% at 50% 50%, transparent 0%, rgba(4,21,18,0.55) 100%)",
-        }}
-      />
-      {/* White catchlights, layered above the vignette so it can't swallow
-          them — gives the glass panels something to refract and stops the
-          whole page reading as one flat green. */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(ellipse 55% 35% at 15% 0%, rgba(255,255,255,0.18) 0%, transparent 65%)," +
-            "radial-gradient(ellipse 40% 30% at 95% 25%, rgba(255,255,255,0.12) 0%, transparent 65%)," +
-            "radial-gradient(ellipse 45% 25% at 35% 100%, rgba(255,255,255,0.07) 0%, transparent 65%)",
         }}
       />
 
@@ -207,10 +193,7 @@ export default function Login() {
           <div className="space-y-4 lg:col-span-6">
             <div className="login-rise space-y-3" style={{ animationDelay: "100ms" }}>
               <h1 className="text-3xl font-extrabold tracking-tight text-white drop-shadow-sm sm:text-4xl lg:text-5xl">
-                Pharma
-                <span className="bg-gradient-to-r from-emerald-200 via-emerald-400 to-teal-200 bg-clip-text text-transparent">
-                  Sync
-                </span>
+                Pharma<span className="text-emerald-300">Sync</span>
               </h1>
               <p className="max-w-xl text-sm leading-normal text-slate-300 sm:text-base">
                 Drug monitoring &amp; inventory for Johor Bahru district clinics — control
@@ -221,7 +204,7 @@ export default function Login() {
 
             {/* Capabilities — every row is a real route in the app. */}
             <div
-              className="login-rise hidden rounded-xl border border-white/10 bg-white/[0.05] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_20px_50px_rgba(0,0,0,0.35)] backdrop-blur-xl lg:block"
+              className="login-rise hidden rounded-xl border border-white/10 bg-[#06201b] p-4 lg:block"
               style={{ animationDelay: "220ms" }}
             >
               <ul className="divide-y divide-white/[0.07]">
@@ -251,18 +234,14 @@ export default function Login() {
                     title: "Role-based access controls",
                     sub: "Pharmacist • Family Medicine Specialist (FMS) • Medical Officer",
                   },
-                ].map(({ icon: Icon, title, sub }, i) => (
-                  <li
-                    key={title}
-                    className="login-rise flex items-start gap-3 py-2 first:pt-0 last:pb-0"
-                    style={{ animationDelay: `${320 + i * 60}ms` }}
-                  >
+                ].map(({ icon: Icon, title, sub }) => (
+                  <li key={title} className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
                     <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-emerald-300/30 bg-emerald-900/60 text-emerald-300">
                       <Icon className="h-3.5 w-3.5" strokeWidth={2.2} />
                     </span>
                     <div className="text-xs sm:text-sm">
                       <span className="font-semibold text-slate-100">{title}</span>
-                      <p className="mt-0.5 font-mono text-[11px] text-slate-400">{sub}</p>
+                      <p className="mt-0.5 text-xs text-slate-400">{sub}</p>
                     </div>
                   </li>
                 ))}
@@ -273,7 +252,7 @@ export default function Login() {
           {/* Auth card */}
           <div className="flex flex-col items-center lg:col-span-6 lg:items-end">
             <div
-              className="login-rise relative z-10 w-full max-w-md rounded-2xl border border-slate-200/90 bg-white p-4 text-slate-900 shadow-[0_25px_60px_rgba(0,0,0,0.5),0_0_40px_rgba(15,118,110,0.18)]"
+              className="login-rise relative z-10 w-full max-w-md rounded-2xl border border-slate-200/90 bg-white p-6 text-slate-900 shadow-[0_25px_60px_rgba(0,0,0,0.5),0_0_40px_rgba(15,118,110,0.18)]"
               style={{ animationDelay: "160ms" }}
             >
               {forgotMode ? (
@@ -339,11 +318,7 @@ export default function Login() {
               ) : (
                 /* ── Sign in / Sign up ── */
                 <>
-                  <div className="mb-3.5">
-                    <span className="mb-2.5 inline-flex items-center gap-1.5 rounded-md border border-teal-200/60 bg-teal-50 px-2.5 py-1 font-mono text-[11px] font-semibold text-teal-700">
-                      <span className="h-1.5 w-1.5 rounded-full bg-teal-600" />
-                      MOH SECURE GATEWAY
-                    </span>
+                  <div className="mb-5">
                     <h2 className="text-xl font-extrabold tracking-tight text-slate-900 sm:text-2xl">
                       {tab === "signup" ? "Request access" : "Welcome back"}
                     </h2>
@@ -365,9 +340,9 @@ export default function Login() {
 
                     {/* Sign in */}
                     <TabsContent value="login">
-                      <form onSubmit={handleLogin} className="space-y-2">
+                      <form onSubmit={handleLogin} className="space-y-4">
                         <div className="space-y-1.5">
-                          <Label htmlFor="login-email" className={labelClass}>Official Email / KKM ID</Label>
+                          <Label htmlFor="login-email" className={labelClass}>Official email</Label>
                           <div className="relative">
                             <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                             <Input
@@ -420,7 +395,7 @@ export default function Login() {
                             {error || authError}
                           </p>
                         )}
-                        <div className="pt-0.5">
+                        <div className="pt-1">
                           <Button
                             type="submit"
                             className={primaryBtn}
@@ -438,9 +413,9 @@ export default function Login() {
                           </Button>
                         </div>
 
-                        <div className="relative flex items-center gap-3 py-0.5">
+                        <div className="relative flex items-center gap-3">
                           <div className="h-px flex-1 bg-slate-200" />
-                          <span className="font-mono text-xs font-semibold uppercase tracking-wider text-slate-400">or</span>
+                          <span className="text-xs text-slate-500">or</span>
                           <div className="h-px flex-1 bg-slate-200" />
                         </div>
 
@@ -470,7 +445,7 @@ export default function Login() {
 
                     {/* Sign up */}
                     <TabsContent value="signup">
-                      <form onSubmit={handleSignup} className="space-y-2">
+                      <form onSubmit={handleSignup} className="space-y-4">
                         <div className="space-y-1.5">
                           <Label htmlFor="signup-name" className={labelClass}>Full Name</Label>
                           <Input
@@ -545,12 +520,12 @@ export default function Login() {
                   </Tabs>
 
                   {/* Compliance footer */}
-                  <footer className="mt-2.5 border-t border-slate-100 pt-2 text-center">
-                    <div className="mb-0.5 flex items-center justify-center gap-1.5 text-xs text-slate-400">
+                  <footer className="mt-5 border-t border-slate-100 pt-3 text-center">
+                    <div className="mb-0.5 flex items-center justify-center gap-1.5 text-xs">
                       <ShieldCheck className="h-3.5 w-3.5 text-teal-600" />
-                      <span className="font-mono font-medium text-slate-600">Restricted Government Health System</span>
+                      <span className="font-medium text-slate-600">Restricted Government Health System</span>
                     </div>
-                    <p className="text-[11px] leading-normal text-slate-400">
+                    <p className="text-xs leading-normal text-slate-500">
                       Authorized MOH Malaysia personnel only. All access is logged for audit.
                     </p>
                   </footer>
@@ -560,21 +535,13 @@ export default function Login() {
 
             {/* Quick assistance under the card — only real destinations. */}
             {!forgotMode && (
-              <aside className="login-rise mt-1.5 flex w-full max-w-md items-center justify-center gap-4 font-mono text-xs text-slate-400" style={{ animationDelay: "300ms" }}>
+              <aside className="login-rise mt-3 flex w-full max-w-md justify-center text-sm text-slate-300" style={{ animationDelay: "300ms" }}>
                 <button
                   type="button"
-                  className="transition-colors hover:text-emerald-300"
+                  className="py-1 underline-offset-4 transition-colors hover:text-emerald-300 hover:underline"
                   onClick={() => { setTab(tab === "login" ? "signup" : "login"); setError(null); }}
                 >
-                  {tab === "login" ? "Need account access?" : "Already have an account?"}
-                </button>
-                <span>•</span>
-                <button
-                  type="button"
-                  className="transition-colors hover:text-emerald-300"
-                  onClick={() => { setForgotMode(true); setError(null); }}
-                >
-                  Forgot password?
+                  {tab === "login" ? "Need account access?" : "Already have an account? Sign in"}
                 </button>
               </aside>
             )}
@@ -582,7 +549,7 @@ export default function Login() {
         </div>
 
         {/* ── Footer ───────────────────────────────────────────── */}
-        <footer className="mt-1 flex shrink-0 flex-col gap-2 border-t border-emerald-400/10 pt-2 font-mono text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
+        <footer className="mt-1 flex shrink-0 flex-col gap-2 border-t border-emerald-400/10 pt-2 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">
             <span>© {new Date().getFullYear()} PKD Johor Bahru</span>
             <span>•</span>
