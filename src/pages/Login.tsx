@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import CircuitTrail from "@/components/ui/circuit-trail";
+import Lifeline from "@/components/ui/lifeline";
 import { AnnouncementBoard } from "@/components/AnnouncementBoard";
 
 export default function Login() {
@@ -139,7 +139,7 @@ export default function Login() {
 
   return (
     <div className="relative flex min-h-dvh flex-col overflow-x-hidden bg-[#041512] text-slate-100 antialiased">
-      {/* ── Canvas: depth wash + circuit light trails ─────────── */}
+      {/* ── Canvas: depth wash + ECG lifeline traces ─────────── */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0"
@@ -149,7 +149,7 @@ export default function Login() {
             "radial-gradient(circle at 85% 100%, rgba(52,211,153,0.10) 0%, transparent 45%)",
         }}
       />
-      <CircuitTrail />
+      <Lifeline />
       {/* Vignette so the trails read as ambient, not competing with the card. */}
       <div
         aria-hidden
